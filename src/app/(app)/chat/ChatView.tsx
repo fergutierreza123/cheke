@@ -40,6 +40,10 @@ export function ChatView({
   const [seeding, setSeeding] = useState(false);
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
+  // Below the `lg` breakpoint there isn't room for list + thread side by
+  // side, so only one shows at a time. Default to the thread so the already
+  // selected conversation is visible immediately, with no tap required.
+  const [mobileView, setMobileView] = useState<"list" | "thread">("thread");
 
   // Restore the panel width the viewer left it at last time (per-browser
   // convenience only — never shared state, so it's fine in localStorage).
@@ -198,10 +202,11 @@ export function ChatView({
 
   return (
     <div className="flex h-full min-h-0">
-      {/* Conversation list */}
+      {/* Conversation list — full width on its own below `lg`, a fixed
+          resizable column beside the thread at `lg` and up. */}
       <div
-        style={{ width: listWidth, minWidth: LIST_WIDTH_MIN }}
-        className="flex shrink-0 flex-col border-r border-border bg-surface"
+        style={{ ["--list-w" as string]: `${listWidth}px`, minWidth: LIST_WIDTH_MIN }}
+        className={`${mobileView === "thread" ? "hidden lg:flex" : "flex"} w-full shrink-0 flex-col border-r border-border bg-surface lg:w-[var(--list-w)]`}
       >
         <div className="shrink-0 px-4.5 pb-3 pt-5">
           <div className="mb-3 font-heading text-[19px] font-semibold text-ink">Chat</div>
@@ -250,7 +255,10 @@ export function ChatView({
             return (
               <button
                 key={c.id}
-                onClick={() => setSelectedId(c.id)}
+                onClick={() => {
+                  setSelectedId(c.id);
+                  setMobileView("thread");
+                }}
                 className={`flex w-full gap-2.5 border-b border-border px-4.5 py-3 text-left ${
                   c.id === selectedId ? "bg-brand-tint" : "bg-surface hover:bg-surface-2"
                 }`}
@@ -282,22 +290,32 @@ export function ChatView({
         </div>
       </div>
 
-      {/* Drag handle to resize the conversation list */}
+      {/* Drag handle to resize the conversation list (desktop only) */}
       <div
         onMouseDown={startResize}
         role="separator"
         aria-orientation="vertical"
         aria-label="Ajustar ancho de la lista de chats"
-        className="group relative w-[3px] shrink-0 cursor-col-resize bg-border"
+        className="group relative hidden w-[3px] shrink-0 cursor-col-resize bg-border lg:block"
       >
         <div className="absolute inset-y-0 -left-1.5 -right-1.5 group-hover:bg-brand-tint group-active:bg-brand-tint" />
       </div>
 
-      {/* Thread */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* Thread — hidden below `lg` while the list is showing, so the two
+          never fight for the same narrow viewport. */}
+      <div
+        className={`${mobileView === "list" ? "hidden lg:flex" : "flex"} min-w-0 flex-1 flex-col`}
+      >
         {selected ? (
           <>
             <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border bg-surface px-6">
+              <button
+                onClick={() => setMobileView("list")}
+                aria-label="Volver a la lista de chats"
+                className="-ml-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-muted lg:hidden"
+              >
+                <BackIcon className="h-4.5 w-4.5" />
+              </button>
               <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-brand text-[13.5px] font-bold text-white">
                 {initialsFor(selected.contact.name)}
               </div>
@@ -374,9 +392,9 @@ export function ChatView({
         )}
       </div>
 
-      {/* Contact panel */}
+      {/* Contact panel (desktop only — no room for a third column below `lg`) */}
       {selected && (
-        <div className="w-80 min-w-80 shrink-0 overflow-y-auto border-l border-border bg-surface">
+        <div className="hidden w-80 min-w-80 shrink-0 overflow-y-auto border-l border-border bg-surface lg:block">
           <div className="flex flex-col gap-4.5 p-5">
             <div className="flex items-center gap-3">
               <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full bg-brand text-base font-bold text-white">
@@ -408,6 +426,13 @@ function SearchIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
       <circle cx="11" cy="11" r="7" />
       <path d="M21 21l-4.3-4.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function BackIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 18l-6-6 6-6" />
     </svg>
   );
 }
