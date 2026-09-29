@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { seedDemoData } from "../actions";
-import { initialsFor, relativeTime, CHANNEL_META } from "@/lib/format";
+import { initialsFor, relativeTime, CHANNEL_META, withAlpha } from "@/lib/format";
 import type { ChannelType, ConversationWithContact, Message } from "@/lib/types";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
@@ -218,25 +218,24 @@ export function ChatView({
             {CHANNEL_FILTERS.map((ch) => {
               const active = channelFilter === ch.id;
               const color = ch.id !== "todos" ? CHANNEL_META[ch.id].color : undefined;
+              const style = color
+                ? active
+                  ? { background: color, borderColor: color, color: "#fff" }
+                  : { background: withAlpha(color, 0.14), borderColor: withAlpha(color, 0.3), color }
+                : undefined;
               return (
                 <button
                   key={ch.id}
                   onClick={() => setChannelFilter(ch.id)}
-                  style={active && color ? { background: color, borderColor: color } : undefined}
-                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold transition-colors ${
-                    active
-                      ? color
-                        ? "text-white"
-                        : "border-brand-dark bg-brand-dark text-white"
-                      : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                  style={style}
+                  className={`rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold transition-colors ${
+                    color
+                      ? ""
+                      : active
+                        ? "border-brand-dark bg-brand-dark text-white"
+                        : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
                   }`}
                 >
-                  {color && (
-                    <span
-                      className="h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ background: active ? "#fff" : color }}
-                    />
-                  )}
                   {ch.label}
                 </button>
               );
