@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Analítica</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  /* Cheke brand — exact values from the brand manual (Azul oscuro / Azul intenso / Menta / Blanco) */
+  --bg:#F4F6FB; --surface:#FFFFFF; --surface-2:#EDF0F7; --surface-3:#DCE1EE;
+  --ink:#0B1030; --ink-muted:#5B6584; --ink-soft:#5F6888; --border:#DCE1EE;
+  --brand:#0043F8; --brand-dark:#001037; --brand-tint:#E7ECFE;
+  --accent:#52EBBB; --accent-tint:#DFFBF1;
+  --gold:#002997; --gold-tint:#E4E9FB;
+  --success:#0043F8; --success-tint:#E7ECFE;
+  --danger:#DC2626; --danger-tint:#FDECEC; --danger-border:#F6BFBF;
+  --wa:#25D366; --ig:#C1387B; --fb:#1877F2;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Work Sans',sans-serif;background:var(--bg);color:var(--ink);}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:8px;}
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; background: var(--bg);">
+
+  <div style="width: 240px; min-width: 240px; height: 900px; background: var(--brand-dark); display: flex; flex-direction: column; padding: 24px 0;">
+    <div style="padding: 4px 24px 22px 24px;">
+      <img src="assets/logo-a.png" alt="Cheke" style="width: 148px; height: auto; display: block;">
+    </div>
+
+    <a href="Inbox.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.5-.3-3.6-.8L3 21l1.8-5.4A8.5 8.5 0 1 1 21 11.5z"></path></svg>
+      <span style="font-size: 14.5px;">Chat</span>
+    </a>
+    <a href="Main.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="4" height="16"></rect><rect x="10" y="4" width="4" height="10"></rect><rect x="17" y="4" width="4" height="7"></rect></svg>
+      <span style="font-size: 14.5px;">Chekeo</span>
+    </a>
+    <a href="Contacts.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      <span style="font-size: 14.5px;">Contactos</span>
+    </a>
+    <a href="Comments.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      <span style="font-size: 14.5px;">Comentarios</span>
+    </a>
+    <a href="Templates.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>
+      <span style="font-size: 14.5px;">Plantillas</span>
+    </a>
+    <a href="Inventory.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.1-1.8V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.78 0z"></path><path d="M2.32 6.16L12 11l9.68-4.84"></path><path d="M12 22.76V11"></path></svg>
+      <span style="font-size: 14.5px;">Inventario</span>
+    </a>
+    <a href="Team.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
+      <span style="font-size: 14.5px;">Equipo</span>
+    </a>
+    <a href="Notifications.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <span style="font-size: 14.5px;">Notificaciones</span>
+    </a>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #FFFFFF; background: rgba(255,255,255,0.06); border-left: 3px solid var(--accent); font-weight: 600;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10"></path><path d="M12 19V5"></path><path d="M20 19v-7"></path></svg>
+      <span style="font-size: 14.5px;">Analítica</span>
+    </div>
+
+    <div style="margin-top: auto; padding: 16px 24px 0 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; padding-top: 16px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; padding: 7px; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(255,255,255,0.15);"><img src="assets/logo-b.png" alt="" style="width: 100%; height: 100%; object-fit: contain;"></div>
+      <div>
+        <div style="font-size: 13.5px; font-weight: 600; color: #FFFFFF;">Boutique Alaia</div>
+        <div style="font-size: 12px; color: #9AA3C4;">Tegucigalpa, HN</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; height: 900px; display: flex; flex-direction: column; min-width: 0;">
+    <div style="height: 72px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface);">
+      <div>
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 600; color: var(--ink);">Analítica de ventas</div>
+        <div style="font-size: 13.5px; color: var(--ink-muted);">Cómo avanza tu Chekeo de ventas, canal por canal</div>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <sc-for list="{{ranges}}" as="r" hint-placeholder-count="3">
+          <button onClick="{{r.onPick}}" style="border: 1px solid {{r.borderStyle}}; background: {{r.bgStyle}}; color: {{r.textStyle}}; border-radius: 8px; padding: 8px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer;">{{r.label}}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px;">
+
+      <div style="display: flex; gap: 16px;">
+        <sc-for list="{{kpis}}" as="kpi" hint-placeholder-count="4">
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; flex: 1; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 13.5px; color: var(--ink-muted);">{{kpi.label}}</div>
+            <div style="font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 700; color: var(--ink);">{{kpi.value}}</div>
+            <div style="font-size: 12.5px; color: var(--success);">{{kpi.delta}}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; gap: 16px; align-items: stretch;">
+        <div style="flex: 1.3; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px;">
+          <div style="font-family: 'Space Grotesk', sans-serif; font-size: 15.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">Embudo por etapa</div>
+          <div style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px;">Cuántos contactos hay en cada etapa del Chekeo</div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <sc-for list="{{funnel}}" as="f" hint-placeholder-count="6">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 128px; font-size: 13.5px; color: var(--ink-muted); flex-shrink: 0;">{{f.label}}</div>
+                <div style="flex-grow: 1; background: var(--surface-2); border-radius: 6px; height: 18px; overflow: hidden;">
+                  <div style="width: {{f.pct}}%; height: 100%; background: {{f.color}}; border-radius: 6px;"></div>
+                </div>
+                <div style="width: 34px; text-align: right; font-size: 13.5px; font-weight: 700; color: var(--ink);">{{f.count}}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px;">
+          <div style="font-family: 'Space Grotesk', sans-serif; font-size: 15.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">Conversaciones por canal</div>
+          <div style="font-size: 13px; color: var(--ink-muted); margin-bottom: 16px;">De dónde llegan tus clientes</div>
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <sc-for list="{{channelBreakdown}}" as="c" hint-placeholder-count="3">
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <div style="display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--ink);">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: {{c.color}};"></div>
+                    {{c.label}}
+                  </div>
+                  <div style="font-size: 13.5px; font-weight: 700; color: var(--ink);">{{c.pct}}%</div>
+                </div>
+                <div style="background: var(--surface-2); border-radius: 6px; height: 8px; overflow: hidden;">
+                  <div style="width: {{c.pct}}%; height: 100%; background: {{c.color}}; border-radius: 6px;"></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 16px; align-items: stretch;">
+        <div style="flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px;">
+          <div style="font-family: 'Space Grotesk', sans-serif; font-size: 15.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">Nuevas conversaciones — últimos 7 días</div>
+          <div style="font-size: 13px; color: var(--ink-muted); margin-bottom: 18px;">Mensajes entrantes de los tres canales combinados</div>
+          <div style="display: flex; align-items: flex-end; gap: 16px; height: 140px; padding: 0 4px;">
+            <sc-for list="{{trend}}" as="t" hint-placeholder-count="7">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1;">
+                <div style="font-size: 11.5px; color: var(--ink-muted);">{{t.count}}</div>
+                <div style="width: 22px; height: {{t.barHeight}}px; background: var(--brand); border-radius: 6px 6px 0 0;"></div>
+                <div style="font-size: 11.5px; color: var(--ink-soft);">{{t.day}}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px;">
+          <div style="font-family: 'Space Grotesk', sans-serif; font-size: 15.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">Productos más vendidos</div>
+          <div style="font-size: 13px; color: var(--ink-muted); margin-bottom: 14px;">Este mes</div>
+          <div style="display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em;">
+              <div>Producto</div>
+              <div style="display: flex; gap: 28px;"><div>Unidades</div><div style="width: 56px; text-align: right;">Ingresos</div></div>
+            </div>
+            <sc-for list="{{products}}" as="p" hint-placeholder-count="5">
+              <div style="display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; color: var(--ink);">
+                <div>{{p.name}}</div>
+                <div style="display: flex; gap: 28px;">
+                  <div style="width: 20px; text-align: center; color: var(--ink-muted);">{{p.units}}</div>
+                  <div style="width: 56px; text-align: right; font-weight: 600;">{{p.revenue}}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { range: 'mes' };
+
+    this.kpiData = {
+      semana: [
+        { label:'Ventas cerradas', value:'L 8,200', delta:'+3 ventas vs. semana pasada' },
+        { label:'Tasa de conversión', value:'31%', delta:'+2 pts vs. semana pasada' },
+        { label:'Tiempo de respuesta', value:'8 min', delta:'promedio' },
+        { label:'Conversaciones activas', value:'9', delta:'en el chekeo ahora' }
+      ],
+      mes: [
+        { label:'Ventas cerradas', value:'L 42,600', delta:'+18% vs. mes pasado' },
+        { label:'Tasa de conversión', value:'38%', delta:'+5 pts vs. mes pasado' },
+        { label:'Tiempo de respuesta', value:'6 min', delta:'promedio' },
+        { label:'Conversaciones activas', value:'24', delta:'en el chekeo ahora' }
+      ],
+      trimestre: [
+        { label:'Ventas cerradas', value:'L 118,900', delta:'+24% vs. trimestre pasado' },
+        { label:'Tasa de conversión', value:'41%', delta:'+7 pts vs. trimestre pasado' },
+        { label:'Tiempo de respuesta', value:'5 min', delta:'promedio' },
+        { label:'Conversaciones activas', value:'61', delta:'en el chekeo ahora' }
+      ]
+    };
+
+    this.funnelBase = [
+      { id:'nuevo', label:'Nuevo mensaje', color:'var(--ink-muted)', count:18 },
+      { id:'consulta', label:'Consulta de producto', color:'var(--brand)', count:12 },
+      { id:'cotizacion', label:'Cotización enviada', color:'var(--gold)', count:9 },
+      { id:'negociacion', label:'Negociación', color:'#001037', count:6 },
+      { id:'ganado', label:'Vendido', color:'var(--success)', count:15 },
+      { id:'perdido', label:'Perdido', color:'var(--danger)', count:5 }
+    ];
+
+    this.rangeMultiplier = { semana:0.35, mes:1, trimestre:2.6 };
+
+    this.channelBreakdown = [
+      { label:'WhatsApp', color:'var(--wa)', pct:58 },
+      { label:'Instagram', color:'var(--ig)', pct:27 },
+      { label:'Facebook', color:'var(--fb)', pct:15 }
+    ];
+
+    this.trendBase = [
+      { day:'Lun', count:9 }, { day:'Mar', count:14 }, { day:'Mié', count:11 },
+      { day:'Jue', count:18 }, { day:'Vie', count:22 }, { day:'Sáb', count:16 }, { day:'Dom', count:7 }
+    ];
+
+    this.products = [
+      { name:'Vestido Aurora', units:12, revenue:'L 9,600' },
+      { name:'Bolso café', units:9, revenue:'L 6,300' },
+      { name:'Chaqueta de cuero', units:6, revenue:'L 5,340' },
+      { name:'Conjunto deportivo', units:8, revenue:'L 4,800' },
+      { name:'Zapatos casuales', units:7, revenue:'L 4,270' }
+    ];
+  }
+
+  renderVals() {
+    const range = this.state.range;
+    const mult = this.rangeMultiplier[range];
+
+    const funnel = this.funnelBase.map((f) => {
+      const count = Math.max(1, Math.round(f.count * mult));
+      return { ...f, count };
+    });
+    const maxCount = Math.max(...funnel.map((f) => f.count));
+    const funnelWithPct = funnel.map((f) => ({ ...f, pct: Math.round((f.count / maxCount) * 100) }));
+
+    const maxTrend = Math.max(...this.trendBase.map((t) => t.count));
+    const trend = this.trendBase.map((t) => ({ ...t, barHeight: Math.round((t.count / maxTrend) * 120) + 8 }));
+
+    const ranges = [
+      { id:'semana', label:'Esta semana' },
+      { id:'mes', label:'Este mes' },
+      { id:'trimestre', label:'Este trimestre' }
+    ].map((r) => {
+      const isActive = range === r.id;
+      return {
+        ...r,
+        onPick: () => this.setState({ range: r.id }),
+        bgStyle: isActive ? 'var(--brand-dark)' : 'var(--surface)',
+        textStyle: isActive ? '#FFFFFF' : 'var(--ink-muted)',
+        borderStyle: isActive ? 'var(--brand-dark)' : 'var(--border)'
+      };
+    });
+
+    return {
+      ranges,
+      kpis: this.kpiData[range],
+      funnel: funnelWithPct,
+      channelBreakdown: this.channelBreakdown,
+      trend,
+      products: this.products
+    };
+  }
+}
+</script>
+</body>
+</html>

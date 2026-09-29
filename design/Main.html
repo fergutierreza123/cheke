@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Chekeo</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  /* Cheke brand — exact values from the brand manual (Azul oscuro / Azul intenso / Menta / Blanco) */
+  --bg:#F4F6FB; --surface:#FFFFFF; --surface-2:#EDF0F7; --surface-3:#DCE1EE;
+  --ink:#0B1030; --ink-muted:#5B6584; --ink-soft:#5F6888; --border:#DCE1EE;
+  --brand:#0043F8; --brand-dark:#001037; --brand-tint:#E7ECFE;
+  --accent:#52EBBB; --accent-tint:#DFFBF1;
+  --gold:#002997; --gold-tint:#E4E9FB;
+  --success:#0043F8; --success-tint:#E7ECFE;
+  --danger:#DC2626; --danger-tint:#FDECEC; --danger-border:#F6BFBF;
+  --wa:#25D366; --ig:#C1387B; --fb:#1877F2;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Work Sans',sans-serif;background:var(--bg);color:var(--ink);}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:8px;}
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; display: flex; background: var(--bg);">
+
+  <div style="width: 240px; min-width: 240px; height: 900px; background: var(--brand-dark); display: flex; flex-direction: column; padding: 24px 0;">
+    <div style="padding: 4px 24px 22px 24px;">
+      <img src="assets/logo-a.png" alt="Cheke" style="width: 148px; height: auto; display: block;">
+    </div>
+
+    <a href="Inbox.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.5-.3-3.6-.8L3 21l1.8-5.4A8.5 8.5 0 1 1 21 11.5z"></path></svg>
+      <span style="font-size: 14.5px;">Chat</span>
+    </a>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #FFFFFF; background: rgba(255,255,255,0.06); border-left: 3px solid var(--accent); font-weight: 600;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="4" height="16"></rect><rect x="10" y="4" width="4" height="10"></rect><rect x="17" y="4" width="4" height="7"></rect></svg>
+      <span style="font-size: 14.5px;">Chekeo</span>
+    </div>
+    <a href="Contacts.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      <span style="font-size: 14.5px;">Contactos</span>
+    </a>
+    <a href="Comments.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      <span style="font-size: 14.5px;">Comentarios</span>
+    </a>
+    <a href="Templates.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>
+      <span style="font-size: 14.5px;">Plantillas</span>
+    </a>
+    <a href="Inventory.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.1-1.8V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.78 0z"></path><path d="M2.32 6.16L12 11l9.68-4.84"></path><path d="M12 22.76V11"></path></svg>
+      <span style="font-size: 14.5px;">Inventario</span>
+    </a>
+    <a href="Team.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
+      <span style="font-size: 14.5px;">Equipo</span>
+    </a>
+    <a href="Notifications.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <span style="font-size: 14.5px;">Notificaciones</span>
+    </a>
+    <a href="Analytics.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10"></path><path d="M12 19V5"></path><path d="M20 19v-7"></path></svg>
+      <span style="font-size: 14.5px;">Analítica</span>
+    </a>
+
+    <div style="margin-top: auto; padding: 16px 24px 0 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; padding-top: 16px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; padding: 7px; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(255,255,255,0.15);"><img src="assets/logo-b.png" alt="" style="width: 100%; height: 100%; object-fit: contain;"></div>
+      <div>
+        <div style="font-size: 13.5px; font-weight: 600; color: #FFFFFF;">Boutique Alaia</div>
+        <div style="font-size: 12px; color: #9AA3C4;">Tegucigalpa, HN</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <div style="height: 72px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface);">
+      <div>
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 600; color: var(--ink);">Chekeo de ventas</div>
+        <div style="font-size: 13.5px; color: var(--ink-muted);">Arrastra una tarjeta o usa las flechas para mover un contacto de etapa</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="background: var(--surface-2); border-radius: 10px; padding: 7px 14px; text-align: center; min-width: 96px;">
+          <div style="font-size: 16px; font-weight: 700; color: var(--ink); font-family: 'Space Grotesk', sans-serif;">{{activeCount}}</div>
+          <div style="font-size: 11px; color: var(--ink-muted);">activas</div>
+        </div>
+        <div style="background: var(--surface-2); border-radius: 10px; padding: 7px 14px; text-align: center; min-width: 96px;">
+          <div style="font-size: 16px; font-weight: 700; color: var(--ink); font-family: 'Space Grotesk', sans-serif;">{{totalPipelineValueLabel}}</div>
+          <div style="font-size: 11px; color: var(--ink-muted);">en negociación</div>
+        </div>
+        <div style="background: var(--surface-2); border-radius: 10px; padding: 7px 14px; text-align: center; min-width: 96px;">
+          <div style="font-size: 16px; font-weight: 700; color: var(--ink); font-family: 'Space Grotesk', sans-serif;">{{winRate}}%</div>
+          <div style="font-size: 11px; color: var(--ink-muted);">tasa de cierre</div>
+        </div>
+        <button onClick="{{onNewContact}}" style="display: flex; align-items: center; gap: 6px; background: var(--brand); color: #FFFFFF; border: none; border-radius: 10px; padding: 9px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; margin-left: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+          Nuevo contacto
+        </button>
+      </div>
+    </div>
+
+    <sc-if value="{{hasStale}}" hint-placeholder-val="{{false}}">
+      <div style="margin: 16px 32px 0 32px; display: flex; align-items: center; gap: 8px; background: var(--danger-tint); border: 1px solid var(--danger-border); border-radius: 10px; padding: 10px 14px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+        <div style="font-size: 13.5px; color: var(--danger);"><strong>{{staleCount}} contactos</strong> llevan más de un día sin respuesta — revísalos antes de que se enfríen.</div>
+      </div>
+    </sc-if>
+
+    <div style="flex-grow: 1; overflow-x: auto; overflow-y: hidden; padding: 16px 32px 20px 32px; display: flex; gap: 16px; align-items: flex-start;">
+      <sc-for list="{{columns}}" as="col" hint-placeholder-count="6">
+        <div style="min-width: 246px; width: 246px; max-height: 756px; flex-shrink: 0; background: {{col.tintVar}}; border-radius: 14px; padding: 12px; display: flex; flex-direction: column;" onDragOver="{{col.onDragOver}}" onDrop="{{col.onDrop}}">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 4px 4px 2px 4px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: {{col.accentVar}}; flex-shrink: 0;"></div>
+            <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14.5px; color: var(--ink); flex-grow: 1;">{{col.label}}</div>
+            <div style="font-size: 13px; font-weight: 600; color: var(--ink-muted); background: var(--surface); border-radius: 20px; padding: 1px 8px;">{{col.count}}</div>
+          </div>
+          <div style="font-size: 12px; color: var(--ink-muted); padding: 0 4px 10px 4px;">{{col.totalLabel}}</div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex-grow: 1; padding-right: 2px;">
+            <sc-for list="{{col.leads}}" as="lead" hint-placeholder-count="2">
+              <sc-if value="{{lead.showLineBefore}}" hint-placeholder-val="{{false}}">
+                <div style="position: relative; height: 3px; flex-shrink: 0;">
+                  <div style="position: absolute; left: -3px; top: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--brand); border: 2px solid {{col.tintVar}};"></div>
+                  <div style="height: 3px; margin-left: 9px; background: var(--brand); border-radius: 2px;"></div>
+                </div>
+              </sc-if>
+              <div draggable="true" onDragStart="{{lead.onDragStart}}" onDragEnd="{{lead.onDragEnd}}" onDragOver="{{lead.onCardDragOver}}" onClick="{{lead.onOpen}}" style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px; display: flex; flex-direction: column; gap: 7px; cursor: grab; box-shadow: 0 1px 2px rgba(34,29,23,0.05); opacity: {{lead.dragOpacity}}; transform: {{lead.dragScale}}; transition: opacity 0.15s ease, transform 0.15s ease;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; flex-shrink: 0;">{{lead.initials}}</div>
+                  <div style="flex-grow: 1; min-width: 0;">
+                    <div style="font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{lead.name}}</div>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <div style="width: 6px; height: 6px; border-radius: 50%; background: {{lead.channelColor}}; flex-shrink: 0;"></div>
+                      <div style="font-size: 12px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{lead.channelLabel}} · {{lead.city}}</div>
+                    </div>
+                  </div>
+                </div>
+                <div style="font-size: 13px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{lead.lastMsg}}</div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <sc-if value="{{lead.valueLabel}}" hint-placeholder-val="{{true}}">
+                    <div style="font-size: 12px; font-weight: 700; color: var(--brand-dark); background: var(--brand-tint); border-radius: 6px; padding: 2px 6px;">{{lead.valueLabel}}</div>
+                  </sc-if>
+                  <div style="font-size: 11px; color: var(--ink-soft); margin-left: auto;">{{lead.time}}</div>
+                </div>
+                <sc-if value="{{lead.stale}}" hint-placeholder-val="{{false}}">
+                  <div style="display: flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; color: var(--danger); background: var(--danger-tint); border-radius: 6px; padding: 3px 7px; width: fit-content;">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+                    Requiere seguimiento
+                  </div>
+                </sc-if>
+                <div style="display: flex; justify-content: flex-end; gap: 4px;">
+                  <sc-if value="{{lead.canPrev}}" hint-placeholder-val="{{true}}">
+                    <button onClick="{{lead.onPrev}}" aria-label="Mover a etapa anterior" style="width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+                    </button>
+                  </sc-if>
+                  <sc-if value="{{lead.canNext}}" hint-placeholder-val="{{true}}">
+                    <button onClick="{{lead.onNext}}" aria-label="Mover a siguiente etapa" style="width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+                    </button>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{col.showLineAtEnd}}" hint-placeholder-val="{{false}}">
+              <div style="position: relative; height: 3px; flex-shrink: 0;">
+                <div style="position: absolute; left: -3px; top: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--brand); border: 2px solid {{col.tintVar}};"></div>
+                <div style="height: 3px; margin-left: 9px; background: var(--brand); border-radius: 2px;"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{col.showEmptyDropHint}}" hint-placeholder-val="{{false}}">
+              <div style="display: flex; align-items: center; justify-content: center; gap: 6px; height: 56px; border: 2px dashed var(--brand); border-radius: 10px; background: var(--surface); flex-shrink: 0;">
+                <span style="font-size: 12px; font-weight: 600; color: var(--brand);">Soltar aquí</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{col.isEmptyState}}" hint-placeholder-val="{{false}}">
+              <div style="font-size: 12.5px; color: var(--ink-soft); text-align: center; padding: 18px 0;">Sin contactos aquí</div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <sc-if value="{{selected}}" hint-placeholder-val="{{false}}">
+    <div onClick="{{closeDetail}}" style="position: absolute; inset: 0; background: rgba(18,15,10,0.35); z-index: 10;"></div>
+    <div style="position: absolute; top: 0; right: 0; width: 380px; height: 900px; background: var(--surface); box-shadow: -12px 0 32px rgba(0,0,0,0.14); z-index: 11; display: flex; flex-direction: column; overflow-y: auto;">
+      <div style="padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 46px; height: 46px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; flex-shrink: 0;">{{selected.initials}}</div>
+            <div>
+              <div style="font-family: 'Space Grotesk', sans-serif; font-size: 17.5px; font-weight: 600; color: var(--ink);">{{selected.name}}</div>
+              <div style="font-size: 13.5px; color: var(--ink-muted);">{{selected.phone}}</div>
+            </div>
+          </div>
+          <button onClick="{{closeDetail}}" aria-label="Cerrar" style="width: 28px; height: 28px; border-radius: 8px; border: none; background: var(--surface-2); color: var(--ink-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>
+          </button>
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 5px; background: var(--surface-2); border-radius: 8px; padding: 5px 10px; font-size: 13px; color: var(--ink-muted);">
+            <div style="width: 7px; height: 7px; border-radius: 50%; background: {{selected.channelColor}};"></div>
+            {{selected.channelLabel}}
+          </div>
+          <div style="background: var(--surface-2); border-radius: 8px; padding: 5px 10px; font-size: 13px; color: var(--ink-muted);">{{selected.city}}</div>
+        </div>
+
+        <div style="background: var(--surface-2); border-radius: 10px; padding: 12px 14px;">
+          <div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 3px;">Interesado en</div>
+          <div style="font-size: 14.5px; font-weight: 600; color: var(--ink);">{{selected.product}}</div>
+          <sc-if value="{{selected.valueLabel}}" hint-placeholder-val="{{true}}">
+            <div style="font-size: 13.5px; color: var(--brand-dark); font-weight: 600; margin-top: 4px;">{{selected.valueLabel}}</div>
+          </sc-if>
+        </div>
+
+        <div>
+          <div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em;">Último mensaje</div>
+          <div style="background: var(--surface-2); border-radius: 12px 12px 12px 2px; padding: 10px 12px; font-size: 13.5px; color: var(--ink); line-height: 1.4;">{{selected.lastMsg}}</div>
+          <div style="font-size: 11.5px; color: var(--ink-soft); margin-top: 4px;">{{selected.time}}</div>
+        </div>
+
+        <div>
+          <div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em;">Etapa</div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <sc-for list="{{stagesForSelector}}" as="s" hint-placeholder-count="6">
+              <button onClick="{{s.onPick}}" style="display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid {{s.borderStyle}}; background: {{s.bgStyle}}; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-size: 13.5px; font-weight: {{s.weightStyle}}; color: var(--ink);">
+                <div style="width: 7px; height: 7px; border-radius: 50%; background: {{s.accentVar}}; flex-shrink: 0;"></div>
+                {{s.label}}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <a href="Inbox.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--brand-dark); color: #fff; border-radius: 10px; padding: 11px; font-size: 13.5px; font-weight: 600; text-decoration: none;">
+          Abrir en Chat
+        </a>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{creating}}" hint-placeholder-val="{{false}}">
+    <div onClick="{{onCancelPanel}}" style="position: absolute; inset: 0; background: rgba(18,15,10,0.35); z-index: 10;"></div>
+    <div style="position: absolute; top: 0; right: 0; width: 380px; height: 900px; background: var(--surface); box-shadow: -12px 0 32px rgba(0,0,0,0.14); z-index: 11; display: flex; flex-direction: column; overflow-y: auto;">
+      <div style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-family: 'Space Grotesk', sans-serif; font-size: 17.5px; font-weight: 600; color: var(--ink);">Nuevo contacto</div>
+          <button onClick="{{onCancelPanel}}" aria-label="Cerrar" style="width: 28px; height: 28px; border-radius: 8px; border: none; background: var(--surface-2); color: var(--ink-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>
+          </button>
+        </div>
+
+        <div>
+          <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Canal de contacto</div>
+          <div style="display: flex; gap: 6px;">
+            <sc-for list="{{channelPicker}}" as="ch" hint-placeholder-count="3">
+              <button onClick="{{ch.onPick}}" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid {{ch.borderStyle}}; background: {{ch.bgStyle}}; color: var(--ink); border-radius: 8px; padding: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer;">
+                <div style="width: 6px; height: 6px; border-radius: 50%; background: {{ch.dot}};"></div>{{ch.label}}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Nombre</div>
+          <input value="{{draft.name}}" onChange="{{onDraftField_name}}" placeholder="Nombre completo" style="width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13.5px; color: var(--ink); outline: none;">
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Teléfono</div>
+          <input value="{{draft.phone}}" onChange="{{onDraftField_phone}}" placeholder="+504 0000-0000" style="width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13.5px; color: var(--ink); outline: none;">
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Ciudad</div>
+          <input value="{{draft.city}}" onChange="{{onDraftField_city}}" placeholder="Tegucigalpa" style="width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13.5px; color: var(--ink); outline: none;">
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Producto de interés</div>
+          <input value="{{draft.product}}" onChange="{{onDraftField_product}}" placeholder="¿Qué le interesa?" style="width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13.5px; color: var(--ink); outline: none;">
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button onClick="{{onCancelPanel}}" style="flex: 1; background: var(--surface-2); color: var(--ink-muted); border: none; border-radius: 10px; padding: 11px; font-size: 13.5px; font-weight: 600; cursor: pointer;">Cancelar</button>
+          <button onClick="{{onSaveContact}}" style="flex: 2; background: var(--brand); color: #fff; border: none; border-radius: 10px; padding: 11px; font-size: 13.5px; font-weight: 600; cursor: pointer;">Agregar al Chekeo</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { stages: {
+      L1:'nuevo', L2:'nuevo', L3:'nuevo',
+      L4:'consulta', L5:'consulta',
+      L6:'cotizacion', L7:'cotizacion',
+      L8:'negociacion', L9:'negociacion',
+      L10:'ganado', L11:'ganado', L12:'ganado',
+      L13:'perdido', L14:'perdido'
+    }, selectedId: null, draggingId: null, dragOverColumn: null, dropIndex: null, creating: false, newDraft: null, extraLeads: {}, orderIndex: {} };
+    this.nextIdCounter = 1;
+
+    this.order = ['nuevo','consulta','cotizacion','negociacion','ganado','perdido'];
+
+    this.stagesDef = [
+      { id:'nuevo', label:'Nuevo mensaje', accentVar:'var(--ink-muted)', tintVar:'var(--surface-2)' },
+      { id:'consulta', label:'Consulta de producto', accentVar:'var(--brand)', tintVar:'var(--brand-tint)' },
+      { id:'cotizacion', label:'Cotización enviada', accentVar:'var(--gold)', tintVar:'var(--gold-tint)' },
+      { id:'negociacion', label:'Negociación', accentVar:'#001037', tintVar:'rgba(0,16,55,0.08)' },
+      { id:'ganado', label:'Vendido', accentVar:'var(--success)', tintVar:'var(--success-tint)' },
+      { id:'perdido', label:'Perdido', accentVar:'var(--danger)', tintVar:'var(--danger-tint)' }
+    ];
+
+    this.channelMeta = {
+      whatsapp: { label:'WhatsApp', color:'var(--wa)' },
+      instagram: { label:'Instagram', color:'var(--ig)' },
+      facebook: { label:'Facebook', color:'var(--fb)' }
+    };
+
+    this.baseLeads = {
+      L1:{ name:'Marielos Zúniga', initials:'MZ', phone:'+504 9987-2201', channel:'whatsapp', city:'Tegucigalpa', product:'Vestido azul', value:null, lastMsg:'Buenas! Vi el vestido azul en su estado, ¿todavía lo tienen?', time:'hace 4 min' },
+      L2:{ name:'Kevin Rápalo', initials:'KR', phone:'+504 9456-1187', channel:'instagram', city:'San Pedro Sula', product:'Bolso café', value:null, lastMsg:'Hola! ¿Cuánto cuesta el bolso café?', time:'hace 12 min' },
+      L3:{ name:'Génesis Martínez', initials:'GM', phone:'+504 9911-4420', channel:'facebook', city:'La Ceiba', product:'Blusa talla M', value:null, lastMsg:'¿Tienen disponible en talla M?', time:'hace 20 min' },
+      L4:{ name:'Oscar Bueso', initials:'OB', phone:'+504 9834-7765', channel:'whatsapp', city:'Choloma', product:'Conjunto deportivo', value:null, lastMsg:'¿Hacen envíos a Choloma? Me interesa el conjunto deportivo', time:'hace 1 h' },
+      L5:{ name:'Ingrid Paz', initials:'IP', phone:'+504 9765-3312', channel:'instagram', city:'Comayagua', product:'Jeans skinny', value:null, lastMsg:'Quiero saber qué tallas tienen del jeans', time:'hace 2 h' },
+      L6:{ name:'Douglas Cruz', initials:'DC', phone:'+504 9902-6634', channel:'whatsapp', city:'Tegucigalpa', product:'Chaqueta de cuero', value:890, lastMsg:'Perfecto, ¿me pueden mandar el precio con envío incluido?', time:'hace 3 h' },
+      L7:{ name:'Fátima Reyes', initials:'FR', phone:'+504 9645-8821', channel:'facebook', city:'San Pedro Sula', product:'Set de accesorios', value:1250, lastMsg:'Me interesa el set completo, ¿en cuánto queda?', time:'hace 5 h' },
+      L8:{ name:'Allan Midence', initials:'AM', phone:'+504 9877-1290', channel:'whatsapp', city:'La Ceiba', product:'3 vestidos + bolso', value:2300, lastMsg:'¿Me puede rebajar algo si compro los tres?', time:'hace 6 h' },
+      L9:{ name:'Rosa Amaya', initials:'RA', phone:'+504 9933-4456', channel:'instagram', city:'Tegucigalpa', product:'Zapatos', value:610, lastMsg:'¿Aceptan pago contra entrega?', time:'hace 1 día' },
+      L10:{ name:'Jonathan Erazo', initials:'JE', phone:'+504 9812-0098', channel:'whatsapp', city:'San Pedro Sula', product:'Traje casual completo', value:1450, lastMsg:'Listo, ya hice la transferencia', time:'hace 1 día' },
+      L11:{ name:'Cindy Bonilla', initials:'CB', phone:'+504 9701-2245', channel:'facebook', city:'Comayagua', product:'Bolso Aurora', value:780, lastMsg:'Perfecto, gracias por la atención', time:'hace 2 días' },
+      L12:{ name:'Melvin Sosa', initials:'MS', phone:'+504 9990-5567', channel:'whatsapp', city:'Choloma', product:'Pedido mayorista x5', value:2100, lastMsg:'Confirmado, nos vemos el jueves para la entrega', time:'hace 2 días' },
+      L13:{ name:'Yesenia Cálix', initials:'YC', phone:'+504 9654-3321', channel:'instagram', city:'Tegucigalpa', product:'Vestido rojo', value:null, lastMsg:'Sin respuesta después de enviar la cotización', time:'hace 4 días' },
+      L14:{ name:'Diego Fúnez', initials:'DF', phone:'+504 9788-6612', channel:'whatsapp', city:'La Ceiba', product:'Zapatos deportivos', value:null, lastMsg:'Encontró el mismo modelo más barato en otra tienda', time:'hace 5 días' }
+    };
+  }
+
+  moveTo(id, stageId, insertIndex) {
+    this.setState((s) => {
+      const allIds = Object.keys({ ...this.baseLeads, ...s.extraLeads });
+      const getOrd = (lid) => (s.orderIndex[lid] !== undefined ? s.orderIndex[lid] : allIds.indexOf(lid) * 1000);
+      const destIds = allIds
+        .filter((lid) => lid !== id && (s.stages[lid] || 'nuevo') === stageId)
+        .sort((a, b) => getOrd(a) - getOrd(b));
+      let newOrder;
+      if (insertIndex === undefined || insertIndex === null) {
+        newOrder = destIds.length ? getOrd(destIds[destIds.length - 1]) + 1000 : 1000;
+      } else {
+        const idx = Math.max(0, Math.min(insertIndex, destIds.length));
+        const beforeId = destIds[idx];
+        const afterId = destIds[idx - 1];
+        const beforeOrd = beforeId !== undefined ? getOrd(beforeId) : (afterId !== undefined ? getOrd(afterId) + 1000 : 1000);
+        const afterOrd = afterId !== undefined ? getOrd(afterId) : (beforeId !== undefined ? getOrd(beforeId) - 1000 : 0);
+        newOrder = (beforeOrd + afterOrd) / 2;
+      }
+      return { stages: { ...s.stages, [id]: stageId }, orderIndex: { ...s.orderIndex, [id]: newOrder } };
+    });
+  }
+
+  initialsFor(name) {
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0] || '')[0] || '').toUpperCase() + ((parts[1] || '')[0] || '').toUpperCase();
+  }
+
+  renderVals() {
+    const order = this.order;
+    const allLeads = { ...this.baseLeads, ...this.state.extraLeads };
+    const allIds = Object.keys(allLeads);
+    const getOrder = (lid) => (this.state.orderIndex[lid] !== undefined ? this.state.orderIndex[lid] : allIds.indexOf(lid) * 1000);
+    const leadsFull = allIds.map((id) => {
+      const base = allLeads[id];
+      const stage = this.state.stages[id] || 'nuevo';
+      const idx = order.indexOf(stage);
+      const cm = this.channelMeta[base.channel];
+      return {
+        ...base,
+        id,
+        stage,
+        channelLabel: cm.label,
+        channelColor: cm.color,
+        canPrev: idx > 0,
+        canNext: idx < order.length - 1,
+        stale: stage !== 'ganado' && stage !== 'perdido' && /día/.test(base.time),
+        valueLabel: base.value ? ('L ' + base.value.toLocaleString('es-HN')) : null,
+        onOpen: () => this.setState({ selectedId: id }),
+        onPrev: (e) => { e.stopPropagation(); if (idx > 0) this.moveTo(id, order[idx - 1]); },
+        onNext: (e) => { e.stopPropagation(); if (idx < order.length - 1) this.moveTo(id, order[idx + 1]); },
+        isDragging: id === this.state.draggingId,
+        dragOpacity: id === this.state.draggingId ? '0.35' : '1',
+        dragScale: id === this.state.draggingId ? 'scale(0.97)' : 'scale(1)',
+        onDragStart: (e) => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; this.setState({ draggingId: id }); },
+        onDragEnd: () => this.setState({ draggingId: null, dragOverColumn: null, dropIndex: null })
+      };
+    });
+
+    const columns = this.stagesDef.map((s) => {
+      const items = leadsFull.filter((l) => l.stage === s.id).sort((a, b) => getOrder(a.id) - getOrder(b.id));
+      const isDragActive = !!this.state.draggingId;
+      const isTarget = this.state.dragOverColumn === s.id;
+      const itemsWithDnd = items.map((lead, idx) => ({
+        ...lead,
+        showLineBefore: isTarget && this.state.dropIndex === idx,
+        onCardDragOver: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const rect = e.currentTarget.getBoundingClientRect();
+          const before = (e.clientY - rect.top) < rect.height / 2;
+          const rawIndex = before ? idx : idx + 1;
+          if (this.state.dragOverColumn !== s.id || this.state.dropIndex !== rawIndex) {
+            this.setState({ dragOverColumn: s.id, dropIndex: rawIndex });
+          }
+        }
+      }));
+      const showEmptyDropHint = items.length === 0 && isTarget && isDragActive;
+      const total = items.reduce((sum, l) => sum + (l.value || 0), 0);
+      return {
+        ...s,
+        leads: itemsWithDnd,
+        count: items.length,
+        isEmptyState: items.length === 0 && !showEmptyDropHint,
+        showEmptyDropHint,
+        showLineAtEnd: isTarget && items.length > 0 && this.state.dropIndex === items.length,
+        totalLabel: total ? ('L ' + total.toLocaleString('es-HN') + ' en esta etapa') : 'Sin valor asignado',
+        onDragOver: (e) => {
+          e.preventDefault();
+          if (this.state.dragOverColumn !== s.id || this.state.dropIndex !== items.length) {
+            this.setState({ dragOverColumn: s.id, dropIndex: items.length });
+          }
+        },
+        onDrop: (e) => {
+          e.preventDefault();
+          const insertAt = this.state.dropIndex;
+          const id = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || this.state.draggingId;
+          if (id) this.moveTo(id, s.id, insertAt);
+          this.setState({ draggingId: null, dragOverColumn: null, dropIndex: null });
+        }
+      };
+    });
+
+    const selected = this.state.selectedId ? leadsFull.find((l) => l.id === this.state.selectedId) : null;
+
+    const stagesForSelector = this.stagesDef.map((s) => {
+      const isActive = selected && selected.stage === s.id;
+      return {
+        ...s,
+        onPick: () => { if (selected) this.moveTo(selected.id, s.id); },
+        bgStyle: isActive ? 'var(--surface-2)' : 'var(--surface)',
+        borderStyle: isActive ? 'var(--ink-soft)' : 'var(--border)',
+        weightStyle: isActive ? '700' : '500'
+      };
+    });
+
+    const activeLeads = leadsFull.filter((l) => l.stage !== 'ganado' && l.stage !== 'perdido');
+    const wonCount = leadsFull.filter((l) => l.stage === 'ganado').length;
+    const lostCount = leadsFull.filter((l) => l.stage === 'perdido').length;
+    const totalPipelineValue = activeLeads.reduce((s, l) => s + (l.value || 0), 0);
+    const winRate = (wonCount + lostCount) > 0 ? Math.round((wonCount / (wonCount + lostCount)) * 100) : 0;
+    const staleLeads = activeLeads.filter((l) => l.stale);
+
+    const draft = this.state.newDraft || { name:'', phone:'', city:'', product:'', channel:'whatsapp' };
+    const setDraftField = (field) => (e) => this.setState((s) => ({ newDraft: { ...s.newDraft, [field]: e.target.value } }));
+    const channelPicker = ['whatsapp','instagram','facebook'].map((chId) => {
+      const cm = this.channelMeta[chId];
+      const isActive = draft.channel === chId;
+      return {
+        id: chId, label: cm.label, dot: cm.color,
+        onPick: () => this.setState((s) => ({ newDraft: { ...s.newDraft, channel: chId } })),
+        bgStyle: isActive ? 'var(--brand-tint)' : 'var(--surface)',
+        borderStyle: isActive ? 'var(--brand)' : 'var(--border)'
+      };
+    });
+    const onNewContact = () => this.setState({ creating: true, newDraft: { name:'', phone:'', city:'', product:'', channel:'whatsapp' } });
+    const onCancelPanel = () => this.setState({ creating: false, newDraft: null });
+    const onSaveContact = () => {
+      const d = this.state.newDraft;
+      if (!d || !d.name.trim()) return;
+      this.nextIdCounter += 1;
+      const newId = 'LNEW' + this.nextIdCounter;
+      this.setState((s) => ({
+        extraLeads: { ...s.extraLeads, [newId]: { name: d.name, initials: this.initialsFor(d.name), phone: d.phone, channel: d.channel, city: d.city, product: d.product || 'Por definir', value: null, lastMsg: 'Contacto agregado manualmente.', time: 'recién agregado' } },
+        stages: { ...s.stages, [newId]: 'nuevo' },
+        creating: false, newDraft: null
+      }));
+    };
+
+    return {
+      columns,
+      selected,
+      stagesForSelector,
+      closeDetail: () => this.setState({ selectedId: null }),
+      activeCount: activeLeads.length,
+      totalPipelineValueLabel: 'L ' + totalPipelineValue.toLocaleString('es-HN'),
+      winRate,
+      staleCount: staleLeads.length,
+      hasStale: staleLeads.length > 0,
+      creating: this.state.creating,
+      draft,
+      channelPicker,
+      onDraftField_name: setDraftField('name'),
+      onDraftField_phone: setDraftField('phone'),
+      onDraftField_city: setDraftField('city'),
+      onDraftField_product: setDraftField('product'),
+      onNewContact, onCancelPanel, onSaveContact
+    };
+  }
+}
+</script>
+</body>
+</html>

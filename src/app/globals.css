@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  /* Cheke brand — exact values from the brand manual */
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-2: #edf0f7;
+  --surface-3: #dce1ee;
+  --ink: #0b1030;
+  --ink-muted: #5b6584;
+  --ink-soft: #5f6888;
+  --border: #dce1ee;
+
+  --brand: #0043f8; /* Azul intenso */
+  --brand-dark: #001037; /* Azul oscuro */
+  --brand-tint: #e7ecfe;
+  --accent: #52ebbb; /* Menta */
+  --accent-tint: #dffbf1;
+
+  --danger: #dc2626;
+  --danger-tint: #fdecec;
+  --danger-border: #f6bfbf;
+
+  --wa: #25d366;
+  --ig: #c1387b;
+  --fb: #1877f2;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-soft: var(--ink-soft);
+  --color-border: var(--border);
+
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-tint: var(--brand-tint);
+  --color-accent: var(--accent);
+  --color-accent-tint: var(--accent-tint);
+
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-danger-border: var(--danger-border);
+
+  --color-wa: var(--wa);
+  --color-ig: var(--ig);
+  --color-fb: var(--fb);
+
+  --font-heading: var(--font-space-grotesk);
+  --font-sans: var(--font-work-sans);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-work-sans), sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 8px;
+}
+
+/* ---------------------------------------------------------------------
+   Interaction & motion — see CLAUDE.md "Interaction & motion" section.
+   House rules distilled from an Apple-style interface design skill:
+   respond on press (not release), size-specific type tracking, and a
+   reduced-motion fallback that keeps feedback but drops the physicality.
+--------------------------------------------------------------------- */
+
+/* Large display type gets negative tracking + tight leading; body text
+   stays near 0 tracking. Never one letter-spacing value for every size. */
+.text-display {
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+/* Respond on press, not on release — the foundation of feeling direct. */
+button,
+[role="button"],
+a.pressable {
+  transition:
+    transform 100ms ease-out,
+    opacity 100ms ease-out,
+    background-color 150ms ease-out,
+    border-color 150ms ease-out;
+}
+button:active:not(:disabled),
+[role="button"]:active,
+a.pressable:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  button:active:not(:disabled),
+  [role="button"]:active,
+  a.pressable:active {
+    transform: none;
+  }
+}

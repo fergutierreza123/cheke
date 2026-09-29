@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Chat</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  /* Cheke brand — exact values from the brand manual (Azul oscuro / Azul intenso / Menta / Blanco) */
+  --bg:#F4F6FB; --surface:#FFFFFF; --surface-2:#EDF0F7; --surface-3:#DCE1EE;
+  --ink:#0B1030; --ink-muted:#5B6584; --ink-soft:#5F6888; --border:#DCE1EE;
+  --brand:#0043F8; --brand-dark:#001037; --brand-tint:#E7ECFE;
+  --accent:#52EBBB; --accent-tint:#DFFBF1;
+  --gold:#002997; --gold-tint:#E4E9FB;
+  --success:#0043F8; --success-tint:#E7ECFE;
+  --danger:#DC2626; --danger-tint:#FDECEC; --danger-border:#F6BFBF;
+  --wa:#25D366; --ig:#C1387B; --fb:#1877F2;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Work Sans',sans-serif;background:var(--bg);color:var(--ink);}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:8px;}
+input::placeholder{color:var(--ink-soft);}
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; background: var(--bg);">
+
+  <div style="width: 240px; min-width: 240px; height: 900px; background: var(--brand-dark); display: flex; flex-direction: column; padding: 24px 0;">
+    <div style="padding: 4px 24px 22px 24px;">
+      <img src="assets/logo-a.png" alt="Cheke" style="width: 148px; height: auto; display: block;">
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #FFFFFF; background: rgba(255,255,255,0.06); border-left: 3px solid var(--accent); font-weight: 600;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.5-.3-3.6-.8L3 21l1.8-5.4A8.5 8.5 0 1 1 21 11.5z"></path></svg>
+      <span style="font-size: 14.5px;">Chat</span>
+    </div>
+    <a href="Main.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="4" height="16"></rect><rect x="10" y="4" width="4" height="10"></rect><rect x="17" y="4" width="4" height="7"></rect></svg>
+      <span style="font-size: 14.5px;">Chekeo</span>
+    </a>
+    <a href="Contacts.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      <span style="font-size: 14.5px;">Contactos</span>
+    </a>
+    <a href="Comments.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      <span style="font-size: 14.5px;">Comentarios</span>
+    </a>
+    <a href="Templates.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>
+      <span style="font-size: 14.5px;">Plantillas</span>
+    </a>
+    <a href="Inventory.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.1-1.8V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.78 0z"></path><path d="M2.32 6.16L12 11l9.68-4.84"></path><path d="M12 22.76V11"></path></svg>
+      <span style="font-size: 14.5px;">Inventario</span>
+    </a>
+    <a href="Team.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
+      <span style="font-size: 14.5px;">Equipo</span>
+    </a>
+    <a href="Notifications.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <span style="font-size: 14.5px;">Notificaciones</span>
+    </a>
+    <a href="Analytics.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10"></path><path d="M12 19V5"></path><path d="M20 19v-7"></path></svg>
+      <span style="font-size: 14.5px;">Analítica</span>
+    </a>
+
+    <div style="margin-top: auto; padding: 16px 24px 0 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; padding-top: 16px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; padding: 7px; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(255,255,255,0.15);"><img src="assets/logo-b.png" alt="" style="width: 100%; height: 100%; object-fit: contain;"></div>
+      <div>
+        <div style="font-size: 13.5px; font-weight: 600; color: #FFFFFF;">Boutique Alaia</div>
+        <div style="font-size: 12px; color: #9AA3C4;">Tegucigalpa, HN</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width: 320px; min-width: 320px; height: 900px; border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column;">
+    <div style="padding: 20px 18px 12px 18px;">
+      <div style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 600; color: var(--ink); margin-bottom: 12px;">Chat</div>
+      <div style="position: relative;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" style="position: absolute; left: 10px; top: 10px;"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+        <input value="{{query}}" onChange="{{onQueryChange}}" placeholder="Buscar contacto" style="width: 100%; padding: 8px 10px 8px 30px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13.5px; color: var(--ink); outline: none;">
+      </div>
+      <div style="display: flex; gap: 6px; margin-top: 10px;">
+        <sc-for list="{{channels}}" as="ch" hint-placeholder-count="4">
+          <button onClick="{{ch.onPick}}" style="border: 1px solid {{ch.borderStyle}}; background: {{ch.bgStyle}}; color: {{ch.textStyle}}; border-radius: 8px; padding: 5px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ch.label}}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; overflow-y: auto; border-top: 1px solid var(--border);">
+      <sc-for list="{{conversations}}" as="convo" hint-placeholder-count="4">
+        <div onClick="{{convo.onSelect}}" style="display: flex; gap: 10px; padding: 12px 18px; cursor: pointer; border-bottom: 1px solid var(--border); background: {{convo.bgStyle}};">
+          <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13.5px; font-weight: 700; flex-shrink: 0; position: relative;">
+            {{convo.initials}}
+            <div style="position: absolute; bottom: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; background: {{convo.channelColor}}; border: 2px solid var(--surface);"></div>
+          </div>
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+              <div style="font-size: 13.5px; font-weight: {{convo.nameWeight}}; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{convo.name}}</div>
+              <div style="font-size: 11px; color: var(--ink-soft); flex-shrink: 0; margin-left: 6px;">{{convo.time}}</div>
+            </div>
+            <div style="font-size: 12.5px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{convo.lastMsg}}</div>
+          </div>
+          <sc-if value="{{convo.unread}}" hint-placeholder-val="{{false}}">
+            <div style="width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px;"></div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; height: 900px; display: flex; flex-direction: column; min-width: 0;">
+    <div style="height: 64px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--surface);">
+      <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13.5px; font-weight: 700;">{{selected.initials}}</div>
+      <div>
+        <div style="font-size: 14.5px; font-weight: 600; color: var(--ink);">{{selected.name}}</div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <div style="width: 6px; height: 6px; border-radius: 50%; background: {{selected.channelColor}};"></div>
+          <div style="font-size: 12px; color: var(--ink-muted);">{{selected.channelLabel}} · {{selected.phone}}</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 10px; background: var(--bg);">
+      <sc-for list="{{selected.messages}}" as="m" hint-placeholder-count="3">
+        <div style="display: flex; justify-content: {{m.justify}};">
+          <sc-if value="{{m.isProduct}}" hint-placeholder-val="{{false}}">
+            <div style="max-width: 240px; background: {{m.bg}}; color: {{m.color}}; border-radius: {{m.radius}}; padding: 10px; overflow: hidden;">
+              <div style="height: 90px; border-radius: 8px; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700;">{{m.product.code}}</div>
+              <div style="font-size: 13.5px; font-weight: 600; margin-top: 8px;">{{m.product.name}}</div>
+              <div style="font-size: 14px; font-weight: 700; margin-top: 2px;">{{m.product.priceLabel}}</div>
+              <div style="font-size: 11px; opacity: 0.65; margin-top: 6px;">{{m.time}}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{m.isPayment}}" hint-placeholder-val="{{false}}">
+            <div style="max-width: 250px; background: var(--brand-dark); color: #fff; border-radius: {{m.radius}}; padding: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"></rect><path d="M1 10h22"></path></svg>
+                </div>
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent);">Link de pago</div>
+              </div>
+              <div style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; margin-top: 10px;">{{m.payment.amountLabel}}</div>
+              <div style="font-size: 12.5px; opacity: 0.85; margin-top: 3px; word-break: break-all;">{{m.payment.link}}</div>
+              <div style="font-size: 11px; opacity: 0.65; margin-top: 8px;">{{m.time}}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{m.isShipping}}" hint-placeholder-val="{{false}}">
+            <div style="max-width: 250px; background: var(--brand-dark); color: #fff; border-radius: {{m.radius}}; padding: 14px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><path d="M16 8h4l3 3v5h-7V8z"></path><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                </div>
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent);">Envío con Cheke</div>
+              </div>
+              <div style="font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; margin-top: 10px;">{{m.shipping.code}}</div>
+              <div style="font-size: 12.5px; opacity: 0.85; margin-top: 3px; word-break: break-all;">{{m.shipping.link}}</div>
+              <div style="font-size: 11px; opacity: 0.65; margin-top: 8px;">{{m.time}}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{m.isText}}" hint-placeholder-val="{{true}}">
+            <div style="max-width: 60%; background: {{m.bg}}; color: {{m.color}}; border-radius: {{m.radius}}; padding: 9px 13px; font-size: 13.5px; line-height: 1.45;">
+              {{m.text}}
+              <div style="font-size: 11px; opacity: 0.65; margin-top: 4px;">{{m.time}}</div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="flex-shrink: 0; padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 10px; align-items: center; position: relative;">
+      <sc-if value="{{catalogOpen}}" hint-placeholder-val="{{false}}">
+        <div style="position: absolute; bottom: 64px; left: 24px; width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,16,55,0.16); padding: 8px; z-index: 6;">
+          <div style="font-size: 11.5px; color: var(--ink-soft); padding: 6px 8px;">Enviar producto del catálogo</div>
+          <sc-for list="{{catalog}}" as="p" hint-placeholder-count="3">
+            <div onClick="{{p.onSend}}" style="display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; cursor: pointer;">
+              <div style="width: 32px; height: 32px; border-radius: 7px; background: var(--brand-tint); color: var(--brand-dark); display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; flex-shrink: 0;">{{p.code}}</div>
+              <div style="flex-grow: 1;">
+                <div style="font-size: 13px; font-weight: 600; color: var(--ink);">{{p.name}}</div>
+                <div style="font-size: 11.5px; color: var(--ink-muted);">{{p.priceLabel}}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <button onClick="{{onToggleCatalog}}" aria-label="Enviar producto del catálogo" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-2); color: var(--brand-dark); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.1-1.8V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.78 0z"></path><path d="M2.32 6.16L12 11l9.68-4.84"></path><path d="M12 22.76V11"></path></svg>
+      </button>
+
+      <sc-if value="{{templatesOpen}}" hint-placeholder-val="{{false}}">
+        <div style="position: absolute; bottom: 64px; left: 66px; width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,16,55,0.16); padding: 8px; z-index: 6;">
+          <div style="font-size: 11.5px; color: var(--ink-soft); padding: 6px 8px;">Insertar plantilla</div>
+          <sc-for list="{{templates}}" as="t" hint-placeholder-count="3">
+            <div onClick="{{t.onUse}}" style="padding: 8px; border-radius: 8px; cursor: pointer;">
+              <div style="font-size: 12.5px; font-weight: 600; color: var(--ink);">{{t.name}}</div>
+              <div style="font-size: 11px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{t.text}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <button onClick="{{onToggleTemplates}}" aria-label="Insertar plantilla" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-2); color: var(--brand-dark); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>
+      </button>
+
+      <button onClick="{{onSendPaymentLink}}" aria-label="Enviar link de pago" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-2); color: var(--brand-dark); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"></rect><path d="M1 10h22"></path></svg>
+      </button>
+      <button onClick="{{onSendShippingLink}}" aria-label="Enviar link de envío" style="width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-2); color: var(--brand-dark); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><path d="M16 8h4l3 3v5h-7V8z"></path><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+      </button>
+
+      <input value="{{draft}}" onChange="{{onDraftChange}}" onKeyDown="{{onDraftKeyDown}}" placeholder="Escribe una respuesta…" style="flex-grow: 1; padding: 11px 14px; border-radius: 22px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13.5px; color: var(--ink); outline: none;">
+      <button onClick="{{onSend}}" aria-label="Enviar" style="width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--brand); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <div style="width: 320px; min-width: 320px; height: 900px; border-left: 1px solid var(--border); background: var(--surface); overflow-y: auto;">
+    <div style="padding: 22px 20px; display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 46px; height: 46px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;">{{selected.initials}}</div>
+        <div>
+          <div style="font-family: 'Space Grotesk', sans-serif; font-size: 16.5px; font-weight: 600; color: var(--ink);">{{selected.name}}</div>
+          <div style="font-size: 13px; color: var(--ink-muted);">{{selected.city}}</div>
+        </div>
+      </div>
+
+      <div style="font-size: 13.5px; color: var(--ink-muted); display: flex; flex-direction: column; gap: 4px;">
+        <div>{{selected.phone}}</div>
+        <div>Cliente desde {{selected.since}}</div>
+      </div>
+
+      <sc-if value="{{selected.autoTag}}" hint-placeholder-val="{{false}}">
+        <div style="border-left: 3px solid var(--brand); background: var(--brand-tint); border-radius: 0 10px 10px 0; padding: 10px 12px;">
+          <div style="font-size: 11.5px; font-weight: 700; color: var(--brand-dark); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px;">Enrutado automáticamente</div>
+          <div style="font-size: 13px; color: var(--ink); line-height: 1.4;">{{selected.autoTag}}</div>
+        </div>
+      </sc-if>
+
+      <div style="background: var(--surface-2); border-radius: 10px; padding: 12px 14px;">
+        <div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 3px;">Interesado en</div>
+        <div style="font-size: 14.5px; font-weight: 600; color: var(--ink);">{{selected.product}}</div>
+      </div>
+
+      <div>
+        <div style="font-size: 12px; color: var(--ink-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em;">Etapa en el chekeo</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <sc-for list="{{stagesForSelector}}" as="s" hint-placeholder-count="6">
+            <button onClick="{{s.onPick}}" style="display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid {{s.borderStyle}}; background: {{s.bgStyle}}; border-radius: 8px; padding: 7px 10px; cursor: pointer; font-size: 13px; font-weight: {{s.weightStyle}}; color: var(--ink);">
+              <div style="width: 7px; height: 7px; border-radius: 50%; background: {{s.accentVar}}; flex-shrink: 0;"></div>
+              {{s.label}}
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <a href="Main.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--brand-dark); color: #fff; border-radius: 10px; padding: 11px; font-size: 13.5px; font-weight: 600; text-decoration: none;">
+        Ver en el chekeo
+      </a>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { selectedId: 'c1', channel: 'todos', query: '', draft: '', extraMessages: {}, stageOverrides: {}, catalogOpen: false, templatesOpen: false };
+    this.linkSeq = 0;
+
+    this.catalogProducts = [
+      { name:'Vestido Aurora', price:800, code:'VA' },
+      { name:'Bolso café Milán', price:650, code:'BM' },
+      { name:'Chaqueta de cuero negra', price:890, code:'CN' },
+      { name:'Jeans skinny azul', price:480, code:'JS' }
+    ];
+
+    this.quickTemplates = [
+      { name:'Precio con envío', text:'¡Hola! El producto que preguntas está disponible, con envío incluido. ¿Te lo aparto?' },
+      { name:'Sin stock disponible', text:'Por el momento no tenemos ese producto en stock, pero te aviso apenas vuelva a llegar.' },
+      { name:'Pago contra entrega', text:'Sí, aceptamos pago contra entrega. El envío tiene un costo adicional de L 60.' },
+      { name:'Seguimiento', text:'¡Hola de nuevo! Solo quería confirmar si sigues interesado/a. Cualquier duda, aquí estoy.' }
+    ];
+
+    this.order = ['nuevo','consulta','cotizacion','negociacion','ganado','perdido'];
+
+    this.stagesDef = [
+      { id:'nuevo', label:'Nuevo mensaje', accentVar:'var(--ink-muted)' },
+      { id:'consulta', label:'Consulta de producto', accentVar:'var(--brand)' },
+      { id:'cotizacion', label:'Cotización enviada', accentVar:'var(--gold)' },
+      { id:'negociacion', label:'Negociación', accentVar:'#001037' },
+      { id:'ganado', label:'Vendido', accentVar:'var(--success)' },
+      { id:'perdido', label:'Perdido', accentVar:'var(--danger)' }
+    ];
+
+    this.channelMeta = {
+      whatsapp: { label:'WhatsApp', color:'var(--wa)' },
+      instagram: { label:'Instagram', color:'var(--ig)' },
+      facebook: { label:'Facebook', color:'var(--fb)' }
+    };
+
+    this.baseConvos = {
+      c1: { name:'Marielos Zúniga', initials:'MZ', phone:'+504 9987-2201', channel:'whatsapp', city:'Tegucigalpa', product:'Vestido azul', since:'sep 2026', defaultStage:'nuevo', unread:true, autoTag:null,
+        messages:[
+          { from:'them', text:'Buenas! Vi el vestido azul en su estado, ¿todavía lo tienen?', time:'10:02 a.m.' }
+        ] },
+      c2: { name:'Kevin Rápalo', initials:'KR', phone:'+504 9456-1187', channel:'instagram', city:'San Pedro Sula', product:'Bolso café', since:'ago 2026', defaultStage:'nuevo', unread:true, autoTag:null,
+        messages:[
+          { from:'them', text:'Hola! ¿Cuánto cuesta el bolso café que publicaron?', time:'9:41 a.m.' }
+        ] },
+      c3: { name:'Douglas Cruz', initials:'DC', phone:'+504 9902-6634', channel:'whatsapp', city:'Tegucigalpa', product:'Chaqueta de cuero', value:890, since:'jun 2026', defaultStage:'cotizacion', unread:false,
+        autoTag:'Preguntó el precio de "Chaqueta de cuero" → se movió automáticamente a Cotización enviada.',
+        messages:[
+          { from:'them', text:'Hola, ¿cuánto cuesta la chaqueta de cuero color negro?', time:'8:12 a.m.' },
+          { from:'me', text:'Hola Douglas! La chaqueta está en L 890 con envío incluido a Tegucigalpa.', time:'8:15 a.m.' },
+          { from:'them', text:'Perfecto, ¿me pueden mandar el precio con envío incluido?', time:'8:20 a.m.' }
+        ] },
+      c4: { name:'Allan Midence', initials:'AM', phone:'+504 9877-1290', channel:'whatsapp', city:'La Ceiba', product:'3 vestidos + bolso', value:2300, since:'may 2026', defaultStage:'negociacion', unread:false, autoTag:null,
+        messages:[
+          { from:'them', text:'Me interesan 3 vestidos y un bolso a juego.', time:'ayer, 4:30 p.m.' },
+          { from:'me', text:'Con gusto! Ese combo queda en L 2,300 en total.', time:'ayer, 4:35 p.m.' },
+          { from:'them', text:'¿Me puede rebajar algo si compro los tres?', time:'ayer, 4:40 p.m.' }
+        ] },
+      c5: { name:'Jonathan Erazo', initials:'JE', phone:'+504 9812-0098', channel:'whatsapp', city:'San Pedro Sula', product:'Traje casual completo', value:1450, since:'mar 2026', defaultStage:'ganado', unread:false, autoTag:null,
+        messages:[
+          { from:'them', text:'Listo, ya hice la transferencia del traje completo.', time:'ayer, 11:02 a.m.' },
+          { from:'me', text:'Recibido, gracias Jonathan! Te llega el jueves.', time:'ayer, 11:10 a.m.' }
+        ] },
+      c6: { name:'Yesenia Cálix', initials:'YC', phone:'+504 9654-3321', channel:'instagram', city:'Tegucigalpa', product:'Vestido rojo', since:'jul 2026', defaultStage:'perdido', unread:false,
+        autoTag:'No respondió 4 días después de recibir la cotización → se marcó como Perdido.',
+        messages:[
+          { from:'me', text:'Hola Yesenia! Aquí tienes el precio del vestido rojo: L 950.', time:'hace 4 días' }
+        ] }
+    };
+  }
+
+  renderVals() {
+    const order = this.order;
+
+    const convosFull = Object.keys(this.baseConvos).map((id) => {
+      const base = this.baseConvos[id];
+      const extra = this.state.extraMessages[id] || [];
+      const cm = this.channelMeta[base.channel];
+      const messages = [...base.messages, ...extra].map((m) => ({
+        ...m,
+        isProduct: !!m.product,
+        isPayment: !!m.payment,
+        isShipping: !!m.shipping,
+        isText: !m.product && !m.payment && !m.shipping,
+        justify: m.from === 'me' ? 'flex-end' : 'flex-start',
+        bg: m.from === 'me' ? 'var(--brand)' : 'var(--surface-2)',
+        color: m.from === 'me' ? '#FFFFFF' : 'var(--ink)',
+        radius: m.from === 'me' ? '12px 12px 2px 12px' : '12px 12px 12px 2px'
+      }));
+      const last = messages[messages.length - 1];
+      const stage = this.state.stageOverrides[id] || base.defaultStage;
+      const lastSummary = !last ? '' : last.isProduct ? ('Catálogo: ' + last.product.name) : last.isPayment ? ('Link de pago enviado: ' + last.payment.amountLabel) : last.isShipping ? ('Envío con Cheke: ' + last.shipping.code) : last.text;
+      return {
+        ...base,
+        id,
+        stage,
+        messages,
+        lastMsg: lastSummary,
+        time: base.unread ? 'nuevo' : (last ? last.time : ''),
+        channelLabel: cm.label,
+        channelColor: cm.color
+      };
+    });
+
+    const filtered = convosFull.filter((c) =>
+      (this.state.channel === 'todos' || c.channel === this.state.channel) &&
+      c.name.toLowerCase().includes(this.state.query.toLowerCase())
+    );
+
+    const conversations = filtered.map((c) => ({
+      ...c,
+      onSelect: () => this.setState({ selectedId: c.id }),
+      bgStyle: c.id === this.state.selectedId ? 'var(--brand-tint)' : 'var(--surface)',
+      nameWeight: c.unread ? '700' : '600'
+    }));
+
+    const selectedBase = convosFull.find((c) => c.id === this.state.selectedId) || convosFull[0];
+    const selected = selectedBase;
+
+    const channels = [
+      { id:'todos', label:'Todos' },
+      { id:'whatsapp', label:'WhatsApp' },
+      { id:'instagram', label:'Instagram' },
+      { id:'facebook', label:'Facebook' }
+    ].map((ch) => {
+      const isActive = this.state.channel === ch.id;
+      return {
+        ...ch,
+        onPick: () => this.setState({ channel: ch.id }),
+        bgStyle: isActive ? 'var(--brand-dark)' : 'var(--surface-2)',
+        textStyle: isActive ? '#FFFFFF' : 'var(--ink-muted)',
+        borderStyle: isActive ? 'var(--brand-dark)' : 'var(--border)'
+      };
+    });
+
+    const stagesForSelector = this.stagesDef.map((s) => {
+      const isActive = selected && selected.stage === s.id;
+      return {
+        ...s,
+        onPick: () => this.setState((st) => ({ stageOverrides: { ...st.stageOverrides, [selected.id]: s.id } })),
+        bgStyle: isActive ? 'var(--surface-2)' : 'var(--surface)',
+        borderStyle: isActive ? 'var(--ink-soft)' : 'var(--border)',
+        weightStyle: isActive ? '700' : '500'
+      };
+    });
+
+    const sendMessage = () => {
+      const text = this.state.draft.trim();
+      if (!text || !selected) return;
+      const id = selected.id;
+      this.setState((s) => ({
+        draft: '',
+        extraMessages: {
+          ...s.extraMessages,
+          [id]: [...(s.extraMessages[id] || []), { from:'me', text, time:'ahora' }]
+        }
+      }));
+    };
+
+    const catalog = this.catalogProducts.map((p) => ({
+      ...p,
+      priceLabel: 'L ' + p.price.toLocaleString('es-HN'),
+      onSend: () => {
+        if (!selected) return;
+        const id = selected.id;
+        this.setState((s) => ({
+          catalogOpen: false,
+          extraMessages: {
+            ...s.extraMessages,
+            [id]: [...(s.extraMessages[id] || []), { from:'me', product: { name: p.name, code: p.code, priceLabel: 'L ' + p.price.toLocaleString('es-HN') }, time:'ahora' }]
+          }
+        }));
+      }
+    }));
+
+    const templates = this.quickTemplates.map((t) => ({
+      ...t,
+      onUse: () => this.setState({ templatesOpen: false, draft: t.text })
+    }));
+
+    const onSendPaymentLink = () => {
+      if (!selected) return;
+      this.linkSeq += 1;
+      const id = selected.id;
+      const code = (selected.id + this.linkSeq + 'A1B2').toUpperCase().slice(0, 8);
+      const amountLabel = selected.value ? ('L ' + selected.value.toLocaleString('es-HN')) : 'Monto por confirmar';
+      this.setState((s) => ({
+        extraMessages: {
+          ...s.extraMessages,
+          [id]: [...(s.extraMessages[id] || []), { from:'me', payment: { amountLabel, link: 'pagos.cheke.hn/p/' + code }, time:'ahora' }]
+        }
+      }));
+    };
+
+    const onSendShippingLink = () => {
+      if (!selected) return;
+      this.linkSeq += 1;
+      const id = selected.id;
+      const code = 'CHK-' + (selected.id + this.linkSeq + 'X9Z7').toUpperCase().slice(0, 6);
+      this.setState((s) => ({
+        extraMessages: {
+          ...s.extraMessages,
+          [id]: [...(s.extraMessages[id] || []), { from:'me', shipping: { code, link: 'cheke.hn/rastreo/' + code }, time:'ahora' }]
+        }
+      }));
+    };
+
+    return {
+      conversations,
+      selected,
+      channels,
+      stagesForSelector,
+      catalog,
+      catalogOpen: this.state.catalogOpen,
+      onToggleCatalog: () => this.setState((s) => ({ catalogOpen: !s.catalogOpen, templatesOpen: false })),
+      templates,
+      templatesOpen: this.state.templatesOpen,
+      onToggleTemplates: () => this.setState((s) => ({ templatesOpen: !s.templatesOpen, catalogOpen: false })),
+      onSendPaymentLink,
+      onSendShippingLink,
+      query: this.state.query,
+      draft: this.state.draft,
+      onQueryChange: (e) => this.setState({ query: e.target.value }),
+      onDraftChange: (e) => this.setState({ draft: e.target.value }),
+      onDraftKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } },
+      onSend: sendMessage
+    };
+  }
+}
+</script>
+</body>
+</html>

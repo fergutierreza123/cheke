@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Contactos</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  /* Cheke brand — exact values from the brand manual (Azul oscuro / Azul intenso / Menta / Blanco) */
+  --bg:#F4F6FB; --surface:#FFFFFF; --surface-2:#EDF0F7; --surface-3:#DCE1EE;
+  --ink:#0B1030; --ink-muted:#5B6584; --ink-soft:#5F6888; --border:#DCE1EE;
+  --brand:#0043F8; --brand-dark:#001037; --brand-tint:#E7ECFE;
+  --accent:#52EBBB; --accent-tint:#DFFBF1;
+  --gold:#002997; --gold-tint:#E4E9FB;
+  --success:#0043F8; --success-tint:#E7ECFE;
+  --danger:#DC2626; --danger-tint:#FDECEC; --danger-border:#F6BFBF;
+  --wa:#25D366; --ig:#C1387B; --fb:#1877F2;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Work Sans',sans-serif;background:var(--bg);color:var(--ink);}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:8px;}
+input::placeholder,textarea::placeholder{color:var(--ink-soft);}
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; display: flex; background: var(--bg);">
+
+  <div style="width: 240px; min-width: 240px; height: 900px; background: var(--brand-dark); display: flex; flex-direction: column; padding: 24px 0;">
+    <div style="padding: 4px 24px 22px 24px;">
+      <img src="assets/logo-a.png" alt="Cheke" style="width: 148px; height: auto; display: block;">
+    </div>
+
+    <a href="Inbox.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.5-.3-3.6-.8L3 21l1.8-5.4A8.5 8.5 0 1 1 21 11.5z"></path></svg>
+      <span style="font-size: 14.5px;">Chat</span>
+    </a>
+    <a href="Main.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="4" height="16"></rect><rect x="10" y="4" width="4" height="10"></rect><rect x="17" y="4" width="4" height="7"></rect></svg>
+      <span style="font-size: 14.5px;">Chekeo</span>
+    </a>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #FFFFFF; background: rgba(255,255,255,0.06); border-left: 3px solid var(--accent); font-weight: 600;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      <span style="font-size: 14.5px;">Contactos</span>
+    </div>
+    <a href="Comments.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      <span style="font-size: 14.5px;">Comentarios</span>
+    </a>
+    <a href="Templates.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>
+      <span style="font-size: 14.5px;">Plantillas</span>
+    </a>
+    <a href="Inventory.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.1-1.8V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.78 0z"></path><path d="M2.32 6.16L12 11l9.68-4.84"></path><path d="M12 22.76V11"></path></svg>
+      <span style="font-size: 14.5px;">Inventario</span>
+    </a>
+    <a href="Team.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
+      <span style="font-size: 14.5px;">Equipo</span>
+    </a>
+    <a href="Notifications.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <span style="font-size: 14.5px;">Notificaciones</span>
+    </a>
+    <a href="Analytics.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10"></path><path d="M12 19V5"></path><path d="M20 19v-7"></path></svg>
+      <span style="font-size: 14.5px;">Analítica</span>
+    </a>
+
+    <div style="margin-top: auto; padding: 16px 24px 0 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; padding-top: 16px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; padding: 7px; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(255,255,255,0.15);"><img src="assets/logo-b.png" alt="" style="width: 100%; height: 100%; object-fit: contain;"></div>
+      <div>
+        <div style="font-size: 13px; font-weight: 600; color: #FFFFFF;">Boutique Alaia</div>
+        <div style="font-size: 11px; color: #9AA3C4;">Tegucigalpa, HN</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <div style="height: 72px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface);">
+      <div>
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 600; color: var(--ink);">Contactos</div>
+        <div style="font-size: 13.5px; color: var(--ink-muted);">Registro de datos de todos tus clientes, sin importar el canal por el que llegaron</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="position: relative;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" style="position: absolute; left: 11px; top: 11px;"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+          <input value="{{query}}" onChange="{{onQueryChange}}" placeholder="Buscar por nombre, teléfono o ciudad" style="width: 260px; padding: 9px 12px 9px 32px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13.5px; color: var(--ink); outline: none;">
+        </div>
+        <button onClick="{{onNewContact}}" style="display: flex; align-items: center; gap: 6px; background: var(--brand); color: #FFFFFF; border: none; border-radius: 10px; padding: 9px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+          Nuevo contacto
+        </button>
+      </div>
+    </div>
+
+    <div style="padding: 16px 32px 0 32px; display: flex; gap: 12px;">
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; flex: 1;">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; color: var(--ink);">{{totalContacts}}</div>
+        <div style="font-size: 12px; color: var(--ink-muted);">contactos registrados</div>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; flex: 1;">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; color: var(--ink);">{{totalSpentLabel}}</div>
+        <div style="font-size: 12px; color: var(--ink-muted);">en compras acumuladas</div>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; flex: 1;">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; color: var(--danger);">{{incompleteCount}}</div>
+        <div style="font-size: 12px; color: var(--ink-muted);">con datos incompletos — falta email</div>
+      </div>
+    </div>
+
+    <div style="padding: 14px 32px 0 32px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 12px; color: var(--ink-soft); margin-right: 2px;">Canal:</span>
+        <sc-for list="{{channelFilters}}" as="ch" hint-placeholder-count="4">
+          <button onClick="{{ch.onPick}}" style="border: 1px solid {{ch.borderStyle}}; background: {{ch.bgStyle}}; color: {{ch.textStyle}}; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;">{{ch.label}}</button>
+        </sc-for>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 12px; color: var(--ink-soft); margin-right: 2px;">Etapa:</span>
+        <sc-for list="{{stageFilters}}" as="s" hint-placeholder-count="4">
+          <button onClick="{{s.onPick}}" style="display: flex; align-items: center; gap: 5px; border: 1px solid {{s.borderStyle}}; background: {{s.bgStyle}}; color: {{s.textStyle}}; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;">
+            <sc-if value="{{s.dot}}" hint-placeholder-val="{{false}}"><div style="width: 6px; height: 6px; border-radius: 50%; background: {{s.dot}};"></div></sc-if>
+            {{s.label}}
+          </button>
+        </sc-for>
+      </div>
+      <div style="margin-left: auto; font-size: 12px; color: var(--ink-soft);">{{resultCount}} resultado(s)</div>
+    </div>
+
+    <div style="flex-grow: 1; overflow-y: auto; padding: 12px 32px 24px 32px;">
+      <div style="display: flex; align-items: center; padding: 0 14px 8px 14px; font-size: 11.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em;">
+        <div style="width: 220px;">Cliente</div>
+        <div style="width: 150px;">Teléfono</div>
+        <div style="width: 120px;">Ciudad</div>
+        <div style="width: 150px;">Etapa</div>
+        <div style="width: 120px; text-align: right;">Compras</div>
+        <div style="flex-grow: 1; text-align: right;">Última actividad</div>
+      </div>
+      <sc-for list="{{contacts}}" as="c" hint-placeholder-count="6">
+        <div onClick="{{c.onOpen}}" style="display: flex; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px 14px; margin-bottom: 8px; cursor: pointer;">
+          <div style="width: 220px; display: flex; align-items: center; gap: 10px; min-width: 0;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0;">{{c.initials}}</div>
+            <div style="min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <div style="font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.name}}</div>
+                <sc-if value="{{c.missingEmail}}" hint-placeholder-val="{{false}}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+                </sc-if>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 6px; height: 6px; border-radius: 50%; background: {{c.channelColor}}; flex-shrink: 0;"></div>
+                <div style="font-size: 11.5px; color: var(--ink-muted);">{{c.channelLabel}}</div>
+              </div>
+            </div>
+          </div>
+          <div style="width: 150px; font-size: 13px; color: var(--ink-muted);">{{c.phone}}</div>
+          <div style="width: 120px; font-size: 13px; color: var(--ink-muted);">{{c.city}}</div>
+          <div style="width: 150px;">
+            <div style="display: inline-flex; align-items: center; gap: 6px; background: {{c.stageTint}}; border-radius: 20px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; color: var(--ink);">
+              <div style="width: 6px; height: 6px; border-radius: 50%; background: {{c.stageColor}};"></div>
+              {{c.stageLabel}}
+            </div>
+          </div>
+          <div style="width: 120px; text-align: right; font-size: 13.5px; font-weight: 700; color: var(--ink);">{{c.totalSpentLabel}}</div>
+          <div style="flex-grow: 1; text-align: right; font-size: 12px; color: var(--ink-soft);">{{c.lastActivity}}</div>
+        </div>
+      </sc-for>
+      <sc-if value="{{isEmptyResults}}" hint-placeholder-val="{{false}}">
+        <div style="text-align: center; padding: 40px 0; color: var(--ink-soft); font-size: 13.5px;">Ningún contacto coincide con estos filtros.</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{isEditing}}" hint-placeholder-val="{{false}}">
+    <div onClick="{{onCancelEdit}}" style="position: absolute; inset: 0; background: rgba(18,15,10,0.45); z-index: 10;"></div>
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 680px; max-height: 820px; background: var(--surface); border-radius: 18px; box-shadow: 0 24px 64px rgba(0,16,55,0.35); z-index: 11; display: flex; flex-direction: column; overflow-y: auto;">
+      <div style="padding: 28px 32px; display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600; color: var(--ink);">{{formTitle}}</div>
+          <button onClick="{{onCancelEdit}}" aria-label="Cerrar" style="width: 30px; height: 30px; border-radius: 8px; border: none; background: var(--surface-2); color: var(--ink-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>
+          </button>
+        </div>
+
+        <sc-if value="{{isCreating}}" hint-placeholder-val="{{false}}">
+          <div>
+            <div style="font-size: 11.5px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Canal de contacto</div>
+            <div style="display: flex; gap: 8px;">
+              <sc-for list="{{channelPicker}}" as="ch" hint-placeholder-count="3">
+                <button onClick="{{ch.onPick}}" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid {{ch.borderStyle}}; background: {{ch.bgStyle}}; color: {{ch.textStyle}}; border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                  <div style="width: 6px; height: 6px; border-radius: 50%; background: {{ch.dot}};"></div>{{ch.label}}
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+          <div>
+            <div style="font-size: 11.5px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Nombre</div>
+            <input value="{{draft.name}}" onChange="{{onDraftField_name}}" placeholder="Nombre completo" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 14px; color: var(--ink); outline: none;">
+          </div>
+          <div>
+            <div style="font-size: 11.5px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Teléfono</div>
+            <input value="{{draft.phone}}" onChange="{{onDraftField_phone}}" placeholder="+504 0000-0000" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 14px; color: var(--ink); outline: none;">
+          </div>
+          <div>
+            <div style="font-size: 11.5px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Correo</div>
+            <input value="{{draft.email}}" onChange="{{onDraftField_email}}" placeholder="correo@ejemplo.com" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 14px; color: var(--ink); outline: none;">
+          </div>
+          <div>
+            <div style="font-size: 11.5px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Ciudad</div>
+            <input value="{{draft.city}}" onChange="{{onDraftField_city}}" placeholder="Tegucigalpa" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 14px; color: var(--ink); outline: none;">
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 11.5px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Notas</div>
+          <textarea value="{{draft.notes}}" onChange="{{onDraftField_notes}}" placeholder="Preferencias, historial, detalles útiles…" style="width: 100%; min-height: 110px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 14px; color: var(--ink); outline: none; font-family: 'Work Sans', sans-serif; resize: vertical;"></textarea>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 4px;">
+          <button onClick="{{onCancelEdit}}" style="flex: 1; background: var(--surface-2); color: var(--ink-muted); border: none; border-radius: 10px; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer;">Cancelar</button>
+          <button onClick="{{onSave}}" style="flex: 2; background: var(--brand); color: #fff; border: none; border-radius: 10px; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer;">{{saveLabel}}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isViewing}}" hint-placeholder-val="{{false}}">
+    <div onClick="{{closeDetail}}" style="position: absolute; inset: 0; background: rgba(18,15,10,0.35); z-index: 10;"></div>
+    <div style="position: absolute; top: 0; right: 0; width: 400px; height: 900px; background: var(--surface); box-shadow: -12px 0 32px rgba(0,0,0,0.14); z-index: 11; display: flex; flex-direction: column; overflow-y: auto;">
+      <div style="padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; flex-shrink: 0;">{{selected.initials}}</div>
+              <div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 17.5px; font-weight: 600; color: var(--ink);">{{selected.name}}</div>
+                <div style="font-size: 13.5px; color: var(--ink-muted);">{{selected.phone}}</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              <button onClick="{{onEdit}}" aria-label="Editar contacto" style="width: 28px; height: 28px; border-radius: 8px; border: none; background: var(--surface-2); color: var(--brand-dark); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+              </button>
+              <button onClick="{{closeDetail}}" aria-label="Cerrar" style="width: 28px; height: 28px; border-radius: 8px; border: none; background: var(--surface-2); color: var(--ink-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          <sc-if value="{{selected.missingEmail}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; align-items: center; gap: 8px; background: var(--danger-tint); border: 1px solid var(--danger-border); border-radius: 10px; padding: 10px 12px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+              <div style="font-size: 13px; font-weight: 600; color: var(--danger); flex-grow: 1;">Falta el correo de este contacto.</div>
+              <button onClick="{{onEdit}}" style="background: none; border: none; color: var(--danger); font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: underline; flex-shrink: 0;">Agregar</button>
+            </div>
+          </sc-if>
+
+          <div style="display: flex; flex-direction: column; gap: 6px; background: var(--surface-2); border-radius: 10px; padding: 12px 14px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: var(--ink-muted);">Canal</span><span style="color: var(--ink); font-weight: 600;">{{selected.channelLabel}}</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: var(--ink-muted);">Ciudad</span><span style="color: var(--ink); font-weight: 600;">{{selected.city}}</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: var(--ink-muted);">Correo</span><span style="color: var(--ink); font-weight: 600;">{{selected.emailLabel}}</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;"><span style="color: var(--ink-muted);">Cliente desde</span><span style="color: var(--ink); font-weight: 600;">{{selected.since}}</span></div>
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <div style="flex: 1; background: var(--brand-tint); border-radius: 10px; padding: 12px; text-align: center;">
+              <div style="font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 700; color: var(--brand-dark);">{{selected.totalSpentLabel}}</div>
+              <div style="font-size: 11px; color: var(--ink-muted);">compras totales</div>
+            </div>
+            <div style="flex: 1; background: var(--surface-2); border-radius: 10px; padding: 12px; text-align: center;">
+              <div style="font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 700; color: var(--ink);">{{selected.purchaseCount}}</div>
+              <div style="font-size: 11px; color: var(--ink-muted);">pedidos</div>
+            </div>
+          </div>
+
+          <sc-if value="{{selected.hasTags}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <sc-for list="{{selected.tags}}" as="tag" hint-placeholder-count="2">
+                <div style="background: var(--accent-tint); color: var(--brand-dark); border-radius: 20px; padding: 3px 10px; font-size: 11.5px; font-weight: 600;">{{tag}}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <div>
+            <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em;">Etapa en el chekeo</div>
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: {{selected.stageTint}}; border-radius: 8px; padding: 8px 12px;">
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: {{selected.stageColor}};"></div>
+              <span style="font-size: 13px; font-weight: 600; color: var(--ink);">{{selected.stageLabel}}</span>
+            </div>
+          </div>
+
+          <sc-if value="{{selected.hasPurchases}}" hint-placeholder-val="{{false}}">
+            <div>
+              <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em;">Historial de compras</div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <sc-for list="{{selected.purchases}}" as="p" hint-placeholder-count="2">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 7px 0;">
+                    <div>
+                      <div style="font-size: 13px; color: var(--ink); font-weight: 600;">{{p.product}}</div>
+                      <div style="font-size: 11px; color: var(--ink-soft);">{{p.date}}</div>
+                    </div>
+                    <div style="font-size: 13px; font-weight: 700; color: var(--ink);">{{p.amountLabel}}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <div>
+            <div style="font-size: 11px; color: var(--ink-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em;">Notas</div>
+            <div style="font-size: 13px; color: var(--ink); line-height: 1.5; background: var(--surface-2); border-radius: 10px; padding: 10px 12px;">{{selected.notesDisplay}}</div>
+          </div>
+
+          <sc-if value="{{selected.isWon}}" hint-placeholder-val="{{false}}">
+            <button onClick="{{onShipWithCheke}}" style="display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--accent); color: var(--brand-dark); border: none; border-radius: 10px; padding: 11px; font-size: 13.5px; font-weight: 700; cursor: pointer;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><path d="M16 8h4l3 3v5h-7V8z"></path><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+              Enviar con Cheke
+            </button>
+          </sc-if>
+
+          <a href="Inbox.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--brand-dark); color: #fff; border-radius: 10px; padding: 11px; font-size: 13.5px; font-weight: 600; text-decoration: none;">
+            Abrir en Chat
+          </a>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{toast}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--brand-dark); color: #fff; border-radius: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 10px; box-shadow: 0 12px 32px rgba(0,16,55,0.3); z-index: 20; max-width: 460px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"></path></svg>
+      <div style="font-size: 13px; line-height: 1.4;">{{toast}}</div>
+      <button onClick="{{dismissToast}}" aria-label="Cerrar" style="background: none; border: none; color: #A9B1CC; cursor: pointer; padding: 0; margin-left: 4px; flex-shrink: 0;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>
+      </button>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      query: '', selectedId: null, filterChannel: 'todos', filterStage: 'todas',
+      editing: false, creating: false, draft: null, overrides: {}, extraContacts: {}, toast: null
+    };
+    this.nextIdCounter = 1;
+
+    this.stagesDef = {
+      nuevo: { label:'Nuevo mensaje', color:'var(--ink-muted)', tint:'var(--surface-2)' },
+      consulta: { label:'Consulta de producto', color:'var(--brand)', tint:'var(--brand-tint)' },
+      cotizacion: { label:'Cotización enviada', color:'var(--gold)', tint:'var(--gold-tint)' },
+      negociacion: { label:'Negociación', color:'#001037', tint:'rgba(0,16,55,0.08)' },
+      vendido: { label:'Vendido', color:'var(--accent)', tint:'var(--accent-tint)' },
+      perdido: { label:'Perdido', color:'var(--danger)', tint:'var(--danger-tint)' }
+    };
+    this.stageOrder = ['nuevo','consulta','cotizacion','negociacion','vendido','perdido'];
+
+    this.channelMeta = {
+      whatsapp: { label:'WhatsApp', color:'var(--wa)' },
+      instagram: { label:'Instagram', color:'var(--ig)' },
+      facebook: { label:'Facebook', color:'var(--fb)' }
+    };
+
+    this.contacts = {
+      L1:{ name:'Marielos Zúniga', initials:'MZ', phone:'+504 9987-2201', email:null, channel:'whatsapp', city:'Tegucigalpa', stage:'nuevo', since:'sep 2026', lastActivity:'hace 4 min', totalSpent:0, tags:[], notes:'Preguntó por el vestido azul en la última historia de Instagram.', purchases:[] },
+      L2:{ name:'Kevin Rápalo', initials:'KR', phone:'+504 9456-1187', email:'kevin.rapalo@gmail.com', channel:'instagram', city:'San Pedro Sula', stage:'nuevo', since:'ago 2026', lastActivity:'hace 12 min', totalSpent:0, tags:[], notes:'Primera vez que escribe. Vino desde un anuncio.', purchases:[] },
+      L3:{ name:'Génesis Martínez', initials:'GM', phone:'+504 9911-4420', email:null, channel:'facebook', city:'La Ceiba', stage:'nuevo', since:'sep 2026', lastActivity:'hace 20 min', totalSpent:0, tags:[], notes:'', purchases:[] },
+      L4:{ name:'Oscar Bueso', initials:'OB', phone:'+504 9834-7765', email:'oscar.bueso@hotmail.com', channel:'whatsapp', city:'Choloma', stage:'consulta', since:'jul 2026', lastActivity:'hace 1 h', totalSpent:0, tags:[], notes:'Pregunta siempre por envíos fuera de Tegucigalpa.', purchases:[] },
+      L5:{ name:'Ingrid Paz', initials:'IP', phone:'+504 9765-3312', email:'ingrid.paz@gmail.com', channel:'instagram', city:'Comayagua', stage:'consulta', since:'jun 2026', lastActivity:'hace 2 h', totalSpent:0, tags:[], notes:'', purchases:[] },
+      L6:{ name:'Douglas Cruz', initials:'DC', phone:'+504 9902-6634', email:'douglas.cruz@outlook.com', channel:'whatsapp', city:'Tegucigalpa', stage:'cotizacion', since:'jun 2026', lastActivity:'hace 3 h', totalSpent:0, tags:['Cliente recurrente'], notes:'Compró una chaqueta hace dos meses, ahora pregunta por otra en negro.', purchases:[ { product:'Chaqueta de mezclilla', amount:750, date:'jul 2026' } ] },
+      L7:{ name:'Fátima Reyes', initials:'FR', phone:'+504 9645-8821', email:null, channel:'facebook', city:'San Pedro Sula', stage:'cotizacion', since:'may 2026', lastActivity:'hace 5 h', totalSpent:0, tags:[], notes:'', purchases:[] },
+      L8:{ name:'Allan Midence', initials:'AM', phone:'+504 9877-1290', email:'allan.midence@gmail.com', channel:'whatsapp', city:'La Ceiba', stage:'negociacion', since:'may 2026', lastActivity:'hace 6 h', totalSpent:0, tags:['Compra al mayor'], notes:'Pide descuento cuando compra más de dos piezas.', purchases:[] },
+      L9:{ name:'Rosa Amaya', initials:'RA', phone:'+504 9933-4456', email:null, channel:'instagram', city:'Tegucigalpa', stage:'negociacion', since:'abr 2026', lastActivity:'hace 1 día', totalSpent:0, tags:[], notes:'', purchases:[] },
+      L10:{ name:'Jonathan Erazo', initials:'JE', phone:'+504 9812-0098', email:'jonathan.erazo@gmail.com', channel:'whatsapp', city:'San Pedro Sula', stage:'vendido', since:'mar 2026', lastActivity:'hace 1 día', totalSpent:1450, tags:['Cliente frecuente'], notes:'Compra cada temporada. Siempre paga por transferencia.', purchases:[ { product:'Traje casual completo', amount:1450, date:'sep 2026' }, { product:'Camisa de lino', amount:520, date:'jun 2026' } ] },
+      L11:{ name:'Cindy Bonilla', initials:'CB', phone:'+504 9701-2245', email:'cindy.bonilla@yahoo.com', channel:'facebook', city:'Comayagua', stage:'vendido', since:'feb 2026', lastActivity:'hace 2 días', totalSpent:780, tags:[], notes:'', purchases:[ { product:'Bolso Aurora', amount:780, date:'sep 2026' } ] },
+      L12:{ name:'Melvin Sosa', initials:'MS', phone:'+504 9990-5567', email:'melvin.sosa@gmail.com', channel:'whatsapp', city:'Choloma', stage:'vendido', since:'ene 2026', lastActivity:'hace 2 días', totalSpent:2100, tags:['Mayorista'], notes:'Revende en su propia tienda en Choloma. Pide factura siempre.', purchases:[ { product:'Pedido mayorista x5', amount:2100, date:'sep 2026' } ] },
+      L13:{ name:'Yesenia Cálix', initials:'YC', phone:'+504 9654-3321', email:null, channel:'instagram', city:'Tegucigalpa', stage:'perdido', since:'jul 2026', lastActivity:'hace 4 días', totalSpent:0, tags:[], notes:'No respondió después de la cotización del vestido rojo.', purchases:[] },
+      L14:{ name:'Diego Fúnez', initials:'DF', phone:'+504 9788-6612', email:'diego.funez@gmail.com', channel:'whatsapp', city:'La Ceiba', stage:'perdido', since:'jun 2026', lastActivity:'hace 5 días', totalSpent:0, tags:[], notes:'Encontró el mismo modelo más barato en otra tienda.', purchases:[] }
+    };
+  }
+
+  initialsFor(name) {
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0] || '')[0] || '') .toUpperCase() + ((parts[1] || '')[0] || '').toUpperCase();
+  }
+
+  renderVals() {
+    const merged = { ...this.contacts, ...this.state.extraContacts };
+
+    const contactsFull = Object.keys(merged).map((id) => {
+      const base = { ...merged[id], ...(this.state.overrides[id] || {}) };
+      const cm = this.channelMeta[base.channel];
+      const st = this.stagesDef[base.stage];
+      const purchases = base.purchases.map((p) => ({ ...p, amountLabel: 'L ' + p.amount.toLocaleString('es-HN') }));
+      return {
+        ...base,
+        id,
+        channelLabel: cm.label,
+        channelColor: cm.color,
+        stageLabel: st.label,
+        stageColor: st.color,
+        stageTint: st.tint,
+        missingEmail: !base.email,
+        emailLabel: base.email || 'Sin registrar',
+        totalSpentLabel: base.totalSpent ? ('L ' + base.totalSpent.toLocaleString('es-HN')) : '—',
+        purchaseCount: purchases.length,
+        purchases,
+        hasPurchases: purchases.length > 0,
+        hasTags: base.tags.length > 0,
+        notesDisplay: base.notes || 'Sin notas todavía.',
+        isWon: base.stage === 'vendido',
+        onOpen: () => this.setState({ selectedId: id, editing: false, creating: false, draft: null })
+      };
+    });
+
+    const q = this.state.query.toLowerCase();
+    const contacts = contactsFull.filter((c) =>
+      (this.state.filterChannel === 'todos' || c.channel === this.state.filterChannel) &&
+      (this.state.filterStage === 'todas' || c.stage === this.state.filterStage) &&
+      (c.name.toLowerCase().includes(q) || c.phone.includes(q) || c.city.toLowerCase().includes(q))
+    );
+
+    const channelFilters = [
+      { id:'todos', label:'Todos' },
+      { id:'whatsapp', label:'WhatsApp' },
+      { id:'instagram', label:'Instagram' },
+      { id:'facebook', label:'Facebook' }
+    ].map((ch) => {
+      const isActive = this.state.filterChannel === ch.id;
+      return { ...ch, onPick: () => this.setState({ filterChannel: ch.id }),
+        bgStyle: isActive ? 'var(--brand-dark)' : 'var(--surface)',
+        textStyle: isActive ? '#FFFFFF' : 'var(--ink-muted)',
+        borderStyle: isActive ? 'var(--brand-dark)' : 'var(--border)' };
+    });
+
+    const stageFilters = [{ id:'todas', label:'Todas' }, ...this.stageOrder.map((id) => ({ id, label: this.stagesDef[id].label, dot: this.stagesDef[id].color }))]
+      .map((s) => {
+        const isActive = this.state.filterStage === s.id;
+        return { ...s, onPick: () => this.setState({ filterStage: s.id }),
+          bgStyle: isActive ? 'var(--brand-dark)' : 'var(--surface)',
+          textStyle: isActive ? '#FFFFFF' : 'var(--ink-muted)',
+          borderStyle: isActive ? 'var(--brand-dark)' : 'var(--border)' };
+      });
+
+    const selectedRaw = this.state.selectedId ? contactsFull.find((c) => c.id === this.state.selectedId) : null;
+    const selected = selectedRaw;
+
+    const isEditing = this.state.editing;
+    const isCreating = this.state.creating;
+    const isViewing = !!selected && !isEditing;
+    const draft = this.state.draft || { name:'', phone:'', email:'', city:'', notes:'', channel:'whatsapp' };
+
+    const setDraftField = (field) => (e) => this.setState((s) => ({ draft: { ...s.draft, [field]: e.target.value } }));
+
+    const channelPicker = ['whatsapp','instagram','facebook'].map((chId) => {
+      const cm = this.channelMeta[chId];
+      const isActive = draft.channel === chId;
+      return {
+        id: chId, label: cm.label, dot: cm.color,
+        onPick: () => this.setState((s) => ({ draft: { ...s.draft, channel: chId } })),
+        bgStyle: isActive ? 'var(--brand-tint)' : 'var(--surface)',
+        textStyle: 'var(--ink)',
+        borderStyle: isActive ? 'var(--brand)' : 'var(--border)'
+      };
+    });
+
+    const onEdit = () => {
+      if (!selected) return;
+      this.setState({ editing: true, creating: false, draft: { name: selected.name, phone: selected.phone, email: selected.email || '', city: selected.city, notes: selected.notes || '', channel: selected.channel } });
+    };
+
+    const onNewContact = () => {
+      this.nextIdCounter += 1;
+      const newId = 'NEW' + this.nextIdCounter;
+      this.setState({
+        selectedId: newId, editing: true, creating: true,
+        draft: { name:'', phone:'', email:'', city:'', notes:'', channel:'whatsapp' },
+        pendingNewId: newId
+      });
+    };
+
+    const onCancelEdit = () => {
+      if (this.state.creating) {
+        this.setState({ editing: false, creating: false, draft: null, selectedId: null });
+      } else {
+        this.setState({ editing: false, draft: null });
+      }
+    };
+
+    const onSave = () => {
+      const d = this.state.draft;
+      if (!d || !d.name.trim()) return;
+      if (this.state.creating) {
+        const newId = this.state.selectedId;
+        this.setState((s) => ({
+          extraContacts: {
+            ...s.extraContacts,
+            [newId]: {
+              name: d.name, initials: this.initialsFor(d.name), phone: d.phone, email: d.email || null,
+              channel: d.channel, city: d.city, stage: 'nuevo', since: 'sep 2026', lastActivity: 'recién agregado',
+              totalSpent: 0, tags: [], notes: d.notes, purchases: []
+            }
+          },
+          editing: false, creating: false, draft: null,
+          toast: 'Contacto "' + d.name + '" agregado a tu registro.'
+        }));
+      } else {
+        const id = this.state.selectedId;
+        this.setState((s) => ({
+          overrides: { ...s.overrides, [id]: { ...(s.overrides[id] || {}), name: d.name, initials: this.initialsFor(d.name), phone: d.phone, email: d.email || null, city: d.city, notes: d.notes } },
+          editing: false, draft: null,
+          toast: 'Cambios guardados para ' + d.name + '.'
+        }));
+      }
+    };
+
+    const onShipWithCheke = () => {
+      if (!selected) return;
+      this.setState({ toast: 'Pedido de ' + selected.name + ' creado en Cheke — recolección agendada en ' + selected.city + '.' });
+    };
+
+    const totalSpent = contactsFull.reduce((s, c) => s + (c.totalSpent || 0), 0);
+    const incompleteCount = contactsFull.filter((c) => c.missingEmail).length;
+
+    return {
+      contacts,
+      selected,
+      isEditing, isCreating, isViewing,
+      draft,
+      formTitle: isCreating ? 'Nuevo contacto' : 'Editar contacto',
+      saveLabel: isCreating ? 'Guardar contacto' : 'Guardar cambios',
+      channelPicker,
+      onDraftField_name: setDraftField('name'),
+      onDraftField_phone: setDraftField('phone'),
+      onDraftField_email: setDraftField('email'),
+      onDraftField_city: setDraftField('city'),
+      onDraftField_notes: setDraftField('notes'),
+      onEdit, onNewContact, onCancelEdit, onSave, onShipWithCheke,
+      query: this.state.query,
+      onQueryChange: (e) => this.setState({ query: e.target.value }),
+      closeDetail: () => this.setState({ selectedId: null, editing: false, creating: false, draft: null }),
+      channelFilters, stageFilters,
+      resultCount: contacts.length,
+      isEmptyResults: contacts.length === 0,
+      totalContacts: contactsFull.length,
+      totalSpentLabel: 'L ' + totalSpent.toLocaleString('es-HN'),
+      incompleteCount,
+      toast: this.state.toast,
+      dismissToast: () => this.setState({ toast: null })
+    };
+  }
+}
+</script>
+</body>
+</html>

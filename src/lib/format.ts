@@ -1,0 +1,37 @@
+import type { ChannelType } from "@/lib/types";
+
+export function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+export function relativeTime(iso: string | null): string {
+  if (!iso) return "";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "ahora";
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `hace ${days} día${days === 1 ? "" : "s"}`;
+  const months = Math.floor(days / 30);
+  return `hace ${months} mes${months === 1 ? "" : "es"}`;
+}
+
+export function primaryChannel(c: {
+  phone: string | null;
+  ig_handle: string | null;
+  fb_id: string | null;
+}): ChannelType | null {
+  if (c.phone) return "whatsapp";
+  if (c.ig_handle) return "instagram";
+  if (c.fb_id) return "facebook";
+  return null;
+}
+
+export const CHANNEL_META: Record<ChannelType, { label: string; color: string }> = {
+  whatsapp: { label: "WhatsApp", color: "#25D366" },
+  instagram: { label: "Instagram", color: "#C1387B" },
+  facebook: { label: "Facebook", color: "#1877F2" },
+};

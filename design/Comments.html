@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Comentarios</title>
+
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  /* Cheke brand — exact values from the brand manual (Azul oscuro / Azul intenso / Menta / Blanco) */
+  --bg:#F4F6FB; --surface:#FFFFFF; --surface-2:#EDF0F7; --surface-3:#DCE1EE;
+  --ink:#0B1030; --ink-muted:#5B6584; --ink-soft:#5F6888; --border:#DCE1EE;
+  --brand:#0043F8; --brand-dark:#001037; --brand-tint:#E7ECFE;
+  --accent:#52EBBB; --accent-tint:#DFFBF1;
+  --gold:#002997; --gold-tint:#E4E9FB;
+  --success:#0043F8; --success-tint:#E7ECFE;
+  --danger:#DC2626; --danger-tint:#FDECEC; --danger-border:#F6BFBF;
+  --wa:#25D366; --ig:#C1387B; --fb:#1877F2;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Work Sans',sans-serif;background:var(--bg);color:var(--ink);}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:8px;}
+input::placeholder{color:var(--ink-soft);}
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; display: flex; background: var(--bg);">
+
+  <div style="width: 240px; min-width: 240px; height: 900px; background: var(--brand-dark); display: flex; flex-direction: column; padding: 24px 0;">
+    <div style="padding: 4px 24px 22px 24px;">
+      <img src="assets/logo-a.png" alt="Cheke" style="width: 148px; height: auto; display: block;">
+    </div>
+
+    <a href="Inbox.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.5-.3-3.6-.8L3 21l1.8-5.4A8.5 8.5 0 1 1 21 11.5z"></path></svg>
+      <span style="font-size: 14.5px;">Chat</span>
+    </a>
+    <a href="Main.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="4" height="16"></rect><rect x="10" y="4" width="4" height="10"></rect><rect x="17" y="4" width="4" height="7"></rect></svg>
+      <span style="font-size: 14.5px;">Chekeo</span>
+    </a>
+    <a href="Contacts.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      <span style="font-size: 14.5px;">Contactos</span>
+    </a>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #FFFFFF; background: rgba(255,255,255,0.06); border-left: 3px solid var(--accent); font-weight: 600;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      <span style="font-size: 14.5px;">Comentarios</span>
+    </div>
+    <a href="Templates.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M9 13h6"></path><path d="M9 17h6"></path></svg>
+      <span style="font-size: 14.5px;">Plantillas</span>
+    </a>
+    <a href="Inventory.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.1-1.8V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.78 0z"></path><path d="M2.32 6.16L12 11l9.68-4.84"></path><path d="M12 22.76V11"></path></svg>
+      <span style="font-size: 14.5px;">Inventario</span>
+    </a>
+    <a href="Team.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
+      <span style="font-size: 14.5px;">Equipo</span>
+    </a>
+    <a href="Notifications.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <span style="font-size: 14.5px;">Notificaciones</span>
+    </a>
+    <a href="Analytics.html" style="display: flex; align-items: center; gap: 12px; padding: 11px 24px; color: #A9B1CC; text-decoration: none; border-left: 3px solid transparent;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10"></path><path d="M12 19V5"></path><path d="M20 19v-7"></path></svg>
+      <span style="font-size: 14.5px;">Analítica</span>
+    </a>
+
+    <div style="margin-top: auto; padding: 16px 24px 0 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; padding-top: 16px;">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--brand); display: flex; align-items: center; justify-content: center; padding: 7px; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(255,255,255,0.15);"><img src="assets/logo-b.png" alt="" style="width: 100%; height: 100%; object-fit: contain;"></div>
+      <div>
+        <div style="font-size: 13.5px; font-weight: 600; color: #FFFFFF;">Boutique Alaia</div>
+        <div style="font-size: 12px; color: #9AA3C4;">Tegucigalpa, HN</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <div style="height: 72px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface);">
+      <div>
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 600; color: var(--ink);">Comentarios</div>
+        <div style="font-size: 13.5px; color: var(--ink-muted);">Lo que preguntan debajo de tus publicaciones — para que ninguna pregunta de precio se quede sin responder</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <sc-for list="{{channelFilters}}" as="ch" hint-placeholder-count="3">
+          <button onClick="{{ch.onPick}}" style="border: 1px solid {{ch.borderStyle}}; background: {{ch.bgStyle}}; color: {{ch.textStyle}}; border-radius: 8px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{ch.label}}</button>
+        </sc-for>
+        <button onClick="{{onTogglePriceOnly}}" style="display: flex; align-items: center; gap: 6px; border: 1px solid {{priceOnlyBorder}}; background: {{priceOnlyBg}}; color: {{priceOnlyText}}; border-radius: 8px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+          Solo preguntas de precio
+        </button>
+      </div>
+    </div>
+
+    <div style="padding: 16px 32px 0 32px; display: flex; gap: 12px;">
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; flex: 1;">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; color: var(--ink);">{{totalComments}}</div>
+        <div style="font-size: 11.5px; color: var(--ink-muted);">comentarios en tus publicaciones</div>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; flex: 1;">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; color: var(--danger);">{{priceQuestionCount}}</div>
+        <div style="font-size: 11.5px; color: var(--ink-muted);">preguntan precio y no se les ha respondido</div>
+      </div>
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; flex: 1;">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 700; color: var(--ink);">{{repliedCount}}</div>
+        <div style="font-size: 11.5px; color: var(--ink-muted);">ya respondidos</div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; overflow-y: auto; padding: 16px 32px 24px 32px;">
+      <div style="display: flex; flex-direction: column; gap: 12px; max-width: 820px;">
+        <sc-for list="{{comments}}" as="c" hint-placeholder-count="5">
+          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; gap: 12px;">
+              <div style="width: 52px; height: 52px; border-radius: 10px; background: {{c.postTint}}; color: {{c.postTextColor}}; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; flex-shrink: 0;">{{c.postCode}}</div>
+              <div style="flex-grow: 1; min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <div style="width: 8px; height: 8px; border-radius: 50%; background: {{c.channelColor}}; flex-shrink: 0;"></div>
+                  <div style="font-size: 11.5px; color: var(--ink-muted);">{{c.channelLabel}} · publicación "{{c.postProduct}}" · {{c.time}}</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                  <div style="width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;">{{c.initials}}</div>
+                  <div style="font-size: 13.5px; font-weight: 700; color: var(--ink);">{{c.name}}</div>
+                  <sc-if value="{{c.isPriceQuestion}}" hint-placeholder-val="{{false}}">
+                    <div style="display: flex; align-items: center; gap: 4px; background: var(--danger-tint); color: var(--danger); font-size: 10.5px; font-weight: 700; border-radius: 6px; padding: 2px 7px;">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v.01"></path><path d="M12 8v5"></path></svg>
+                      Pregunta de precio
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{c.replied}}" hint-placeholder-val="{{false}}">
+                    <div style="background: var(--accent-tint); color: var(--brand-dark); font-size: 10.5px; font-weight: 700; border-radius: 6px; padding: 2px 7px;">Respondido</div>
+                  </sc-if>
+                </div>
+                <div style="font-size: 13.5px; color: var(--ink); line-height: 1.45; margin-top: 6px;">{{c.text}}</div>
+              </div>
+            </div>
+
+            <sc-if value="{{c.hasReply}}" hint-placeholder-val="{{false}}">
+              <div style="margin-left: 64px; background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--ink);">
+                <span style="font-weight: 700; color: var(--brand-dark);">Boutique Alaia:</span> {{c.replyText}}
+              </div>
+            </sc-if>
+
+            <div style="margin-left: 64px; display: flex; align-items: center; gap: 8px;">
+              <input value="{{c.draft}}" onChange="{{c.onDraftChange}}" onKeyDown="{{c.onKeyDown}}" placeholder="Responder en público…" style="flex-grow: 1; padding: 8px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface-2); font-size: 12.5px; color: var(--ink); outline: none;">
+              <button onClick="{{c.onReply}}" style="background: var(--brand-dark); color: #fff; border: none; border-radius: 20px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">Responder</button>
+              <button onClick="{{c.onGoPrivate}}" style="display: flex; align-items: center; gap: 5px; background: var(--surface-2); color: var(--brand-dark); border: none; border-radius: 20px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.5-.3-3.6-.8L3 21l1.8-5.4A8.5 8.5 0 1 1 21 11.5z"></path></svg>
+                Enviar por privado
+              </button>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{isEmpty}}" hint-placeholder-val="{{false}}">
+          <div style="text-align: center; padding: 60px 0; color: var(--ink-soft); font-size: 13px;">No hay comentarios con estos filtros.</div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{toast}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--brand-dark); color: #fff; border-radius: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 10px; box-shadow: 0 12px 32px rgba(0,16,55,0.3); z-index: 20; max-width: 480px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"></path></svg>
+      <div style="font-size: 12.5px; line-height: 1.4;">{{toast}}</div>
+      <button onClick="{{dismissToast}}" aria-label="Cerrar" style="background: none; border: none; color: #A9B1CC; cursor: pointer; padding: 0; margin-left: 4px; flex-shrink: 0;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>
+      </button>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { channel: 'todos', priceOnly: false, drafts: {}, replies: {}, toast: null };
+
+    this.channelMeta = {
+      instagram: { label:'Instagram', color:'var(--ig)' },
+      facebook: { label:'Facebook', color:'var(--fb)' }
+    };
+
+    this.baseComments = [
+      { id:'k1', channel:'instagram', postProduct:'Vestido Aurora', postCode:'VA', postTint:'var(--brand-tint)', postTextColor:'var(--brand-dark)', name:'Kevin Rápalo', initials:'KR', text:'Hola! ¿Cuánto cuesta el vestido de la foto? Me encantó 😍', time:'hace 10 min', isPriceQuestion:true },
+      { id:'k2', channel:'facebook', postProduct:'Chaqueta de cuero', postCode:'CN', postTint:'rgba(0,16,55,0.08)', postTextColor:'var(--brand-dark)', name:'Fátima Reyes', initials:'FR', text:'¿Tienen envíos a San Pedro Sula? Y en qué colores viene', time:'hace 40 min', isPriceQuestion:false },
+      { id:'k3', channel:'instagram', postProduct:'Set de accesorios', postCode:'SA', postTint:'var(--gold-tint)', postTextColor:'var(--gold)', name:'Ingrid Paz', initials:'IP', text:'Precio porfa 🙌', time:'hace 1 h', isPriceQuestion:true },
+      { id:'k4', channel:'facebook', postProduct:'Conjunto deportivo', postCode:'CD', postTint:'var(--accent-tint)', postTextColor:'var(--brand-dark)', name:'Génesis Martínez', initials:'GM', text:'¿Disponible en talla M?', time:'hace 3 h', isPriceQuestion:false },
+      { id:'k5', channel:'instagram', postProduct:'Bolso café Milán', postCode:'BM', postTint:'var(--gold-tint)', postTextColor:'var(--gold)', name:'Rosa Amaya', initials:'RA', text:'¿En cuánto me lo dejan? Lo quiero para este fin de semana', time:'hace 5 h', isPriceQuestion:true, reply:'¡Hola Rosa! El bolso café está en L 650. Te escribimos por privado para coordinar el envío 💙' },
+      { id:'k6', channel:'facebook', postProduct:'Jeans skinny azul', postCode:'JS', postTint:'var(--brand-tint)', postTextColor:'var(--brand-dark)', name:'Oscar Bueso', initials:'OB', text:'¿Cuánto cuesta y hacen envíos a Choloma?', time:'hace 1 día', isPriceQuestion:true, reply:'¡Hola Oscar! Está en L 480 y sí, hacemos envíos a Choloma. Te escribimos por WhatsApp.' }
+    ];
+  }
+
+  renderVals() {
+    const setDraft = (id) => (e) => this.setState((s) => ({ drafts: { ...s.drafts, [id]: e.target.value } }));
+
+    const commentsFull = this.baseComments.map((c) => {
+      const cm = this.channelMeta[c.channel];
+      const replyText = this.state.replies[c.id] || c.reply || null;
+      const draft = this.state.drafts[c.id] || '';
+      const sendReply = () => {
+        const text = (this.state.drafts[c.id] || '').trim();
+        if (!text) return;
+        this.setState((s) => ({
+          replies: { ...s.replies, [c.id]: text },
+          drafts: { ...s.drafts, [c.id]: '' },
+          toast: 'Respondiste el comentario de ' + c.name + ' en ' + cm.label + '.'
+        }));
+      };
+      return {
+        ...c,
+        channelLabel: cm.label,
+        channelColor: cm.color,
+        replied: !!replyText,
+        hasReply: !!replyText,
+        replyText,
+        draft,
+        onDraftChange: setDraft(c.id),
+        onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); sendReply(); } },
+        onReply: sendReply,
+        onGoPrivate: () => this.setState({
+          toast: 'Se movió a ' + c.name + ' a Chat — nueva conversación privada por ' + cm.label + ', etapa "Consulta de producto".'
+        })
+      };
+    });
+
+    const filtered = commentsFull.filter((c) =>
+      (this.state.channel === 'todos' || c.channel === this.state.channel) &&
+      (!this.state.priceOnly || c.isPriceQuestion)
+    );
+
+    const channelFilters = [
+      { id:'todos', label:'Todos' },
+      { id:'instagram', label:'Instagram' },
+      { id:'facebook', label:'Facebook' }
+    ].map((ch) => {
+      const isActive = this.state.channel === ch.id;
+      return { ...ch, onPick: () => this.setState({ channel: ch.id }),
+        bgStyle: isActive ? 'var(--brand-dark)' : 'var(--surface)',
+        textStyle: isActive ? '#FFFFFF' : 'var(--ink-muted)',
+        borderStyle: isActive ? 'var(--brand-dark)' : 'var(--border)' };
+    });
+
+    const priceQuestionCount = commentsFull.filter((c) => c.isPriceQuestion && !c.replied).length;
+    const repliedCount = commentsFull.filter((c) => c.replied).length;
+
+    return {
+      comments: filtered,
+      channelFilters,
+      priceOnlyBg: this.state.priceOnly ? 'var(--brand-dark)' : 'var(--surface)',
+      priceOnlyText: this.state.priceOnly ? '#FFFFFF' : 'var(--ink-muted)',
+      priceOnlyBorder: this.state.priceOnly ? 'var(--brand-dark)' : 'var(--border)',
+      onTogglePriceOnly: () => this.setState((s) => ({ priceOnly: !s.priceOnly })),
+      totalComments: commentsFull.length,
+      priceQuestionCount,
+      repliedCount,
+      isEmpty: filtered.length === 0,
+      toast: this.state.toast,
+      dismissToast: () => this.setState({ toast: null })
+    };
+  }
+}
+</script>
+</body>
+</html>
