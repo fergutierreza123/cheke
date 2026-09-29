@@ -101,10 +101,12 @@ export function ChatView({
     });
   }
 
-  function bumpConversation(conversationId: string, lastMessageAt: string) {
+  function bumpConversation(conversationId: string, lastMessageAt: string, body: string | null) {
     setConversations((prev) =>
       [...prev]
-        .map((c) => (c.id === conversationId ? { ...c, last_message_at: lastMessageAt } : c))
+        .map((c) =>
+          c.id === conversationId ? { ...c, last_message_at: lastMessageAt, last_message_body: body } : c,
+        )
         .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? "")),
     );
   }
@@ -121,7 +123,7 @@ export function ChatView({
         (payload) => {
           const msg = payload.new as Message;
           appendMessage(msg);
-          bumpConversation(msg.conversation_id, msg.created_at);
+          bumpConversation(msg.conversation_id, msg.created_at, msg.body);
         },
       )
       .subscribe();
@@ -169,7 +171,7 @@ export function ChatView({
 
     if (error || !data) return;
     appendMessage(data);
-    bumpConversation(selected.id, data.created_at);
+    bumpConversation(selected.id, data.created_at, data.body);
     await supabase.from("conversations").update({ last_message_at: data.created_at }).eq("id", selected.id);
   }
 
@@ -251,7 +253,7 @@ export function ChatView({
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
           {filtered.map((c) => {
             const meta = c.channel ? CHANNEL_META[c.channel.type] : null;
-            const last = messagesByConversation[c.id]?.at(-1);
+            const lastBody = messagesByConversation[c.id]?.at(-1)?.body ?? c.last_message_body;
             return (
               <button
                 key={c.id}
@@ -279,7 +281,7 @@ export function ChatView({
                     <div className="truncate text-[13.5px] font-semibold text-ink">{c.contact.name}</div>
                     <div className="shrink-0 text-[11px] text-ink-soft">{relativeTime(c.last_message_at)}</div>
                   </div>
-                  <div className="truncate text-[12.5px] text-ink-muted">{last?.body ?? ""}</div>
+                  <div className="truncate text-[12.5px] text-ink-muted">{lastBody ?? ""}</div>
                 </div>
               </button>
             );

@@ -46,4 +46,5 @@ export type Message = {
 export type ConversationWithContact = Conversation & {
   contact: Pick<Contact, "id" | "name" | "phone" | "ig_handle" | "fb_id" | "notes">;
   channel: Pick<Channel, "id" | "type"> | null;
+  last_message_body: string | null;
 };
