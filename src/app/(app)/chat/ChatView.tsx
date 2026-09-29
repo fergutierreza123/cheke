@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { seedDemoData } from "../actions";
 import { initialsFor, relativeTime, CHANNEL_META } from "@/lib/format";
@@ -12,6 +12,11 @@ const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "instagram", label: "Instagram" },
   { id: "facebook", label: "Facebook" },
 ];
+
+const LIST_WIDTH_KEY = "cheke-chat-list-width";
+const LIST_WIDTH_MIN = 240;
+const LIST_WIDTH_MAX = 460;
+const LIST_WIDTH_DEFAULT = 320;
 
 export function ChatView({
   businessId,
@@ -33,6 +38,53 @@ export function ChatView({
   const [channelFilter, setChannelFilter] = useState<ChannelType | "todos">("todos");
   const [draft, setDraft] = useState("");
   const [seeding, setSeeding] = useState(false);
+  const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
+  const resizing = useRef(false);
+
+  // Restore the panel width the viewer left it at last time (per-browser
+  // convenience only — never shared state, so it's fine in localStorage).
+  // Read after mount rather than as a lazy initial state so the server-
+  // rendered markup and the first client render match (no hydration diff).
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(LIST_WIDTH_KEY));
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from an external store (localStorage) on mount, not derived from React state
+      if (saved) setListWidth(Math.min(LIST_WIDTH_MAX, Math.max(LIST_WIDTH_MIN, saved)));
+    } catch {
+      // ignore — private browsing, blocked storage, etc.
+    }
+  }, []);
+
+  function startResize(e: React.MouseEvent) {
+    e.preventDefault();
+    resizing.current = true;
+    const startX = e.clientX;
+    const startWidth = listWidth;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+
+    function onMove(ev: MouseEvent) {
+      if (!resizing.current) return;
+      setListWidth(Math.min(LIST_WIDTH_MAX, Math.max(LIST_WIDTH_MIN, startWidth + (ev.clientX - startX))));
+    }
+    function onUp() {
+      resizing.current = false;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      setListWidth((w) => {
+        try {
+          localStorage.setItem(LIST_WIDTH_KEY, String(w));
+        } catch {
+          // ignore
+        }
+        return w;
+      });
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
   const messages = selectedId ? (messagesByConversation[selectedId] ?? []) : [];
@@ -147,7 +199,10 @@ export function ChatView({
   return (
     <div className="flex h-full min-h-0">
       {/* Conversation list */}
-      <div className="flex w-80 min-w-80 shrink-0 flex-col border-r border-border bg-surface">
+      <div
+        style={{ width: listWidth, minWidth: LIST_WIDTH_MIN }}
+        className="flex shrink-0 flex-col border-r border-border bg-surface"
+      >
         <div className="shrink-0 px-4.5 pb-3 pt-5">
           <div className="mb-3 font-heading text-[19px] font-semibold text-ink">Chat</div>
           <div className="relative">
@@ -159,19 +214,29 @@ export function ChatView({
               className="w-full rounded-[9px] border border-border bg-surface-2 py-2 pl-[30px] pr-2.5 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
             />
           </div>
-          <div className="mt-2.5 flex gap-1.5">
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
             {CHANNEL_FILTERS.map((ch) => {
               const active = channelFilter === ch.id;
+              const color = ch.id !== "todos" ? CHANNEL_META[ch.id].color : undefined;
               return (
                 <button
                   key={ch.id}
                   onClick={() => setChannelFilter(ch.id)}
-                  className={`rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold ${
+                  style={active && color ? { background: color, borderColor: color } : undefined}
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold transition-colors ${
                     active
-                      ? "border-brand-dark bg-brand-dark text-white"
-                      : "border-border bg-surface-2 text-ink-muted"
+                      ? color
+                        ? "text-white"
+                        : "border-brand-dark bg-brand-dark text-white"
+                      : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
                   }`}
                 >
+                  {color && (
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ background: active ? "#fff" : color }}
+                    />
+                  )}
                   {ch.label}
                 </button>
               );
@@ -216,6 +281,17 @@ export function ChatView({
             <div className="px-4.5 py-8 text-center text-[13px] text-ink-soft">Sin resultados.</div>
           )}
         </div>
+      </div>
+
+      {/* Drag handle to resize the conversation list */}
+      <div
+        onMouseDown={startResize}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Ajustar ancho de la lista de chats"
+        className="group relative w-[3px] shrink-0 cursor-col-resize bg-border"
+      >
+        <div className="absolute inset-y-0 -left-1.5 -right-1.5 group-hover:bg-brand-tint group-active:bg-brand-tint" />
       </div>
 
       {/* Thread */}
