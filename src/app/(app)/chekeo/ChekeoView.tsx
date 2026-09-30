@@ -139,8 +139,11 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                   setDraggingId(null);
                   setDragOverStage(null);
                 }}
-                style={{ background: `${meta.color}14` }}
-                className="flex h-full w-[246px] min-w-[246px] max-w-[246px] shrink-0 flex-col rounded-[14px] p-3"
+                style={{
+                  background: isDropTarget ? `${meta.color}22` : `${meta.color}14`,
+                  boxShadow: isDropTarget ? `0 0 0 2px ${meta.color}` : "0 0 0 2px transparent",
+                }}
+                className="flex h-full w-[246px] min-w-[246px] max-w-[246px] shrink-0 flex-col rounded-[14px] p-3 transition-[background-color,box-shadow] duration-150"
               >
                 <div className="flex items-center gap-2 px-1 pb-0.5">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color }} />
@@ -173,9 +176,9 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                         onClick={() => setSelectedId(c.id)}
                         style={{
                           opacity: draggingId === c.id ? 0.4 : 1,
-                          transform: draggingId === c.id ? "scale(0.97)" : "scale(1)",
+                          transform: draggingId === c.id ? "scale(0.96) rotate(-2deg)" : "scale(1) rotate(0deg)",
                         }}
-                        className="flex cursor-grab flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-[11px] shadow-[0_1px_2px_rgba(34,29,23,0.05)] transition-[opacity,transform] active:cursor-grabbing"
+                        className="flex cursor-grab flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-[11px] shadow-[0_1px_2px_rgba(34,29,23,0.05)] transition-[opacity,transform] duration-150 active:cursor-grabbing"
                       >
                         <div className="flex items-center gap-2">
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-[12.5px] font-bold text-white">
@@ -237,13 +240,20 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                       </div>
                     );
                   })}
-                  {items.length === 0 && (
+                  {items.length === 0 && !isDropTarget && (
+                    <div className="flex min-h-14 flex-1 items-center justify-center rounded-[10px] text-center text-[12.5px] text-ink-soft">
+                      Sin contactos aquí
+                    </div>
+                  )}
+                  {/* Shown at the end of the list on every column being dragged
+                      over, not just empty ones — always visible proof of
+                      exactly where the card will land. */}
+                  {isDropTarget && (
                     <div
-                      className={`flex min-h-14 flex-1 items-center justify-center rounded-[10px] text-center text-[12.5px] ${
-                        isDropTarget ? "border-2 border-dashed border-brand bg-surface text-brand font-semibold" : "text-ink-soft"
-                      }`}
+                      style={{ borderColor: meta.color, color: meta.color }}
+                      className="flex h-12 shrink-0 items-center justify-center rounded-[10px] border-2 border-dashed bg-surface text-[12.5px] font-semibold"
                     >
-                      {isDropTarget ? "Soltar aquí" : "Sin contactos aquí"}
+                      Soltar aquí
                     </div>
                   )}
                 </div>

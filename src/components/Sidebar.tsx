@@ -20,9 +20,11 @@ const NAV_ITEMS = [
 export function Sidebar({
   businessName,
   businessCity = "Honduras",
+  notificationCount = 0,
 }: {
   businessName: string;
   businessCity?: string;
+  notificationCount?: number;
 }) {
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion();
@@ -35,6 +37,7 @@ export function Sidebar({
 
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = pathname.startsWith(href);
+        const badge = href === "/notifications" ? notificationCount : 0;
         return (
           <Link
             key={href}
@@ -58,7 +61,12 @@ export function Sidebar({
               />
             )}
             <Icon className="relative z-10 h-[18px] w-[18px] shrink-0" />
-            <span className="relative z-10">{label}</span>
+            <span className="relative z-10 flex-1">{label}</span>
+            {badge > 0 && (
+              <span className="relative z-10 flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[10.5px] font-bold text-white">
+                {badge > 9 ? "9+" : badge}
+              </span>
+            )}
           </Link>
         );
       })}
