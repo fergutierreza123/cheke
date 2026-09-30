@@ -28,6 +28,11 @@ interacción/animación.
   recibe y guarda), y lo que respondes desde el Chat se envía de verdad por
   WhatsApp (`sendWhatsAppMessage` en `src/lib/whatsapp.ts`). Ver la sección
   de abajo para conectar tu propio número de prueba.
+- **Chekeo** conectado a datos reales: tablero kanban con las 6 etapas de
+  venta, arrastra contactos entre columnas (o usa las flechas), valor del
+  negocio en Lempiras, tasa de cierre, aviso de contactos sin respuesta en
+  24h. Comparte los mismos datos que Chat — mover la etapa desde cualquiera
+  de las dos pantallas se refleja en la otra.
 - Las demás secciones (Chekeo, Comentarios, Plantillas, Inventario, Equipo,
   Notificaciones, Analítica) todavía muestran el aviso de "próximamente".
 - Reglas de interacción y movimiento documentadas en `CLAUDE.md` — de ahí

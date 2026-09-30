@@ -52,3 +52,18 @@ export type ConversationWithContact = Conversation & {
   channel: Pick<Channel, "id" | "type"> | null;
   last_message_body: string | null;
 };
+
+export type Product = {
+  id: string;
+  business_id: string;
+  retailer_id: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  price_hnl: number;
+  image_url: string | null;
+  stock: number;
+  visible: boolean;
+  meta_sync_status: string;
+  created_at: string;
+};
