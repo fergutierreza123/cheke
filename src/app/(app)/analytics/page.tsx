@@ -1,11 +1,17 @@
-import { PageStub } from "@/components/PageStub";
+import { redirect } from "next/navigation";
+import { getCurrentBusiness } from "@/lib/business";
+import { getConversations } from "@/lib/conversations";
+import { getProducts } from "@/lib/products";
+import { AnalyticsView } from "./AnalyticsView";
 
-export default function AnalyticsPage() {
-  return (
-    <PageStub
-      title="Analítica"
-      subtitle="Cómo avanza tu Chekeo de ventas, canal por canal"
-      phase="Fase 7 — Analítica"
-    />
-  );
+export default async function AnalyticsPage() {
+  const business = await getCurrentBusiness();
+  if (!business) redirect("/onboarding");
+
+  const [conversations, products] = await Promise.all([
+    getConversations(business.id),
+    getProducts(business.id),
+  ]);
+
+  return <AnalyticsView conversations={conversations} products={products} />;
 }
