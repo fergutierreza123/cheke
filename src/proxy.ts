@@ -54,7 +54,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // Excludes /api entirely: those routes (like the WhatsApp webhook) are
+  // called by external services with no browser session, and verify
+  // themselves however's appropriate (e.g. a signature header), not a
+  // Supabase session cookie.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

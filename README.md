@@ -4,7 +4,7 @@ CRM omnicanal para negocios hondureños que venden por WhatsApp, Instagram y
 Facebook. Ver `CLAUDE.md` para el plan completo del proyecto y las reglas de
 interacción/animación.
 
-## Qué es esto ahora mismo (Fase 2 — Chat + Contactos)
+## Qué es esto ahora mismo (Fase 4 — WhatsApp Cloud API)
 
 - Proyecto Next.js (App Router, TypeScript) + Tailwind, listo para correr.
 - Esquema de base de datos multi-negocio con seguridad por fila (RLS) —
@@ -19,8 +19,15 @@ interacción/animación.
   canal, hilo de mensajes, enviar respuesta — y **Realtime**: los mensajes
   nuevos aparecen al instante sin recargar la página.
 - Ambas pantallas incluyen un botón de "Sembrar datos de ejemplo" cuando un
-  negocio está vacío, para poder probar/mostrar la app antes de conectar
-  WhatsApp, Instagram o Facebook de verdad (eso es la Fase 4 en adelante).
+  negocio está vacío, para poder probar/mostrar la app sin depender de
+  WhatsApp real.
+- **Desplegado de verdad** en Vercel (Fase 3), conectado a GitHub — cada
+  `git push` a `main` publica una nueva versión automáticamente.
+- **WhatsApp Cloud API** conectado con un número de prueba: los mensajes que
+  te escriben de verdad por WhatsApp llegan al Chat (`/api/whatsapp/webhook`
+  recibe y guarda), y lo que respondes desde el Chat se envía de verdad por
+  WhatsApp (`sendWhatsAppMessage` en `src/lib/whatsapp.ts`). Ver la sección
+  de abajo para conectar tu propio número de prueba.
 - Las demás secciones (Chekeo, Comentarios, Plantillas, Inventario, Equipo,
   Notificaciones, Analítica) todavía muestran el aviso de "próximamente".
 - Reglas de interacción y movimiento documentadas en `CLAUDE.md` — de ahí
@@ -105,7 +112,98 @@ design/                mockups aprobados (no editar — son la referencia)
    cuenta en dos pestañas/navegadores y envía un mensaje en una — debería
    aparecer en la otra al instante, sin recargar.
 
+## Conectar tu número de prueba de WhatsApp
+
+### 1. Crear la app de Meta
+
+1. Entra a [developers.facebook.com](https://developers.facebook.com) e
+   inicia sesión con tu cuenta de Facebook (o crea una).
+2. **Mis apps → Crear app**. Elige el tipo **"Empresa"**, ponle un nombre.
+3. En el panel de la app, busca el producto **WhatsApp** en la lista y haz
+   clic en **Configurar**.
+4. En **WhatsApp → Configuración de la API**, vas a ver:
+   - Un **número de teléfono de prueba** (ya viene listo, no hay que pagar).
+   - Un **Token de acceso temporal** (dura 24h — luego se puede generar uno
+     permanente, pero para probar sirve este).
+   - El **ID del número de teléfono** (debajo del número de prueba).
+5. En **Configuración de la app → Básica**, copia el **secreto de la app**
+   (App Secret) — hay que hacer clic en "Mostrar" y puede pedir tu contraseña.
+
+### 2. Guardar las variables de entorno
+
+Abre `.env.local` (en la raíz del proyecto) y completa estas líneas con lo
+que copiaste — **este archivo nunca se sube a GitHub**, así que es seguro
+pegarlo ahí directamente en tu computadora:
+
+```
+WHATSAPP_ACCESS_TOKEN=el-token-temporal-que-copiaste
+WHATSAPP_PHONE_NUMBER_ID=el-id-del-numero-de-telefono
+WHATSAPP_APP_SECRET=el-secreto-de-la-app
+WHATSAPP_VERIFY_TOKEN=inventa-cualquier-palabra-clave-aqui
+```
+
+`WHATSAPP_VERIFY_TOKEN` no viene de ningún lado — es una contraseña que tú
+inventas y usas en dos lugares (aquí, y en el paso de Meta más abajo).
+
+También necesitas la **service role key** de Supabase — es distinta a la
+`anon public key` que ya usamos, y es más sensible (da acceso completo a la
+base de datos). Ve a tu [Supabase API Settings](https://supabase.com/dashboard/project/sxhrbeqfecddzcmkweix/settings/api-keys),
+busca **service_role**, cópiala, y agrégala tú mismo a `.env.local`:
+
+```
+SUPABASE_SERVICE_ROLE_KEY=la-service-role-key
+```
+
+(Este valor no me lo compartas a mí — pégalo directo en el archivo.)
+
+### 3. Crear el canal de WhatsApp para tu negocio
+
+Como todavía no existe un botón "Conectar WhatsApp" en la app (eso es la
+Fase 5), hay que crear esa conexión una vez a mano. En el **SQL Editor** de
+Supabase, corre esto (reemplaza los dos valores marcados):
+
+```sql
+insert into channels (business_id, type, external_id, status)
+values (
+  'tu-business-id',            -- ve a la tabla "businesses" en Table Editor y copia el id
+  'whatsapp',
+  'el-id-del-numero-de-telefono', -- el mismo WHATSAPP_PHONE_NUMBER_ID de arriba
+  'connected'
+);
+```
+
+### 4. Correr la app y probar localmente
+
+```bash
+npm run dev
+```
+
+En **WhatsApp → Configuración de la API** en Meta, hay una sección para
+mandarte un mensaje de prueba a tu propio WhatsApp desde el número de
+prueba — respóndele desde tu teléfono. Como el webhook todavía no está
+registrado, no vas a ver el mensaje en el Chat todavía; eso es el paso 5.
+
+### 5. Registrar el webhook (para producción)
+
+Esto necesita una URL pública, así que se hace sobre lo ya desplegado en
+Vercel, no en localhost:
+
+1. Agrega las mismas 4 variables de WhatsApp (y la service role key) en
+   **Vercel → tu proyecto → Settings → Environment Variables**, igual que
+   hicimos con las de Supabase.
+2. Vuelve a desplegar (Vercel → Deployments → "..." → Redeploy) para que
+   tome las variables nuevas.
+3. En Meta, **WhatsApp → Configuración → Webhooks → Editar**:
+   - **URL de retorno de llamada**: `https://cheke-eight.vercel.app/api/whatsapp/webhook`
+   - **Token de verificación**: el mismo que pusiste en `WHATSAPP_VERIFY_TOKEN`
+4. Clic en **Verificar y guardar**.
+5. Debajo, suscríbete al campo **messages**.
+
+Ahora escríbele al número de prueba desde tu teléfono — el mensaje debería
+aparecer en **Chat** casi al instante (gracias a Realtime), y lo que
+respondas desde ahí debería llegarte de verdad a WhatsApp.
+
 ## Siguiente fase
 
-Fase 3 en `CLAUDE.md`: desplegar a GitHub + Vercel con variables de entorno
-y dominio propio.
+Fase 5 en `CLAUDE.md`: Embedded Signup — que cada negocio pueda conectar su
+propio WhatsApp existente desde un botón en la app, sin tocar SQL a mano.

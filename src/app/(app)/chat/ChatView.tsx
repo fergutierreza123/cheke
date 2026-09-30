@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { seedDemoData } from "../actions";
+import { sendChatMessage } from "./actions";
 import { initialsFor, relativeTime, CHANNEL_META, withAlpha } from "@/lib/format";
 import type { ChannelType, ConversationWithContact, Message } from "@/lib/types";
 
@@ -37,6 +38,7 @@ export function ChatView({
   const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<ChannelType | "todos">("todos");
   const [draft, setDraft] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
@@ -161,18 +163,16 @@ export function ChatView({
     const text = draft.trim();
     if (!text || !selected) return;
     setDraft("");
+    setSendError(null);
 
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({ conversation_id: selected.id, business_id: businessId, direction: "out", body: text })
-      .select("*")
-      .single();
+    const result = await sendChatMessage(selected.id, text);
 
-    if (error || !data) return;
-    appendMessage(data);
-    bumpConversation(selected.id, data.created_at, data.body);
-    await supabase.from("conversations").update({ last_message_at: data.created_at }).eq("id", selected.id);
+    if (result.message) {
+      appendMessage(result.message);
+      bumpConversation(selected.id, result.message.created_at, result.message.body);
+    }
+    if (result.sendError) setSendError(result.sendError);
+    else if (result.error) setSendError(result.error);
   }
 
   async function handleSeed() {
@@ -260,6 +260,7 @@ export function ChatView({
                 onClick={() => {
                   setSelectedId(c.id);
                   setMobileView("thread");
+                  setSendError(null);
                 }}
                 className={`flex w-full gap-2.5 border-b border-border px-4.5 py-3 text-left ${
                   c.id === selectedId ? "bg-brand-tint" : "bg-surface hover:bg-surface-2"
@@ -365,6 +366,11 @@ export function ChatView({
               )}
             </div>
 
+            {sendError && (
+              <div className="shrink-0 border-t border-danger-border bg-danger-tint px-6 py-2 text-[12.5px] text-danger">
+                {sendError}
+              </div>
+            )}
             <div className="flex shrink-0 items-center gap-2.5 border-t border-border bg-surface px-6 py-3.5">
               <input
                 value={draft}
