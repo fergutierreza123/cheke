@@ -5,6 +5,15 @@ export function initialsFor(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
+// We don't collect display names anywhere (no profiles table) — team
+// members are identified by email, so their "initials" come from that.
+export function initialsFromEmail(email: string): string {
+  const local = email.split("@")[0] ?? email;
+  const parts = local.split(/[._-]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return local.slice(0, 2).toUpperCase();
+}
+
 export function relativeTime(iso: string | null): string {
   if (!iso) return "";
   const diffMs = Date.now() - new Date(iso).getTime();

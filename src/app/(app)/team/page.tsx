@@ -1,11 +1,25 @@
-import { PageStub } from "@/components/PageStub";
+import { redirect } from "next/navigation";
+import { getCurrentBusiness } from "@/lib/business";
+import { getTeamMembers } from "@/lib/team";
+import { createClient } from "@/lib/supabase/server";
+import { TeamView } from "./TeamView";
 
-export default function TeamPage() {
+export default async function TeamPage() {
+  const business = await getCurrentBusiness();
+  if (!business) redirect("/onboarding");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const members = await getTeamMembers(business.id);
+
   return (
-    <PageStub
-      title="Equipo"
-      subtitle="Ventas y progreso de cada vendedor"
-      phase="Fase 7 — Equipo"
+    <TeamView
+      business={business}
+      members={members}
+      currentUserId={user?.id ?? ""}
     />
   );
 }

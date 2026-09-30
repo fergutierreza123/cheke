@@ -64,6 +64,13 @@ export type Template = {
   created_at: string;
 };
 
+export type TeamMember = {
+  user_id: string;
+  email: string;
+  role: "owner" | "agent";
+  joined_at: string;
+};
+
 export type Product = {
   id: string;
   business_id: string;
