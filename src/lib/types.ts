@@ -53,6 +53,17 @@ export type ConversationWithContact = Conversation & {
   last_message_body: string | null;
 };
 
+export type TemplateCategory = "precios" | "pagos" | "envios" | "bienvenida" | "seguimiento";
+
+export type Template = {
+  id: string;
+  business_id: string;
+  name: string;
+  category: TemplateCategory;
+  body: string;
+  created_at: string;
+};
+
 export type Product = {
   id: string;
   business_id: string;

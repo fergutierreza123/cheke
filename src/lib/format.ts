@@ -1,4 +1,4 @@
-import type { ChannelType, ConversationStage } from "@/lib/types";
+import type { ChannelType, ConversationStage, TemplateCategory } from "@/lib/types";
 
 export function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -55,6 +55,22 @@ export const STAGE_ORDER: ConversationStage[] = [
   "negociacion",
   "ganado",
   "perdido",
+];
+
+export const TEMPLATE_CATEGORY_META: Record<TemplateCategory, { label: string; color: string }> = {
+  precios: { label: "Precios", color: "#0043F8" },
+  pagos: { label: "Pagos", color: "#52EBBB" },
+  envios: { label: "Envíos", color: "#002997" },
+  bienvenida: { label: "Bienvenida", color: "#5B6584" },
+  seguimiento: { label: "Seguimiento", color: "#DC2626" },
+};
+
+export const TEMPLATE_CATEGORY_ORDER: TemplateCategory[] = [
+  "precios",
+  "pagos",
+  "envios",
+  "bienvenida",
+  "seguimiento",
 ];
 
 export function formatLempiras(value: number): string {

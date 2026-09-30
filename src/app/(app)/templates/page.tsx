@@ -1,11 +1,13 @@
-import { PageStub } from "@/components/PageStub";
+import { redirect } from "next/navigation";
+import { getCurrentBusiness } from "@/lib/business";
+import { getTemplates } from "@/lib/templates";
+import { TemplatesView } from "./TemplatesView";
 
-export default function TemplatesPage() {
-  return (
-    <PageStub
-      title="Plantillas"
-      subtitle="Respuestas listas para preguntas que se repiten todos los días"
-      phase="Fase 7 — Plantillas"
-    />
-  );
+export default async function TemplatesPage() {
+  const business = await getCurrentBusiness();
+  if (!business) redirect("/onboarding");
+
+  const templates = await getTemplates(business.id);
+
+  return <TemplatesView templates={templates} />;
 }
