@@ -32,6 +32,11 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
   const [saving, setSaving] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<ConversationStage | null>(null);
+  // The card that just changed stage — pinned to the top of its new column
+  // and given a brief glow, so it's obvious where it landed instead of
+  // disappearing into wherever it'd normally sort. Clears itself after the
+  // highlight fades.
+  const [justMovedId, setJustMovedId] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
@@ -42,6 +47,10 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
 
   async function handleSetStage(id: string, stage: ConversationStage) {
     updateLocal(id, { stage });
+    setJustMovedId(id);
+    window.setTimeout(() => {
+      setJustMovedId((current) => (current === id ? null : current));
+    }, 2000);
     await setConversationStage(id, stage);
   }
 
@@ -57,11 +66,18 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
     return STAGE_ORDER.map((stage) => {
       const items = conversations
         .filter((c) => c.stage === stage)
-        .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
+        .sort((a, b) => {
+          // Whatever card just moved goes straight to the top of its new
+          // column — it's where the user is already looking, so the drop
+          // never has to be found by scanning.
+          if (a.id === justMovedId) return -1;
+          if (b.id === justMovedId) return 1;
+          return (b.last_message_at ?? "").localeCompare(a.last_message_at ?? "");
+        });
       const total = items.reduce((sum, c) => sum + (c.value_hnl ?? 0), 0);
       return { stage, items, total };
     });
-  }, [conversations]);
+  }, [conversations, justMovedId]);
 
   const activeConversations = conversations.filter((c) => c.stage !== "ganado" && c.stage !== "perdido");
   const wonCount = conversations.filter((c) => c.stage === "ganado").length;
@@ -160,25 +176,47 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                   {items.map((c) => {
                     const channelMeta = c.channel ? CHANNEL_META[c.channel.type] : null;
                     const stageIdx = STAGE_ORDER.indexOf(c.stage);
+                    const justMoved = c.id === justMovedId;
                     return (
-                      <div
+                      <motion.div
                         key={c.id}
+                        layoutId={c.id}
+                        layout
                         draggable
-                        onDragStart={(e) => {
+                        // `layout` makes motion.div claim onDragStart/onDragEnd for its
+                        // own (unrelated) drag gesture system, with an incompatible
+                        // event type. We're using native HTML5 DnD instead, so hook the
+                        // capture-phase variants — untyped by motion — to get the real
+                        // DragEvent with `dataTransfer`.
+                        onDragStartCapture={(e: React.DragEvent<HTMLDivElement>) => {
                           e.dataTransfer.setData("text/plain", c.id);
                           e.dataTransfer.effectAllowed = "move";
                           setDraggingId(c.id);
                         }}
-                        onDragEnd={() => {
+                        onDragEndCapture={() => {
                           setDraggingId(null);
                           setDragOverStage(null);
                         }}
                         onClick={() => setSelectedId(c.id)}
+                        transition={
+                          prefersReducedMotion
+                            ? { duration: 0.01 }
+                            : { type: "spring", bounce: 0.2, duration: 0.5 }
+                        }
                         style={{
                           opacity: draggingId === c.id ? 0.4 : 1,
-                          transform: draggingId === c.id ? "scale(0.96) rotate(-2deg)" : "scale(1) rotate(0deg)",
+                          // Use Motion's own scale/rotate style shorthands
+                          // (not a raw `transform` string) so they compose
+                          // correctly with the transform `layout` applies
+                          // for the FLIP flight animation instead of
+                          // fighting it.
+                          scale: draggingId === c.id ? 0.96 : 1,
+                          rotate: draggingId === c.id ? -2 : 0,
+                          boxShadow: justMoved
+                            ? `0 0 0 2px ${STAGE_META[c.stage].color}, 0 4px 16px ${STAGE_META[c.stage].color}55`
+                            : "0 1px 2px rgba(34,29,23,0.05)",
                         }}
-                        className="flex cursor-grab flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-[11px] shadow-[0_1px_2px_rgba(34,29,23,0.05)] transition-[opacity,transform] duration-150 active:cursor-grabbing"
+                        className="flex cursor-grab flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-[11px] transition-[opacity,box-shadow] duration-300 active:cursor-grabbing"
                       >
                         <div className="flex items-center gap-2">
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-[12.5px] font-bold text-white">
@@ -237,7 +275,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                             </button>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
                   {items.length === 0 && !isDropTarget && (
