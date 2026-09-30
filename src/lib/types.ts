@@ -29,6 +29,7 @@ export type Conversation = {
   channel_id: string | null;
   status: "open" | "pending" | "closed";
   stage: ConversationStage;
+  value_hnl: number | null;
   assigned_to: string | null;
   last_message_at: string | null;
   window_expires_at: string | null;

@@ -57,6 +57,10 @@ export const STAGE_ORDER: ConversationStage[] = [
   "perdido",
 ];
 
+export function formatLempiras(value: number): string {
+  return "L " + value.toLocaleString("es-HN");
+}
+
 // Tints a brand hex color for a soft background (e.g. an unselected filter
 // chip) while keeping the same hue as the solid/selected version.
 export function withAlpha(hex: string, alpha: number): string {

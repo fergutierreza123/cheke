@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
-import { seedDemoData } from "../actions";
-import { sendChatMessage, setConversationStage } from "./actions";
+import { seedDemoData, setConversationStage } from "../actions";
+import { sendChatMessage } from "./actions";
 import { initialsFor, relativeTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message } from "@/lib/types";
 

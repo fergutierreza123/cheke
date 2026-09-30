@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
-import type { ChannelType } from "@/lib/types";
+import { primaryChannel } from "@/lib/format";
+import type { Channel, ChannelType, ConversationStage, ConversationWithContact } from "@/lib/types";
 
 const DEMO_CONTACTS: Array<{
   name: string;
@@ -148,4 +149,94 @@ export async function seedDemoData() {
 
   revalidatePath("/contacts");
   revalidatePath("/chat");
+}
+
+// Shared by Chat and Chekeo — both let you tag a conversation's sales stage.
+export async function setConversationStage(
+  conversationId: string,
+  stage: ConversationStage,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("conversations").update({ stage }).eq("id", conversationId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function setConversationValue(
+  conversationId: string,
+  valueHnl: number | null,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("conversations")
+    .update({ value_hnl: valueHnl })
+    .eq("id", conversationId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// Chekeo's "Nuevo contacto": creates a contact plus a conversation for it
+// (stage "nuevo") so it shows up on the board immediately, same as any
+// other lead — used for leads that didn't come in through a connected
+// channel yet (e.g. someone you met in person, or noted down by hand).
+export async function createLead(input: {
+  name: string;
+  phone: string | null;
+  ig_handle: string | null;
+  fb_id: string | null;
+}): Promise<{ conversation?: ConversationWithContact; error?: string }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+
+  const name = input.name.trim();
+  if (!name) return { error: "Ponle un nombre al contacto." };
+
+  const supabase = await createClient();
+
+  const { data: contact, error: contactError } = await supabase
+    .from("contacts")
+    .insert({
+      business_id: business.id,
+      name,
+      phone: input.phone,
+      ig_handle: input.ig_handle,
+      fb_id: input.fb_id,
+    })
+    .select("id, name, phone, ig_handle, fb_id, notes")
+    .single();
+
+  if (contactError || !contact) return { error: contactError?.message ?? "No se pudo crear el contacto." };
+
+  const type = primaryChannel(contact);
+  let channel: Pick<Channel, "id" | "type"> | null = null;
+  if (type) {
+    const { data: channelRow } = await supabase
+      .from("channels")
+      .select("id, type")
+      .eq("business_id", business.id)
+      .eq("type", type)
+      .maybeSingle();
+    if (channelRow) channel = channelRow;
+  }
+
+  const now = new Date().toISOString();
+  const { data: conversation, error: convError } = await supabase
+    .from("conversations")
+    .insert({
+      business_id: business.id,
+      contact_id: contact.id,
+      channel_id: channel?.id ?? null,
+      status: "open",
+      stage: "nuevo",
+      last_message_at: now,
+    })
+    .select("*")
+    .single();
+
+  if (convError || !conversation) return { error: convError?.message ?? "No se pudo crear la conversación." };
+
+  revalidatePath("/chekeo");
+  revalidatePath("/contacts");
+
+  return { conversation: { ...conversation, contact, channel, last_message_body: null } };
 }
