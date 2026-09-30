@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import type { Message } from "@/lib/types";
+import type { ConversationStage, Message } from "@/lib/types";
 
 export async function sendChatMessage(
   conversationId: string,
@@ -58,4 +58,14 @@ export async function sendChatMessage(
   }
 
   return { message };
+}
+
+export async function setConversationStage(
+  conversationId: string,
+  stage: ConversationStage,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("conversations").update({ stage }).eq("id", conversationId);
+  if (error) return { error: error.message };
+  return {};
 }

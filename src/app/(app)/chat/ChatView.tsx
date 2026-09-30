@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
 import { seedDemoData } from "../actions";
-import { sendChatMessage } from "./actions";
-import { initialsFor, relativeTime, CHANNEL_META, withAlpha } from "@/lib/format";
-import type { ChannelType, ConversationWithContact, Message } from "@/lib/types";
+import { sendChatMessage, setConversationStage } from "./actions";
+import { initialsFor, relativeTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
+import type { ChannelType, ConversationStage, ConversationWithContact, Message } from "@/lib/types";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "todos", label: "Todos" },
@@ -46,6 +47,8 @@ export function ChatView({
   // side, so only one shows at a time. Default to the thread so the already
   // selected conversation is visible immediately, with no tap required.
   const [mobileView, setMobileView] = useState<"list" | "thread">("thread");
+  const [showDetail, setShowDetail] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   // Restore the panel width the viewer left it at last time (per-browser
   // convenience only — never shared state, so it's fine in localStorage).
@@ -93,6 +96,9 @@ export function ChatView({
   }
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
+  // Falls back to "nuevo" if the `stage` migration hasn't run yet on this
+  // database — avoids a hard crash on old rows missing the column.
+  const selectedStage = selected?.stage ?? "nuevo";
   const messages = selectedId ? (messagesByConversation[selectedId] ?? []) : [];
 
   function appendMessage(msg: Message) {
@@ -173,6 +179,12 @@ export function ChatView({
     }
     if (result.sendError) setSendError(result.sendError);
     else if (result.error) setSendError(result.error);
+  }
+
+  async function handleSetStage(stage: ConversationStage) {
+    if (!selected) return;
+    setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, stage } : c)));
+    await setConversationStage(selected.id, stage);
   }
 
   async function handleSeed() {
@@ -261,6 +273,7 @@ export function ChatView({
                   setSelectedId(c.id);
                   setMobileView("thread");
                   setSendError(null);
+                  setShowDetail(false);
                 }}
                 className={`flex w-full gap-2.5 border-b border-border px-4.5 py-3 text-left ${
                   c.id === selectedId ? "bg-brand-tint" : "bg-surface hover:bg-surface-2"
@@ -322,8 +335,8 @@ export function ChatView({
               <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-brand text-[13.5px] font-bold text-white">
                 {initialsFor(selected.contact.name)}
               </div>
-              <div>
-                <div className="text-[14.5px] font-semibold text-ink">{selected.contact.name}</div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14.5px] font-semibold text-ink">{selected.contact.name}</div>
                 <div className="flex items-center gap-1.5">
                   {selected.channel && (
                     <>
@@ -331,7 +344,7 @@ export function ChatView({
                         className="h-1.5 w-1.5 rounded-full"
                         style={{ background: CHANNEL_META[selected.channel.type].color }}
                       />
-                      <span className="text-xs text-ink-muted">
+                      <span className="truncate text-xs text-ink-muted">
                         {CHANNEL_META[selected.channel.type].label} ·{" "}
                         {selected.contact.phone || selected.contact.ig_handle || selected.contact.fb_id}
                       </span>
@@ -339,6 +352,16 @@ export function ChatView({
                   )}
                 </div>
               </div>
+
+              {/* Compact tile replacing the old always-open side panel — tap
+                  to see contact details and change the Chekeo stage. */}
+              <button
+                onClick={() => setShowDetail(true)}
+                className="ml-auto flex shrink-0 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-ink transition-colors hover:bg-surface-3"
+              >
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STAGE_META[selectedStage].color }} />
+                <span className="hidden sm:inline">{STAGE_META[selectedStage].label}</span>
+              </button>
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto bg-bg px-6 py-5">
@@ -400,31 +423,85 @@ export function ChatView({
         )}
       </div>
 
-      {/* Contact panel (desktop only — no room for a third column below `lg`) */}
-      {selected && (
-        <div className="hidden w-80 min-w-80 shrink-0 overflow-y-auto border-l border-border bg-surface lg:block">
-          <div className="flex flex-col gap-4.5 p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-[46px] w-[46px] items-center justify-center rounded-full bg-brand text-base font-bold text-white">
-                {initialsFor(selected.contact.name)}
+      {/* Contact detail drawer — opened on demand from the header tile,
+          instead of permanently reserving a third column. */}
+      <AnimatePresence>
+        {selected && showDetail && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setShowDetail(false)}
+              className="fixed inset-0 z-10 bg-black/30"
+            />
+            <motion.div
+              initial={prefersReducedMotion ? { opacity: 0 } : { x: 24, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { x: 24, opacity: 0 }}
+              transition={
+                prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }
+              }
+              className="fixed right-0 top-0 z-20 flex h-full w-[380px] max-w-[calc(100vw-32px)] flex-col gap-5 overflow-y-auto bg-surface p-6 shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-brand text-base font-bold text-white">
+                    {initialsFor(selected.contact.name)}
+                  </div>
+                  <div className="font-heading text-[16.5px] font-semibold text-ink">
+                    {selected.contact.name}
+                  </div>
+                </div>
+                <button
+                  aria-label="Cerrar"
+                  onClick={() => setShowDetail(false)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+                >
+                  <CloseIcon className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="font-heading text-[16.5px] font-semibold text-ink">{selected.contact.name}</div>
-            </div>
 
-            <div className="flex flex-col gap-1 text-[13.5px] text-ink-muted">
-              <div>{selected.contact.phone || selected.contact.ig_handle || selected.contact.fb_id}</div>
-              <div>Conversación desde {relativeTime(selected.created_at)}</div>
-            </div>
-
-            <div>
-              <div className="mb-1.5 text-xs uppercase tracking-wide text-ink-muted">Notas</div>
-              <div className="rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink">
-                {selected.contact.notes || "Sin notas todavía."}
+              <div className="flex flex-col gap-1 text-[13.5px] text-ink-muted">
+                <div>{selected.contact.phone || selected.contact.ig_handle || selected.contact.fb_id}</div>
+                <div>Conversación desde {relativeTime(selected.created_at)}</div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+
+              <div>
+                <div className="mb-2 text-xs uppercase tracking-wide text-ink-muted">Etapa en el chekeo</div>
+                <div className="flex flex-col gap-1.5">
+                  {STAGE_ORDER.map((s) => {
+                    const meta = STAGE_META[s];
+                    const active = selectedStage === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => handleSetStage(s)}
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[13px] transition-colors ${
+                          active
+                            ? "border-ink-soft bg-surface-2 font-semibold text-ink"
+                            : "border-border bg-surface text-ink-muted hover:bg-surface-2"
+                        }`}
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: meta.color }} />
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1.5 text-xs uppercase tracking-wide text-ink-muted">Notas</div>
+                <div className="rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink">
+                  {selected.contact.notes || "Sin notas todavía."}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -441,6 +518,14 @@ function BackIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
+      <path d="M18 6L6 18" />
+      <path d="M6 6l12 12" />
     </svg>
   );
 }

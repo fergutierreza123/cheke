@@ -20,12 +20,15 @@ export type Channel = {
   status: "disconnected" | "connected" | "error";
 };
 
+export type ConversationStage = "nuevo" | "consulta" | "cotizacion" | "negociacion" | "ganado" | "perdido";
+
 export type Conversation = {
   id: string;
   business_id: string;
   contact_id: string;
   channel_id: string | null;
   status: "open" | "pending" | "closed";
+  stage: ConversationStage;
   assigned_to: string | null;
   last_message_at: string | null;
   window_expires_at: string | null;

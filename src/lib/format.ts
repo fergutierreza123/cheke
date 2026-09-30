@@ -1,4 +1,4 @@
-import type { ChannelType } from "@/lib/types";
+import type { ChannelType, ConversationStage } from "@/lib/types";
 
 export function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -35,6 +35,27 @@ export const CHANNEL_META: Record<ChannelType, { label: string; color: string }>
   instagram: { label: "Instagram", color: "#C1387B" },
   facebook: { label: "Facebook", color: "#1877F2" },
 };
+
+// Matches the stage list from the approved design (design/Inbox.html,
+// design/Contacts.html) — the Chekeo kanban board (later phase) will use
+// the same stages, reading/writing this same column.
+export const STAGE_META: Record<ConversationStage, { label: string; color: string }> = {
+  nuevo: { label: "Nuevo mensaje", color: "#5B6584" },
+  consulta: { label: "Consulta de producto", color: "#0043F8" },
+  cotizacion: { label: "Cotización enviada", color: "#002997" },
+  negociacion: { label: "Negociación", color: "#001037" },
+  ganado: { label: "Vendido", color: "#52EBBB" },
+  perdido: { label: "Perdido", color: "#DC2626" },
+};
+
+export const STAGE_ORDER: ConversationStage[] = [
+  "nuevo",
+  "consulta",
+  "cotizacion",
+  "negociacion",
+  "ganado",
+  "perdido",
+];
 
 // Tints a brand hex color for a soft background (e.g. an unselected filter
 // chip) while keeping the same hue as the solid/selected version.
