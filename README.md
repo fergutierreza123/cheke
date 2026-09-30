@@ -4,7 +4,7 @@ CRM omnicanal para negocios hondureños que venden por WhatsApp, Instagram y
 Facebook. Ver `CLAUDE.md` para el plan completo del proyecto y las reglas de
 interacción/animación.
 
-## Qué es esto ahora mismo (Fase 4 — WhatsApp Cloud API)
+## Qué es esto ahora mismo (demo completa, WhatsApp real bloqueado en Meta)
 
 - Proyecto Next.js (App Router, TypeScript) + Tailwind, listo para correr.
 - Esquema de base de datos multi-negocio con seguridad por fila (RLS) —
@@ -33,8 +33,27 @@ interacción/animación.
   negocio en Lempiras, tasa de cierre, aviso de contactos sin respuesta en
   24h. Comparte los mismos datos que Chat — mover la etapa desde cualquiera
   de las dos pantallas se refleja en la otra.
-- Las demás secciones (Chekeo, Comentarios, Plantillas, Inventario, Equipo,
-  Notificaciones, Analítica) todavía muestran el aviso de "próximamente".
+- **Inventario** conectado a datos reales: catálogo de productos, categoría,
+  precio en Lempiras, stock, aviso de poco inventario, botón "Enviar por
+  chat" que manda el producto a cualquier conversación existente.
+- **Plantillas** conectado a datos reales: mensajes reutilizables por
+  categoría, "Copiar plantilla" para pegar en cualquier chat.
+- **Equipo** conectado a datos reales: quién tiene acceso al negocio, su
+  rol, código de invitación, cambiar rol o quitar a alguien (solo el
+  dueño). El diseño original era un ranking de ventas por vendedor — no
+  construible con datos reales todavía porque nada asigna conversaciones a
+  un vendedor específico ni registra metas; ver el comentario en
+  `supabase/migrations/0007_team_management.sql`.
+- **Analítica** conectado a datos reales: KPIs (ventas cerradas, tasa de
+  conversión, contactos nuevos, activos), embudo por etapa, conversaciones
+  por canal, tendencia de 7 días, productos con más valor en existencia —
+  con selector de semana/mes/trimestre.
+- **Notificaciones** conectado a datos reales: mensajes nuevos, contactos
+  fríos, poco inventario, ventas cerradas recientes — calculado en vivo en
+  cada carga (no hay tabla de notificaciones todavía, así que "marcar como
+  leída" no persiste entre sesiones).
+- **Comentarios** es la única pantalla que sigue en "próximamente" —
+  necesita los webhooks de comentarios de Instagram/Facebook de Meta.
 - Reglas de interacción y movimiento documentadas en `CLAUDE.md` — de ahí
   sale el estilo de las animaciones (resortes, no curvas de tiempo fijas;
   feedback al presionar, no al soltar; `prefers-reduced-motion` respetado).
@@ -60,10 +79,14 @@ interacción/animación.
 ### 3. Crear las tablas en Supabase
 
 1. En el panel de Supabase, ve a **SQL Editor**.
-2. Abre el archivo `supabase/migrations/0001_init.sql` de este proyecto,
-   copia todo su contenido, pégalo en el SQL Editor y dale **Run**.
+2. Corre los archivos de `supabase/migrations/` **en orden numérico**,
+   uno por uno (copia el contenido de cada uno, pégalo en una consulta
+   nueva, dale **Run**, sigue con el siguiente): `0001_init.sql`,
+   `0002_onboarding_rpc.sql`, `0003_conversation_stage.sql`,
+   `0004_conversation_value.sql`, `0005_products_category.sql`,
+   `0006_templates.sql`, `0007_team_management.sql`.
 3. Deberías ver las tablas nuevas en **Table Editor**: `businesses`,
-   `members`, `contacts`, `conversations`, `messages`, etc.
+   `members`, `contacts`, `conversations`, `messages`, `templates`, etc.
 
 ### 4. Activar el login por correo
 
@@ -116,6 +139,31 @@ design/                mockups aprobados (no editar — son la referencia)
    enter o el botón de enviar. Para ver Realtime en acción, abre la misma
    cuenta en dos pestañas/navegadores y envía un mensaje en una — debería
    aparecer en la otra al instante, sin recargar.
+
+## Cómo probar Chekeo, Inventario, Plantillas, Equipo, Analítica y Notificaciones
+
+Antes de nada, corre las migraciones `0003` a `0007` en el SQL Editor de
+Supabase (ver la sección de migraciones más abajo) — si no, Chekeo,
+Plantillas y Equipo no van a guardar cambios de verdad.
+
+- **Chekeo**: arrastra una tarjeta entre columnas, o usa las flechas ‹ › en
+  cada tarjeta. Haz clic en una tarjeta para ver/editar el valor del
+  negocio y cambiar la etapa desde ahí también. "Nuevo contacto" agrega un
+  lead sin necesidad de que te haya escrito primero.
+- **Inventario**: "Nuevo producto" para agregar uno, "Enviar por chat" en
+  cualquier producto para mandarlo como mensaje a una conversación real.
+- **Plantillas**: filtra por categoría, "Copiar plantilla" copia el texto
+  (con `{{producto}}`, `{{precio}}`, `{{ciudad}}` de marcador) para pegarlo
+  en el Chat.
+- **Equipo**: copia el código de invitación y pruébalo uniéndote desde otra
+  cuenta de correo (o pide a alguien que lo use). Si eres dueño, puedes
+  cambiar roles o quitar gente.
+- **Analítica**: cambia entre "Esta semana / Este mes / Este trimestre" y
+  mira los números moverse — todo sale de tus conversaciones y productos
+  reales, no hay datos inventados.
+- **Notificaciones**: aparecen solas según lo que ya tengas en Chat/Chekeo/
+  Inventario (mensajes recientes, contactos fríos, poco stock, ventas
+  cerradas). "Marcar todas como leídas" funciona dentro de la sesión.
 
 ## Conectar tu número de prueba de WhatsApp
 
