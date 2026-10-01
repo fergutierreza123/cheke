@@ -299,18 +299,6 @@ export function InventoryView({
 
                 <Field label="Foto del producto">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
-                      {!imageRemoved && (newImagePreview || draft.imageUrl) ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- local blob preview or remote Supabase Storage URL
-                        <img
-                          src={newImagePreview ?? draft.imageUrl ?? undefined}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <PhotoIcon className="h-5 w-5 text-ink-soft" />
-                      )}
-                    </div>
                     <input
                       id="product-image-input"
                       name="image"
@@ -324,30 +312,45 @@ export function InventoryView({
                       }}
                       className="hidden"
                     />
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <label
-                        htmlFor="product-image-input"
-                        className="w-fit cursor-pointer rounded-lg border border-border bg-surface-2 px-3 py-[7px] text-[12.5px] font-semibold text-ink transition-colors hover:bg-surface-3"
-                      >
-                        {draft.imageUrl || newImagePreview ? "Cambiar foto" : "Subir foto"}
-                      </label>
-                      <div className="truncate text-[11.5px] text-ink-soft">
-                        {newImageName ?? (imageRemoved ? "Sin foto" : draft.imageUrl ? "Foto actual" : "Ningún archivo seleccionado")}
+                    <label
+                      htmlFor="product-image-input"
+                      className="group relative flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-surface-2 transition-colors hover:bg-surface-3"
+                    >
+                      {!imageRemoved && (newImagePreview || draft.imageUrl) ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- local blob preview or remote Supabase Storage URL
+                        <img
+                          src={newImagePreview ?? draft.imageUrl ?? undefined}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <PhotoIcon className="h-6 w-6 text-ink-soft" />
+                      )}
+                      <span className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-brand-dark shadow-sm">
+                        <EditIcon className="h-2.5 w-2.5" />
+                      </span>
+                    </label>
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <div className="text-[12.5px] font-semibold text-ink">
+                        {!imageRemoved && (newImagePreview || draft.imageUrl) ? "Foto cargada" : "Sin foto todavía"}
                       </div>
+                      <div className="truncate text-[11.5px] text-ink-soft">
+                        {newImageName ?? "Haz clic en la imagen para subir o cambiar"}
+                      </div>
+                      {!imageRemoved && (newImagePreview || draft.imageUrl) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageRemoved(true);
+                            setNewImagePreview(null);
+                            setNewImageName(null);
+                          }}
+                          className="mt-0.5 w-fit text-[11.5px] font-semibold text-danger hover:underline"
+                        >
+                          Quitar foto
+                        </button>
+                      )}
                     </div>
-                    {!imageRemoved && (newImagePreview || draft.imageUrl) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImageRemoved(true);
-                          setNewImagePreview(null);
-                          setNewImageName(null);
-                        }}
-                        className="shrink-0 text-[12px] font-semibold text-danger hover:underline"
-                      >
-                        Quitar
-                      </button>
-                    )}
                   </div>
                 </Field>
 
