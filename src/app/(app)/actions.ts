@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
-import { primaryChannel } from "@/lib/format";
-import type { Channel, ChannelType, ConversationStage, ConversationWithContact } from "@/lib/types";
+import { primaryChannel, formatLempiras } from "@/lib/format";
+import { sendChatMessage } from "./chat/actions";
+import type { Channel, ChannelType, ConversationStage, ConversationWithContact, Product } from "@/lib/types";
 
 const DEMO_CONTACTS: Array<{
   name: string;
@@ -159,6 +160,23 @@ export async function setConversationStage(
   const supabase = await createClient();
   const { error } = await supabase.from("conversations").update({ stage }).eq("id", conversationId);
   if (error) return { error: error.message };
+  return {};
+}
+
+// Shared by Catálogo's "Enviar por chat" and Chat's own product-picker icon
+// — sends a product's name, price and photo as a real chat message to an
+// existing conversation.
+export async function sendProductToConversation(
+  conversationId: string,
+  product: Pick<Product, "name" | "price_hnl" | "description" | "image_url">,
+): Promise<{ error?: string }> {
+  const lines = [`${product.name} — ${formatLempiras(product.price_hnl)}`];
+  if (product.description) lines.push(product.description);
+  const text = lines.join("\n");
+
+  const result = await sendChatMessage(conversationId, text, product.image_url);
+  if (result.error) return { error: result.error };
+  if (result.sendError) return { error: result.sendError };
   return {};
 }
 

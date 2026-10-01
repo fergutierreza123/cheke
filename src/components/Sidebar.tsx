@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { href: "/contacts", label: "Contactos", icon: UsersIcon },
   { href: "/comments", label: "Comentarios", icon: CommentIcon },
   { href: "/templates", label: "Plantillas", icon: TemplateIcon },
-  { href: "/inventory", label: "Inventario", icon: BoxIcon },
+  { href: "/inventory", label: "Catálogo", icon: BoxIcon },
   { href: "/team", label: "Equipo", icon: TargetIcon },
   { href: "/notifications", label: "Notificaciones", icon: BellIcon },
   { href: "/analytics", label: "Analítica", icon: ChartIcon },

@@ -57,7 +57,7 @@ export async function runChekelinReply(
     .select("*")
     .single();
 
-  if (insertError || !message) return { error: insertError?.message ?? "No se pudo guardar la respuesta de Chekelin." };
+  if (insertError || !message) return { error: insertError?.message ?? "No se pudo guardar la respuesta de chekelin." };
 
   await supabase.from("conversations").update({ last_message_at: message.created_at }).eq("id", conversationId);
 

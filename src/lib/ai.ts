@@ -29,7 +29,7 @@ function buildSystemPrompt(businessName: string, products: Product[], templates:
     .join("\n");
 
   return [
-    `Eres "Chekelin", el asistente virtual de WhatsApp de "${businessName}", un negocio hondureño.`,
+    `Eres "chekelin", el asistente virtual de WhatsApp de "${businessName}", un negocio hondureño.`,
     "Respondes el primer mensaje de un cliente nuevo de forma breve, amable y en español de Honduras.",
     "Tu trabajo es responder dudas (precios, disponibilidad, envíos) usando SOLO la información que se te da abajo, y ayudar a entender qué necesita el cliente.",
     "Si no sabes algo o no está en la información dada, dilo honestamente y ofrece que un agente humano lo confirme pronto. Nunca inventes precios ni productos que no estén en el catálogo.",
@@ -71,10 +71,10 @@ export async function generateChekelinReply(args: {
       messages,
     });
     const text = response.content.find((block) => block.type === "text")?.text?.trim();
-    if (!text) return { error: "Chekelin no generó una respuesta." };
+    if (!text) return { error: "chekelin no generó una respuesta." };
     return { reply: text };
   } catch (error) {
     console.error("chekelin ai error", error);
-    return { error: error instanceof Error ? error.message : "Error al generar la respuesta de Chekelin." };
+    return { error: error instanceof Error ? error.message : "Error al generar la respuesta de chekelin." };
   }
 }

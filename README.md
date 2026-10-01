@@ -33,9 +33,12 @@ interacción/animación.
   negocio en Lempiras, tasa de cierre, aviso de contactos sin respuesta en
   24h. Comparte los mismos datos que Chat — mover la etapa desde cualquiera
   de las dos pantallas se refleja en la otra.
-- **Inventario** conectado a datos reales: catálogo de productos, categoría,
-  precio en Lempiras, stock, aviso de poco inventario, botón "Enviar por
-  chat" que manda el producto a cualquier conversación existente.
+- **Catálogo** (antes "Inventario") conectado a datos reales: productos con
+  foto (sube una imagen por producto, se guarda en Supabase Storage),
+  categoría, precio en Lempiras, stock, aviso de poco inventario, botón
+  "Enviar por chat". También se puede enviar un producto directo desde el
+  ícono de caja en el cuadro de texto del Chat, sin salir de la
+  conversación — incluye la foto y la descripción si las tiene.
 - **Plantillas** conectado a datos reales: mensajes reutilizables por
   categoría, "Copiar plantilla" para pegar en cualquier chat.
 - **Equipo** conectado a datos reales: quién tiene acceso al negocio, su
@@ -54,11 +57,11 @@ interacción/animación.
   leída" no persiste entre sesiones).
 - **Comentarios** es la única pantalla que sigue en "próximamente" —
   necesita los webhooks de comentarios de Instagram/Facebook de Meta.
-- **Chekelin**, el asistente de IA: responde automáticamente el primer
+- **chekelin**, el asistente de IA: responde automáticamente el primer
   mensaje (y los siguientes, hasta que un agente responda a mano) usando tu
   catálogo y tus plantillas reales como referencia. Se puede activar o
   pausar por conversación desde el Chat. Necesita una clave de Anthropic —
-  ver la sección "Chekelin" más abajo. Todavía no cambia la etapa del
+  ver la sección "chekelin" más abajo. Todavía no cambia la etapa del
   Chekeo automáticamente — eso es la siguiente fase.
 - Reglas de interacción y movimiento documentadas en `CLAUDE.md` — de ahí
   sale el estilo de las animaciones (resortes, no curvas de tiempo fijas;
@@ -90,7 +93,8 @@ interacción/animación.
    nueva, dale **Run**, sigue con el siguiente): `0001_init.sql`,
    `0002_onboarding_rpc.sql`, `0003_conversation_stage.sql`,
    `0004_conversation_value.sql`, `0005_products_category.sql`,
-   `0006_templates.sql`, `0007_team_management.sql`, `0008_chatbot.sql`.
+   `0006_templates.sql`, `0007_team_management.sql`, `0008_chatbot.sql`,
+   `0009_product_images.sql`.
 3. Deberías ver las tablas nuevas en **Table Editor**: `businesses`,
    `members`, `contacts`, `conversations`, `messages`, `templates`, etc.
 
@@ -146,18 +150,20 @@ design/                mockups aprobados (no editar — son la referencia)
    cuenta en dos pestañas/navegadores y envía un mensaje en una — debería
    aparecer en la otra al instante, sin recargar.
 
-## Cómo probar Chekeo, Inventario, Plantillas, Equipo, Analítica y Notificaciones
+## Cómo probar Chekeo, Catálogo, Plantillas, Equipo, Analítica y Notificaciones
 
-Antes de nada, corre las migraciones `0003` a `0007` en el SQL Editor de
+Antes de nada, corre las migraciones `0003` a `0009` en el SQL Editor de
 Supabase (ver la sección de migraciones más abajo) — si no, Chekeo,
-Plantillas y Equipo no van a guardar cambios de verdad.
+Plantillas, Equipo y el Catálogo (fotos) no van a guardar cambios de verdad.
 
 - **Chekeo**: arrastra una tarjeta entre columnas, o usa las flechas ‹ › en
   cada tarjeta. Haz clic en una tarjeta para ver/editar el valor del
   negocio y cambiar la etapa desde ahí también. "Nuevo contacto" agrega un
   lead sin necesidad de que te haya escrito primero.
-- **Inventario**: "Nuevo producto" para agregar uno, "Enviar por chat" en
-  cualquier producto para mandarlo como mensaje a una conversación real.
+- **Catálogo**: "Nuevo producto" para agregar uno (incluye subir una foto),
+  "Enviar por chat" en cualquier producto para mandarlo como mensaje a una
+  conversación real — o hazlo directo desde el Chat con el ícono de caja
+  junto al cuadro de texto.
 - **Plantillas**: filtra por categoría, "Copiar plantilla" copia el texto
   (con `{{producto}}`, `{{precio}}`, `{{ciudad}}` de marcador) para pegarlo
   en el Chat.
@@ -168,7 +174,7 @@ Plantillas y Equipo no van a guardar cambios de verdad.
   mira los números moverse — todo sale de tus conversaciones y productos
   reales, no hay datos inventados.
 - **Notificaciones**: aparecen solas según lo que ya tengas en Chat/Chekeo/
-  Inventario (mensajes recientes, contactos fríos, poco stock, ventas
+  Catálogo (mensajes recientes, contactos fríos, poco stock, ventas
   cerradas). Cada notificación tiene su propio botón ✓ para marcarla leída
   (no hay "marcar todas" — se quitó a propósito).
 
@@ -263,22 +269,22 @@ Ahora escríbele al número de prueba desde tu teléfono — el mensaje debería
 aparecer en **Chat** casi al instante (gracias a Realtime), y lo que
 respondas desde ahí debería llegarte de verdad a WhatsApp.
 
-## Chekelin (asistente de IA)
+## chekelin (asistente de IA)
 
-Chekelin responde automáticamente el primer mensaje de un cliente (y los
+chekelin responde automáticamente el primer mensaje de un cliente (y los
 siguientes, mientras ningún agente humano haya respondido a mano todavía)
-usando tu catálogo de Inventario y tus Plantillas como referencia — nunca
-inventa precios que no estén ahí. En cuanto tú o un agente responde algo
-manualmente desde el Chat, Chekelin se pausa solo para esa conversación
-("handoff"): no se pisan las respuestas. Se puede volver a activar o pausar
-a mano con el botón "Chekelin activo/pausado" en la cabecera del Chat.
+usando tu Catálogo y tus Plantillas como referencia — nunca inventa precios
+que no estén ahí. En cuanto tú o un agente responde algo manualmente desde
+el Chat, chekelin se pausa solo para esa conversación ("handoff"): no se
+pisan las respuestas. Se puede volver a activar o pausar a mano con el
+botón "chekelin activo/pausado" en la cabecera del Chat.
 
 ### 1. Obtener una clave de Anthropic
 
 1. Entra a [console.anthropic.com](https://console.anthropic.com) y crea una
    cuenta (o inicia sesión).
 2. Ve a **Billing** y agrega un método de pago — la API se cobra por uso,
-   pero cada respuesta de Chekelin cuesta una fracción de centavo (usa el
+   pero cada respuesta de chekelin cuesta una fracción de centavo (usa el
    modelo más económico, Claude Haiku).
 3. Ve a **API Keys** → **Create Key**. Ponle un nombre (ej. `cheke-prod`) y
    cópiala — Anthropic solo la muestra una vez.
@@ -307,11 +313,11 @@ nueva.
 
 ### 4. Probarlo sin esperar a WhatsApp real
 
-En **Chat**, abre cualquier conversación y haz clic en el ícono de robot 🤖
+En **Chat**, abre cualquier conversación y haz clic en el ícono de robot
 junto al cuadro de texto — eso activa el "modo prueba", donde escribes como
-si fueras el cliente. Envía un mensaje y Chekelin te va a responder de
+si fueras el cliente. Envía un mensaje y chekelin te va a responder de
 verdad usando tu catálogo. Es solo para probar/mostrar la demo; no manda
-nada por WhatsApp real. Cuando WhatsApp esté conectado, Chekelin responde
+nada por WhatsApp real. Cuando WhatsApp esté conectado, chekelin responde
 igual de forma automática a los mensajes que de verdad lleguen.
 
 ## Siguiente fase
@@ -319,6 +325,6 @@ igual de forma automática a los mensajes que de verdad lleguen.
 Fase 5 en `CLAUDE.md`: Embedded Signup — que cada negocio pueda conectar su
 propio WhatsApp existente desde un botón en la app, sin tocar SQL a mano.
 
-Después de eso: que Chekelin, además de responder, también elija
+Después de eso: que chekelin, además de responder, también elija
 automáticamente la etapa del Chekeo según la conversación (hoy la etapa
 sigue siendo manual).

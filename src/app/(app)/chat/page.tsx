@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentBusiness } from "@/lib/business";
 import { getConversations, getMessages } from "@/lib/conversations";
+import { getProducts } from "@/lib/products";
 import { ChatView } from "./ChatView";
 
 export default async function ChatPage({
@@ -11,7 +12,10 @@ export default async function ChatPage({
   const business = await getCurrentBusiness();
   if (!business) redirect("/onboarding");
 
-  const conversations = await getConversations(business.id);
+  const [conversations, products] = await Promise.all([
+    getConversations(business.id),
+    getProducts(business.id),
+  ]);
   const { c } = await searchParams;
   const requested = c && conversations.some((conv) => conv.id === c) ? c : null;
   const firstId = requested ?? conversations[0]?.id ?? null;
@@ -21,6 +25,7 @@ export default async function ChatPage({
     <ChatView
       businessId={business.id}
       conversations={conversations}
+      products={products}
       initialSelectedId={firstId}
       initialMessages={initialMessages}
     />

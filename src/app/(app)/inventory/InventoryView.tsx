@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
-import { saveProduct, sendProductToConversation } from "./actions";
+import { saveProduct } from "./actions";
+import { sendProductToConversation } from "../actions";
 import { initialsFor, formatLempiras, CHANNEL_META } from "@/lib/format";
 import type { ConversationWithContact, Product } from "@/lib/types";
 
@@ -15,8 +16,16 @@ const TILE_PALETTE = [
   { bg: "var(--color-surface-3)", text: "var(--color-ink-muted)" },
 ];
 
-type Draft = { id: string | null; name: string; category: string; price: string; stock: string; visible: boolean };
-const EMPTY_DRAFT: Draft = { id: null, name: "", category: "", price: "", stock: "", visible: true };
+type Draft = {
+  id: string | null;
+  name: string;
+  category: string;
+  price: string;
+  stock: string;
+  visible: boolean;
+  imageUrl: string | null;
+};
+const EMPTY_DRAFT: Draft = { id: null, name: "", category: "", price: "", stock: "", visible: true, imageUrl: null };
 
 export function InventoryView({
   products,
@@ -30,7 +39,21 @@ export function InventoryView({
   const [saving, setSaving] = useState(false);
   const [sendMenuId, setSendMenuId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // A freshly-picked file's local preview — separate from draft.imageUrl
+  // (the already-saved photo), reset every time the modal opens or closes
+  // so a cancelled pick never bleeds into the next product.
+  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
+
+  function openDraft(d: Draft) {
+    setNewImagePreview(null);
+    setDraft(d);
+  }
+
+  function closeDraft() {
+    setNewImagePreview(null);
+    setDraft(null);
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -53,7 +76,7 @@ export function InventoryView({
             ? `Cambios guardados para "${draft.name}".`
             : `Producto "${formData.get("name")}" agregado al catálogo.`,
         );
-        setDraft(null);
+        closeDraft();
       }
     } finally {
       setSaving(false);
@@ -74,9 +97,9 @@ export function InventoryView({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-8 py-[18px]">
         <div>
-          <h1 className="font-heading text-xl font-semibold text-ink">Inventario</h1>
+          <h1 className="font-heading text-xl font-semibold text-ink">Catálogo</h1>
           <p className="text-[13.5px] text-ink-muted">
-            Catálogo y precios, listos para enviar directo al chat cuando pregunten
+            Productos, fotos y precios, listos para enviar directo al chat cuando pregunten
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -90,7 +113,7 @@ export function InventoryView({
             />
           </div>
           <button
-            onClick={() => setDraft(EMPTY_DRAFT)}
+            onClick={() => openDraft(EMPTY_DRAFT)}
             className="flex items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
           >
             <PlusIcon className="h-3.5 w-3.5" />
@@ -110,7 +133,7 @@ export function InventoryView({
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
             <p className="text-[13.5px] text-ink-muted">Todavía no tienes productos en tu catálogo.</p>
             <button
-              onClick={() => setDraft(EMPTY_DRAFT)}
+              onClick={() => openDraft(EMPTY_DRAFT)}
               className="mt-1 rounded-lg bg-brand-dark px-4 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
             >
               Agregar el primer producto
@@ -124,12 +147,17 @@ export function InventoryView({
               return (
                 <div key={p.id} className="flex w-[236px] flex-col overflow-hidden rounded-[14px] border border-border bg-surface">
                   <div
-                    style={{ background: tile.bg }}
-                    className="relative flex h-[120px] items-center justify-center"
+                    style={p.image_url ? undefined : { background: tile.bg }}
+                    className="relative flex h-[120px] items-center justify-center overflow-hidden"
                   >
-                    <span style={{ color: tile.text }} className="font-heading text-3xl font-bold">
-                      {initialsFor(p.name)}
-                    </span>
+                    {p.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL, not a local/optimizable asset
+                      <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <span style={{ color: tile.text }} className="font-heading text-3xl font-bold">
+                        {initialsFor(p.name)}
+                      </span>
+                    )}
                     {lowStock && (
                       <div className="absolute right-2 top-2 rounded-md bg-danger px-2 py-[3px] text-[10.5px] font-bold text-white">
                         Poco stock
@@ -142,13 +170,14 @@ export function InventoryView({
                     )}
                     <button
                       onClick={() =>
-                        setDraft({
+                        openDraft({
                           id: p.id,
                           name: p.name,
                           category: p.category ?? "",
                           price: String(p.price_hnl),
                           stock: String(p.stock),
                           visible: p.visible,
+                          imageUrl: p.image_url,
                         })
                       }
                       aria-label="Editar producto"
@@ -234,7 +263,7 @@ export function InventoryView({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              onClick={() => setDraft(null)}
+              onClick={() => closeDraft()}
               className="fixed inset-0 z-10 bg-black/45 backdrop-blur-sm"
             />
             <motion.div
@@ -252,7 +281,7 @@ export function InventoryView({
                   <button
                     type="button"
                     aria-label="Cerrar"
-                    onClick={() => setDraft(null)}
+                    onClick={() => closeDraft()}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
@@ -260,6 +289,34 @@ export function InventoryView({
                 </div>
 
                 {draft.id && <input type="hidden" name="id" value={draft.id} />}
+                <input type="hidden" name="existingImageUrl" value={draft.imageUrl ?? ""} />
+
+                <Field label="Foto del producto">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
+                      {newImagePreview || draft.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- local blob preview or remote Supabase Storage URL
+                        <img
+                          src={newImagePreview ?? draft.imageUrl ?? undefined}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <PhotoIcon className="h-5 w-5 text-ink-soft" />
+                      )}
+                    </div>
+                    <input
+                      name="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        setNewImagePreview(file ? URL.createObjectURL(file) : null);
+                      }}
+                      className="flex-1 text-[12.5px] text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-[12.5px] file:font-semibold file:text-ink hover:file:bg-surface-3"
+                    />
+                  </div>
+                </Field>
 
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Nombre">
@@ -309,7 +366,7 @@ export function InventoryView({
                 <div className="mt-1 flex gap-2.5">
                   <button
                     type="button"
-                    onClick={() => setDraft(null)}
+                    onClick={() => closeDraft()}
                     className="flex-1 rounded-[10px] bg-surface-2 py-3 text-sm font-semibold text-ink-muted transition-colors hover:bg-surface-3"
                   >
                     Cancelar
@@ -380,6 +437,15 @@ function PlusIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
       <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+    </svg>
+  );
+}
+function PhotoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="10" r="2" />
+      <path d="M21 16l-5.5-5.5a2 2 0 0 0-2.83 0L5 18" />
     </svg>
   );
 }

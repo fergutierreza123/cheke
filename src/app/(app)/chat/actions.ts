@@ -8,6 +8,7 @@ import type { Message } from "@/lib/types";
 export async function sendChatMessage(
   conversationId: string,
   body: string,
+  mediaUrl?: string | null,
 ): Promise<{ message?: Message; error?: string; sendError?: string; botDisabled?: boolean }> {
   const text = body.trim();
   if (!text) return { error: "Escribe un mensaje." };
@@ -27,7 +28,13 @@ export async function sendChatMessage(
 
   const { data: message, error: insertError } = await supabase
     .from("messages")
-    .insert({ conversation_id: conversationId, business_id: conversation.business_id, direction: "out", body: text })
+    .insert({
+      conversation_id: conversationId,
+      business_id: conversation.business_id,
+      direction: "out",
+      body: text,
+      media_url: mediaUrl ?? null,
+    })
     .select("*")
     .single();
 

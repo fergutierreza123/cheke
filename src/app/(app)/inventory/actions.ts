@@ -4,9 +4,6 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
-import { sendChatMessage } from "../chat/actions";
-import { formatLempiras } from "@/lib/format";
-import type { Product } from "@/lib/types";
 
 export async function saveProduct(formData: FormData): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
@@ -20,13 +17,26 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string 
   const price = Math.max(0, Math.round(Number(formData.get("price") ?? 0)) || 0);
   const stock = Math.max(0, Math.round(Number(formData.get("stock") ?? 0)) || 0);
   const visible = formData.get("visible") === "on";
+  const existingImageUrl = String(formData.get("existingImageUrl") ?? "").trim() || null;
 
   const supabase = await createClient();
+
+  // Keep the existing photo unless a new file was actually chosen.
+  let imageUrl = existingImageUrl;
+  const file = formData.get("image");
+  if (file instanceof File && file.size > 0) {
+    const path = `${business.id}/${randomUUID()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("product-images")
+      .upload(path, file, { contentType: file.type, upsert: true });
+    if (uploadError) return { error: `No se pudo subir la foto: ${uploadError.message}` };
+    imageUrl = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+  }
 
   if (id) {
     const { error } = await supabase
       .from("products")
-      .update({ name, category, price_hnl: price, stock, visible })
+      .update({ name, category, price_hnl: price, stock, visible, image_url: imageUrl })
       .eq("id", id)
       .eq("business_id", business.id);
     if (error) return { error: error.message };
@@ -39,25 +49,11 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string 
       price_hnl: price,
       stock,
       visible,
+      image_url: imageUrl,
     });
     if (error) return { error: error.message };
   }
 
   revalidatePath("/inventory");
-  return {};
-}
-
-// "Enviar por chat" — sends the product's name and price as a real chat
-// message to an existing conversation. Actual WhatsApp catalog/product
-// messages are Phase 6 (needs Meta's Catalog API); this is the demoable
-// version that works today over whichever channel the conversation uses.
-export async function sendProductToConversation(
-  conversationId: string,
-  product: Pick<Product, "name" | "price_hnl">,
-): Promise<{ error?: string }> {
-  const text = `${product.name} — ${formatLempiras(product.price_hnl)}`;
-  const result = await sendChatMessage(conversationId, text);
-  if (result.error) return { error: result.error };
-  if (result.sendError) return { error: result.sendError };
   return {};
 }

@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
-import { seedDemoData, setConversationStage, setConversationBotEnabled } from "../actions";
+import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProductToConversation } from "../actions";
 import { sendChatMessage, simulateInboundMessage } from "./actions";
-import { initialsFor, relativeTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
-import type { ChannelType, ConversationStage, ConversationWithContact, Message } from "@/lib/types";
+import { initialsFor, relativeTime, formatLempiras, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
+import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product } from "@/lib/types";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "todos", label: "Todos" },
@@ -23,11 +23,13 @@ const LIST_WIDTH_DEFAULT = 320;
 export function ChatView({
   businessId,
   conversations: initialConversations,
+  products,
   initialSelectedId,
   initialMessages,
 }: {
   businessId: string;
   conversations: ConversationWithContact[];
+  products: Product[];
   initialSelectedId: string | null;
   initialMessages: Message[];
 }) {
@@ -46,6 +48,8 @@ export function ChatView({
   // connected yet.
   const [simulateMode, setSimulateMode] = useState(false);
   const [botTyping, setBotTyping] = useState(false);
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [sendingProductId, setSendingProductId] = useState<string | null>(null);
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   // Below the `lg` breakpoint there isn't room for list + thread side by
@@ -188,7 +192,7 @@ export function ChatView({
           appendMessage(result.reply);
           bumpConversation(selected.id, result.reply.created_at, result.reply.body);
         }
-        if (result.error) setSendError(`Chekelin no pudo responder: ${result.error}`);
+        if (result.error) setSendError(`chekelin no pudo responder: ${result.error}`);
       } finally {
         setBotTyping(false);
       }
@@ -219,6 +223,20 @@ export function ChatView({
     const next = !selected.bot_enabled;
     setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, bot_enabled: next } : c)));
     await setConversationBotEnabled(selected.id, next);
+  }
+
+  async function handleSendProduct(product: Product) {
+    if (!selected) return;
+    setShowProductPicker(false);
+    setSendingProductId(product.id);
+    try {
+      const result = await sendProductToConversation(selected.id, product);
+      // The message itself arrives through the Realtime subscription above
+      // (same as any other outbound message) — nothing to append here.
+      if (result.error) setSendError(result.error);
+    } finally {
+      setSendingProductId(null);
+    }
   }
 
   async function handleSeed() {
@@ -391,7 +409,7 @@ export function ChatView({
                   sending a manual message below turns it off automatically. */}
               <button
                 onClick={handleToggleBot}
-                title={selected.bot_enabled ? "Chekelin está respondiendo automáticamente" : "Chekelin está pausado"}
+                title={selected.bot_enabled ? "chekelin está respondiendo automáticamente" : "chekelin está pausado"}
                 className={`ml-auto flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
                   selected.bot_enabled
                     ? "border-accent bg-accent-tint text-brand-dark"
@@ -399,7 +417,7 @@ export function ChatView({
                 }`}
               >
                 <BotIcon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Chekelin {selected.bot_enabled ? "activo" : "pausado"}</span>
+                <span className="hidden sm:inline">chekelin {selected.bot_enabled ? "activo" : "pausado"}</span>
               </button>
 
               {/* Compact tile replacing the old always-open side panel — tap
@@ -419,7 +437,7 @@ export function ChatView({
                   {m.is_bot && (
                     <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
                       <BotIcon className="h-3 w-3" />
-                      Chekelin
+                      chekelin
                     </div>
                   )}
                   <div
@@ -431,7 +449,15 @@ export function ChatView({
                         : "rounded-bl-sm bg-surface-2 text-ink"
                     }`}
                   >
-                    {m.body}
+                    {m.media_url && (
+                      // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL sent as part of a product message
+                      <img
+                        src={m.media_url}
+                        alt=""
+                        className="mb-2 max-h-48 w-full rounded-lg object-cover"
+                      />
+                    )}
+                    <div className="whitespace-pre-line">{m.body}</div>
                     <div className="mt-1 text-[11px] opacity-65">
                       {new Date(m.created_at).toLocaleTimeString("es-HN", {
                         hour: "numeric",
@@ -445,7 +471,7 @@ export function ChatView({
                 <div className="flex items-start">
                   <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-surface-2 px-3.5 py-2.5 text-[13px] text-ink-muted">
                     <BotIcon className="h-3.5 w-3.5" />
-                    Chekelin está escribiendo…
+                    chekelin está escribiendo…
                   </div>
                 </div>
               )}
@@ -461,10 +487,66 @@ export function ChatView({
             )}
             {simulateMode && (
               <div className="shrink-0 border-t border-accent bg-accent-tint px-6 py-1.5 text-[12px] font-semibold text-brand-dark">
-                Modo prueba: estás escribiendo como si fueras el cliente, para ver cómo responde Chekelin.
+                Modo prueba: estás escribiendo como si fueras el cliente, para ver cómo responde chekelin.
               </div>
             )}
             <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface px-6 py-3.5">
+              <div className="relative">
+                <button
+                  onClick={() => setShowProductPicker((v) => !v)}
+                  title="Enviar un producto del catálogo"
+                  aria-pressed={showProductPicker}
+                  disabled={sendingProductId !== null}
+                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-60 ${
+                    showProductPicker
+                      ? "border-brand bg-brand-tint text-brand-dark"
+                      : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                  }`}
+                >
+                  <BoxIcon className="h-4 w-4" />
+                </button>
+                <AnimatePresence>
+                  {showProductPicker && (
+                    <motion.div
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      transition={{ type: "spring", bounce: 0, duration: 0.25 }}
+                      className="absolute bottom-[46px] left-0 z-10 w-64 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                    >
+                      <div className="px-2 py-1 text-[11px] text-ink-soft">Enviar producto del catálogo…</div>
+                      <div className="max-h-56 overflow-y-auto">
+                        {products.length === 0 && (
+                          <div className="px-2 py-1.5 text-[12.5px] text-ink-soft">
+                            Todavía no tienes productos en el catálogo.
+                          </div>
+                        )}
+                        {products.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => handleSendProduct(p)}
+                            disabled={sendingProductId !== null}
+                            className="flex w-full items-center gap-2.5 rounded-[7px] px-2 py-1.5 text-left hover:bg-surface-2 disabled:opacity-60"
+                          >
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-2">
+                              {p.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage thumbnail
+                                <img src={p.image_url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <BoxIcon className="h-3.5 w-3.5 text-ink-soft" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-[12.5px] font-semibold text-ink">{p.name}</div>
+                              <div className="text-[11px] text-ink-muted">{formatLempiras(p.price_hnl)}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               <button
                 onClick={() => setSimulateMode((v) => !v)}
                 title="Simular mensaje de cliente (solo para pruebas, sin WhatsApp real)"
@@ -628,6 +710,15 @@ function BotIcon({ className }: { className?: string }) {
       <circle cx="12" cy="3" r="1" />
       <path d="M8 14v1" />
       <path d="M16 14v1" />
+    </svg>
+  );
+}
+function BoxIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.1-1.8V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.78 0z" />
+      <path d="M2.32 6.16L12 11l9.68-4.84" />
+      <path d="M12 22.76V11" />
     </svg>
   );
 }
