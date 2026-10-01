@@ -15,7 +15,7 @@ const workSans = Work_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Cheke CRM",
+  title: "cheke.io",
   description: "CRM omnicanal para negocios que venden por WhatsApp, Instagram y Facebook.",
 };
 

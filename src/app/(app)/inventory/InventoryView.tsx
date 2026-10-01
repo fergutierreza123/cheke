@@ -43,15 +43,21 @@ export function InventoryView({
   // (the already-saved photo), reset every time the modal opens or closes
   // so a cancelled pick never bleeds into the next product.
   const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
+  const [newImageName, setNewImageName] = useState<string | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
   const prefersReducedMotion = useReducedMotion();
 
   function openDraft(d: Draft) {
     setNewImagePreview(null);
+    setNewImageName(null);
+    setImageRemoved(false);
     setDraft(d);
   }
 
   function closeDraft() {
     setNewImagePreview(null);
+    setNewImageName(null);
+    setImageRemoved(false);
     setDraft(null);
   }
 
@@ -289,12 +295,12 @@ export function InventoryView({
                 </div>
 
                 {draft.id && <input type="hidden" name="id" value={draft.id} />}
-                <input type="hidden" name="existingImageUrl" value={draft.imageUrl ?? ""} />
+                <input type="hidden" name="existingImageUrl" value={imageRemoved ? "" : (draft.imageUrl ?? "")} />
 
                 <Field label="Foto del producto">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
-                      {newImagePreview || draft.imageUrl ? (
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
+                      {!imageRemoved && (newImagePreview || draft.imageUrl) ? (
                         // eslint-disable-next-line @next/next/no-img-element -- local blob preview or remote Supabase Storage URL
                         <img
                           src={newImagePreview ?? draft.imageUrl ?? undefined}
@@ -306,15 +312,42 @@ export function InventoryView({
                       )}
                     </div>
                     <input
+                      id="product-image-input"
                       name="image"
                       type="file"
                       accept="image/*"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
+                        setImageRemoved(false);
                         setNewImagePreview(file ? URL.createObjectURL(file) : null);
+                        setNewImageName(file ? file.name : null);
                       }}
-                      className="flex-1 text-[12.5px] text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-[12.5px] file:font-semibold file:text-ink hover:file:bg-surface-3"
+                      className="hidden"
                     />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <label
+                        htmlFor="product-image-input"
+                        className="w-fit cursor-pointer rounded-lg border border-border bg-surface-2 px-3 py-[7px] text-[12.5px] font-semibold text-ink transition-colors hover:bg-surface-3"
+                      >
+                        {draft.imageUrl || newImagePreview ? "Cambiar foto" : "Subir foto"}
+                      </label>
+                      <div className="truncate text-[11.5px] text-ink-soft">
+                        {newImageName ?? (imageRemoved ? "Sin foto" : draft.imageUrl ? "Foto actual" : "Ningún archivo seleccionado")}
+                      </div>
+                    </div>
+                    {!imageRemoved && (newImagePreview || draft.imageUrl) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImageRemoved(true);
+                          setNewImagePreview(null);
+                          setNewImageName(null);
+                        }}
+                        className="shrink-0 text-[12px] font-semibold text-danger hover:underline"
+                      >
+                        Quitar
+                      </button>
+                    )}
                   </div>
                 </Field>
 
