@@ -162,6 +162,19 @@ export async function setConversationStage(
   return {};
 }
 
+export async function setConversationBotEnabled(
+  conversationId: string,
+  enabled: boolean,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("conversations")
+    .update({ bot_enabled: enabled })
+    .eq("id", conversationId);
+  if (error) return { error: error.message };
+  return {};
+}
+
 export async function setConversationValue(
   conversationId: string,
   valueHnl: number | null,

@@ -54,6 +54,12 @@ interacción/animación.
   leída" no persiste entre sesiones).
 - **Comentarios** es la única pantalla que sigue en "próximamente" —
   necesita los webhooks de comentarios de Instagram/Facebook de Meta.
+- **Chekelin**, el asistente de IA: responde automáticamente el primer
+  mensaje (y los siguientes, hasta que un agente responda a mano) usando tu
+  catálogo y tus plantillas reales como referencia. Se puede activar o
+  pausar por conversación desde el Chat. Necesita una clave de Anthropic —
+  ver la sección "Chekelin" más abajo. Todavía no cambia la etapa del
+  Chekeo automáticamente — eso es la siguiente fase.
 - Reglas de interacción y movimiento documentadas en `CLAUDE.md` — de ahí
   sale el estilo de las animaciones (resortes, no curvas de tiempo fijas;
   feedback al presionar, no al soltar; `prefers-reduced-motion` respetado).
@@ -84,7 +90,7 @@ interacción/animación.
    nueva, dale **Run**, sigue con el siguiente): `0001_init.sql`,
    `0002_onboarding_rpc.sql`, `0003_conversation_stage.sql`,
    `0004_conversation_value.sql`, `0005_products_category.sql`,
-   `0006_templates.sql`, `0007_team_management.sql`.
+   `0006_templates.sql`, `0007_team_management.sql`, `0008_chatbot.sql`.
 3. Deberías ver las tablas nuevas en **Table Editor**: `businesses`,
    `members`, `contacts`, `conversations`, `messages`, `templates`, etc.
 
@@ -163,7 +169,8 @@ Plantillas y Equipo no van a guardar cambios de verdad.
   reales, no hay datos inventados.
 - **Notificaciones**: aparecen solas según lo que ya tengas en Chat/Chekeo/
   Inventario (mensajes recientes, contactos fríos, poco stock, ventas
-  cerradas). "Marcar todas como leídas" funciona dentro de la sesión.
+  cerradas). Cada notificación tiene su propio botón ✓ para marcarla leída
+  (no hay "marcar todas" — se quitó a propósito).
 
 ## Conectar tu número de prueba de WhatsApp
 
@@ -256,7 +263,62 @@ Ahora escríbele al número de prueba desde tu teléfono — el mensaje debería
 aparecer en **Chat** casi al instante (gracias a Realtime), y lo que
 respondas desde ahí debería llegarte de verdad a WhatsApp.
 
+## Chekelin (asistente de IA)
+
+Chekelin responde automáticamente el primer mensaje de un cliente (y los
+siguientes, mientras ningún agente humano haya respondido a mano todavía)
+usando tu catálogo de Inventario y tus Plantillas como referencia — nunca
+inventa precios que no estén ahí. En cuanto tú o un agente responde algo
+manualmente desde el Chat, Chekelin se pausa solo para esa conversación
+("handoff"): no se pisan las respuestas. Se puede volver a activar o pausar
+a mano con el botón "Chekelin activo/pausado" en la cabecera del Chat.
+
+### 1. Obtener una clave de Anthropic
+
+1. Entra a [console.anthropic.com](https://console.anthropic.com) y crea una
+   cuenta (o inicia sesión).
+2. Ve a **Billing** y agrega un método de pago — la API se cobra por uso,
+   pero cada respuesta de Chekelin cuesta una fracción de centavo (usa el
+   modelo más económico, Claude Haiku).
+3. Ve a **API Keys** → **Create Key**. Ponle un nombre (ej. `cheke-prod`) y
+   cópiala — Anthropic solo la muestra una vez.
+
+### 2. Guardarla en tu proyecto (sin pegarla en el chat conmigo)
+
+Corre esto en tu terminal, dentro de la carpeta del proyecto — te va a pedir
+que pegues la clave ahí mismo (no se va a ver en pantalla mientras escribes,
+eso es normal) y la guarda directo en `.env.local`:
+
+```bash
+printf "ANTHROPIC_API_KEY=" >> .env.local && read -s key && printf "%s\n" "$key" >> .env.local && unset key
+```
+
+Reinicia `npm run dev` si lo tenías corriendo, para que tome la variable
+nueva.
+
+### 3. Agregarla también en Vercel (para que funcione en producción)
+
+1. En tu proyecto en [vercel.com](https://vercel.com), ve a **Settings →
+   Environment Variables**.
+2. Agrega `ANTHROPIC_API_KEY` con el mismo valor, marcada para
+   **Production** (y Preview si quieres probarla ahí también).
+3. Ve a **Deployments** y dale **Redeploy** al último deploy para que tome
+   la variable nueva.
+
+### 4. Probarlo sin esperar a WhatsApp real
+
+En **Chat**, abre cualquier conversación y haz clic en el ícono de robot 🤖
+junto al cuadro de texto — eso activa el "modo prueba", donde escribes como
+si fueras el cliente. Envía un mensaje y Chekelin te va a responder de
+verdad usando tu catálogo. Es solo para probar/mostrar la demo; no manda
+nada por WhatsApp real. Cuando WhatsApp esté conectado, Chekelin responde
+igual de forma automática a los mensajes que de verdad lleguen.
+
 ## Siguiente fase
 
 Fase 5 en `CLAUDE.md`: Embedded Signup — que cada negocio pueda conectar su
 propio WhatsApp existente desde un botón en la app, sin tocar SQL a mano.
+
+Después de eso: que Chekelin, además de responder, también elija
+automáticamente la etapa del Chekeo según la conversación (hoy la etapa
+sigue siendo manual).

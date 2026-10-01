@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
-import { seedDemoData, setConversationStage } from "../actions";
-import { sendChatMessage } from "./actions";
+import { seedDemoData, setConversationStage, setConversationBotEnabled } from "../actions";
+import { sendChatMessage, simulateInboundMessage } from "./actions";
 import { initialsFor, relativeTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message } from "@/lib/types";
 
@@ -41,6 +41,11 @@ export function ChatView({
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  // Demo/testing only — lets you type as if you were the customer so
+  // Chekelin's first-reply flow can be shown without a real WhatsApp number
+  // connected yet.
+  const [simulateMode, setSimulateMode] = useState(false);
+  const [botTyping, setBotTyping] = useState(false);
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   // Below the `lg` breakpoint there isn't room for list + thread side by
@@ -171,11 +176,33 @@ export function ChatView({
     setDraft("");
     setSendError(null);
 
+    if (simulateMode) {
+      setBotTyping(true);
+      try {
+        const result = await simulateInboundMessage(selected.id, text);
+        if (result.inbound) {
+          appendMessage(result.inbound);
+          bumpConversation(selected.id, result.inbound.created_at, result.inbound.body);
+        }
+        if (result.reply) {
+          appendMessage(result.reply);
+          bumpConversation(selected.id, result.reply.created_at, result.reply.body);
+        }
+        if (result.error) setSendError(`Chekelin no pudo responder: ${result.error}`);
+      } finally {
+        setBotTyping(false);
+      }
+      return;
+    }
+
     const result = await sendChatMessage(selected.id, text);
 
     if (result.message) {
       appendMessage(result.message);
       bumpConversation(selected.id, result.message.created_at, result.message.body);
+    }
+    if (result.botDisabled) {
+      setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, bot_enabled: false } : c)));
     }
     if (result.sendError) setSendError(result.sendError);
     else if (result.error) setSendError(result.error);
@@ -185,6 +212,13 @@ export function ChatView({
     if (!selected) return;
     setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, stage } : c)));
     await setConversationStage(selected.id, stage);
+  }
+
+  async function handleToggleBot() {
+    if (!selected) return;
+    const next = !selected.bot_enabled;
+    setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, bot_enabled: next } : c)));
+    await setConversationBotEnabled(selected.id, next);
   }
 
   async function handleSeed() {
@@ -353,11 +387,26 @@ export function ChatView({
                 </div>
               </div>
 
+              {/* Chekelin on/off — the AI only replies here while this is on;
+                  sending a manual message below turns it off automatically. */}
+              <button
+                onClick={handleToggleBot}
+                title={selected.bot_enabled ? "Chekelin está respondiendo automáticamente" : "Chekelin está pausado"}
+                className={`ml-auto flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                  selected.bot_enabled
+                    ? "border-accent bg-accent-tint text-brand-dark"
+                    : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                }`}
+              >
+                <BotIcon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Chekelin {selected.bot_enabled ? "activo" : "pausado"}</span>
+              </button>
+
               {/* Compact tile replacing the old always-open side panel — tap
                   to see contact details and change the Chekeo stage. */}
               <button
                 onClick={() => setShowDetail(true)}
-                className="ml-auto flex shrink-0 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-ink transition-colors hover:bg-surface-3"
+                className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-ink transition-colors hover:bg-surface-3"
               >
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STAGE_META[selectedStage].color }} />
                 <span className="hidden sm:inline">{STAGE_META[selectedStage].label}</span>
@@ -366,11 +415,19 @@ export function ChatView({
 
             <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto bg-bg px-6 py-5">
               {messages.map((m) => (
-                <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
+                <div key={m.id} className={`flex flex-col ${m.direction === "out" ? "items-end" : "items-start"}`}>
+                  {m.is_bot && (
+                    <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
+                      <BotIcon className="h-3 w-3" />
+                      Chekelin
+                    </div>
+                  )}
                   <div
                     className={`max-w-[60%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
                       m.direction === "out"
-                        ? "rounded-br-sm bg-brand text-white"
+                        ? m.is_bot
+                          ? "rounded-br-sm bg-accent text-brand-dark"
+                          : "rounded-br-sm bg-brand text-white"
                         : "rounded-bl-sm bg-surface-2 text-ink"
                     }`}
                   >
@@ -384,7 +441,15 @@ export function ChatView({
                   </div>
                 </div>
               ))}
-              {messages.length === 0 && (
+              {botTyping && (
+                <div className="flex items-start">
+                  <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-surface-2 px-3.5 py-2.5 text-[13px] text-ink-muted">
+                    <BotIcon className="h-3.5 w-3.5" />
+                    Chekelin está escribiendo…
+                  </div>
+                </div>
+              )}
+              {messages.length === 0 && !botTyping && (
                 <div className="py-10 text-center text-[13px] text-ink-soft">Sin mensajes todavía.</div>
               )}
             </div>
@@ -394,7 +459,24 @@ export function ChatView({
                 {sendError}
               </div>
             )}
-            <div className="flex shrink-0 items-center gap-2.5 border-t border-border bg-surface px-6 py-3.5">
+            {simulateMode && (
+              <div className="shrink-0 border-t border-accent bg-accent-tint px-6 py-1.5 text-[12px] font-semibold text-brand-dark">
+                Modo prueba: estás escribiendo como si fueras el cliente, para ver cómo responde Chekelin.
+              </div>
+            )}
+            <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface px-6 py-3.5">
+              <button
+                onClick={() => setSimulateMode((v) => !v)}
+                title="Simular mensaje de cliente (solo para pruebas, sin WhatsApp real)"
+                aria-pressed={simulateMode}
+                className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  simulateMode
+                    ? "border-accent bg-accent text-brand-dark"
+                    : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                }`}
+              >
+                <BotIcon className="h-4 w-4" />
+              </button>
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -404,13 +486,14 @@ export function ChatView({
                     handleSend();
                   }
                 }}
-                placeholder="Escribe una respuesta…"
+                placeholder={simulateMode ? "Escribe como si fueras el cliente…" : "Escribe una respuesta…"}
                 className="flex-1 rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
               />
               <button
                 onClick={handleSend}
+                disabled={botTyping}
                 aria-label="Enviar"
-                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white"
+                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-60"
               >
                 <SendIcon className="h-4 w-4" />
               </button>
@@ -534,6 +617,17 @@ function SendIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 2L11 13" />
       <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+    </svg>
+  );
+}
+function BotIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="8" width="16" height="12" rx="3" />
+      <path d="M12 8V4" />
+      <circle cx="12" cy="3" r="1" />
+      <path d="M8 14v1" />
+      <path d="M16 14v1" />
     </svg>
   );
 }

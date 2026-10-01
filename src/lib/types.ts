@@ -30,6 +30,7 @@ export type Conversation = {
   status: "open" | "pending" | "closed";
   stage: ConversationStage;
   value_hnl: number | null;
+  bot_enabled: boolean;
   assigned_to: string | null;
   last_message_at: string | null;
   window_expires_at: string | null;
@@ -44,6 +45,7 @@ export type Message = {
   body: string | null;
   media_url: string | null;
   status: "sent" | "delivered" | "read" | "failed";
+  is_bot: boolean;
   created_at: string;
 };
 

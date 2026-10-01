@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/whatsapp";
+import { runChekelinReply } from "@/lib/bot";
 
 // Meta calls this once, when you register the webhook URL in the Meta App
 // Dashboard, to prove you control this endpoint.
@@ -65,7 +66,14 @@ async function handlePayload(payload: WhatsAppWebhookPayload) {
       if (!channel) continue;
 
       for (const message of value.messages ?? []) {
-        await saveInboundMessage(supabase, channel, value, message);
+        const conversationId = await saveInboundMessage(supabase, channel, value, message);
+        // Best-effort: Chekelin's reply shouldn't block/break the webhook
+        // ack (checked inside — it already no-ops if bot_enabled is off).
+        if (conversationId) {
+          await runChekelinReply(supabase, conversationId).catch((error) =>
+            console.error("chekelin reply error", error),
+          );
+        }
       }
       for (const status of value.statuses ?? []) {
         await updateMessageStatus(supabase, status);
@@ -79,13 +87,13 @@ async function saveInboundMessage(
   channel: { id: string; business_id: string },
   value: WhatsAppValue,
   message: WhatsAppMessage,
-) {
+): Promise<string | null> {
   const { data: existing } = await supabase
     .from("messages")
     .select("id")
     .eq("external_message_id", message.id)
     .maybeSingle();
-  if (existing) return; // already saved — Meta redelivered it
+  if (existing) return null; // already saved — Meta redelivered it
 
   const waId = message.from;
   const profileName = value.contacts?.find((c) => c.wa_id === waId)?.profile?.name ?? waId;
@@ -149,6 +157,8 @@ async function saveInboundMessage(
     status: "sent",
     created_at: new Date(Number(message.timestamp) * 1000).toISOString(),
   });
+
+  return conversation.id;
 }
 
 async function updateMessageStatus(supabase: ReturnType<typeof createAdminClient>, status: WhatsAppStatus) {
