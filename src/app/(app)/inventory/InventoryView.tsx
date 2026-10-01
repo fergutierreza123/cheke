@@ -78,9 +78,10 @@ export function InventoryView({
       const result = await saveProduct(formData);
       if (!result.error) {
         setToast(
-          draft?.id
-            ? `Cambios guardados para "${draft.name}".`
-            : `Producto "${formData.get("name")}" agregado al catálogo.`,
+          result.photoWarning ??
+            (draft?.id
+              ? `Cambios guardados para "${draft.name}".`
+              : `Producto "${formData.get("name")}" agregado al catálogo.`),
         );
         closeDraft();
       }

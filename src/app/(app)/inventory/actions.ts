@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
+import { removeBackgroundToWhite } from "@/lib/images";
 
-export async function saveProduct(formData: FormData): Promise<{ error?: string }> {
+export async function saveProduct(formData: FormData): Promise<{ error?: string; photoWarning?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
 
@@ -23,12 +24,27 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string 
 
   // Keep the existing photo unless a new file was actually chosen.
   let imageUrl = existingImageUrl;
+  let photoWarning: string | undefined;
   const file = formData.get("image");
   if (file instanceof File && file.size > 0) {
+    // Cut the product out onto a clean white background before storing it,
+    // so photos look consistent without the founder needing a photo editor.
+    // If this fails for any reason (no key, quota, network), fall back to
+    // the original photo rather than blocking the whole save over it.
+    let uploadBody: Blob = file;
+    let contentType = file.type;
+    const bg = await removeBackgroundToWhite(file);
+    if (bg.blob) {
+      uploadBody = bg.blob;
+      contentType = bg.blob.type || "image/png";
+    } else if (bg.error) {
+      photoWarning = `Se guardó la foto original: ${bg.error}`;
+    }
+
     const path = `${business.id}/${randomUUID()}-${file.name}`;
     const { error: uploadError } = await supabase.storage
       .from("product-images")
-      .upload(path, file, { contentType: file.type, upsert: true });
+      .upload(path, uploadBody, { contentType, upsert: true });
     if (uploadError) return { error: `No se pudo subir la foto: ${uploadError.message}` };
     imageUrl = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
   }
@@ -55,5 +71,5 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string 
   }
 
   revalidatePath("/inventory");
-  return {};
+  return { photoWarning };
 }
