@@ -16,6 +16,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   if (!name) return { error: "Ponle un nombre al producto." };
 
   const category = String(formData.get("category") ?? "").trim() || null;
+  const description = String(formData.get("description") ?? "").trim() || null;
   // Rounds to cents only — `price_hnl` is numeric(12,2), and the old
   // Math.round() here was silently discarding decimals entirely.
   const priceRaw = Number(formData.get("price") ?? 0);
@@ -63,7 +64,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   if (id) {
     const { error } = await supabase
       .from("products")
-      .update({ name, category, price_hnl: price, stock, visible, image_url: imageUrl })
+      .update({ name, category, description, price_hnl: price, stock, visible, image_url: imageUrl })
       .eq("id", id)
       .eq("business_id", business.id);
     if (error) return { error: error.message };
@@ -73,6 +74,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
       retailer_id: randomUUID(),
       name,
       category,
+      description,
       price_hnl: price,
       stock,
       visible,

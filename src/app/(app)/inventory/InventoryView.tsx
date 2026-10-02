@@ -25,8 +25,18 @@ type Draft = {
   stock: string;
   visible: boolean;
   imageUrl: string | null;
+  description: string;
 };
-const EMPTY_DRAFT: Draft = { id: null, name: "", category: "", price: "", stock: "", visible: true, imageUrl: null };
+const EMPTY_DRAFT: Draft = {
+  id: null,
+  name: "",
+  category: "",
+  price: "",
+  stock: "",
+  visible: true,
+  imageUrl: null,
+  description: "",
+};
 
 export function InventoryView({
   products,
@@ -219,6 +229,7 @@ export function InventoryView({
                           stock: String(p.stock),
                           visible: p.visible,
                           imageUrl: p.image_url,
+                          description: p.description ?? "",
                         });
                       }}
                       aria-label="Editar producto"
@@ -419,6 +430,18 @@ export function InventoryView({
                     />
                   </Field>
                 </div>
+
+                <Field label="Descripción (colores, tallas, material...)">
+                  <textarea
+                    name="description"
+                    defaultValue={draft.description}
+                    placeholder="Ej. Disponible en negro, café y rojo. Tallas S, M y L."
+                    className="min-h-[70px] w-full resize-y rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+                  />
+                  <p className="mt-1 text-[11.5px] text-ink-soft">
+                    chekelin usa esto para responder preguntas como &quot;¿qué colores tienen?&quot; o &quot;¿qué tallas hay?&quot;
+                  </p>
+                </Field>
 
                 <label className="flex items-center gap-2.5 text-sm text-ink">
                   <input type="checkbox" name="visible" defaultChecked={draft.visible} className="h-4 w-4 rounded border-border accent-brand" />

@@ -20,7 +20,14 @@ function buildSystemPrompt(businessName: string, products: Product[], templates:
   const catalog = products
     .filter((p) => p.visible)
     .slice(0, 25)
-    .map((p) => `- ${p.name}: ${formatLempiras(p.price_hnl)}${p.stock <= 0 ? " (agotado)" : ""}`)
+    .map((p) => {
+      const line = `- ${p.name}${p.category ? ` (${p.category})` : ""}: ${formatLempiras(p.price_hnl)}${p.stock <= 0 ? " (agotado)" : ""}`;
+      // The description field is where colors, sizes, materials, etc. live
+      // today (there's no dedicated variant schema yet) — without this,
+      // chekelin has no way to answer "what colors do you have?" even when
+      // the founder already wrote the answer on the product.
+      return p.description ? `${line}\n  Detalles: ${p.description}` : line;
+    })
     .join("\n");
 
   const templateNotes = templates
