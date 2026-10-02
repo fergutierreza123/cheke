@@ -37,6 +37,7 @@ export function InventoryView({
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [sendMenuId, setSendMenuId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   // A freshly-picked file's local preview — separate from draft.imageUrl
@@ -51,6 +52,7 @@ export function InventoryView({
     setNewImagePreview(null);
     setNewImageName(null);
     setImageRemoved(false);
+    setSaveError(null);
     setDraft(d);
   }
 
@@ -58,6 +60,7 @@ export function InventoryView({
     setNewImagePreview(null);
     setNewImageName(null);
     setImageRemoved(false);
+    setSaveError(null);
     setDraft(null);
   }
 
@@ -74,17 +77,20 @@ export function InventoryView({
 
   async function handleSave(formData: FormData) {
     setSaving(true);
+    setSaveError(null);
     try {
       const result = await saveProduct(formData);
-      if (!result.error) {
-        setToast(
-          result.photoWarning ??
-            (draft?.id
-              ? `Cambios guardados para "${draft.name}".`
-              : `Producto "${formData.get("name")}" agregado al catálogo.`),
-        );
-        closeDraft();
+      if (result.error) {
+        setSaveError(result.error);
+        return;
       }
+      setToast(
+        result.photoWarning ??
+          (draft?.id
+            ? `Cambios guardados para "${draft.name}".`
+            : `Producto "${formData.get("name")}" agregado al catálogo.`),
+      );
+      closeDraft();
     } finally {
       setSaving(false);
     }
@@ -374,14 +380,7 @@ export function InventoryView({
                     />
                   </Field>
                   <Field label="Precio (Lempiras)">
-                    <input
-                      name="price"
-                      type="number"
-                      min={0}
-                      defaultValue={draft.price}
-                      placeholder="0"
-                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
-                    />
+                    <PriceInput key={draft.id ?? "new"} defaultValue={draft.price} />
                   </Field>
                   <Field label="Stock disponible">
                     <input
@@ -399,6 +398,12 @@ export function InventoryView({
                   <input type="checkbox" name="visible" defaultChecked={draft.visible} className="h-4 w-4 rounded border-border accent-brand" />
                   Visible para clientes
                 </label>
+
+                {saveError && (
+                  <div className="rounded-lg border border-danger-border bg-danger-tint px-3 py-2.5 text-[12.5px] text-danger">
+                    {saveError}
+                  </div>
+                )}
 
                 <div className="mt-1 flex gap-2.5">
                   <button
@@ -458,6 +463,37 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <div className="mb-1.5 text-[11.5px] uppercase tracking-wide text-ink-muted">{label}</div>
       {children}
+    </div>
+  );
+}
+
+// Shows "1,234.56" (thousands comma + decimals) while untouched, same as
+// formatLempiras elsewhere in the app — but switches to the plain raw
+// number while focused, since live-formatting every keystroke fights the
+// cursor position. The submitted form value is always the raw number.
+function PriceInput({ defaultValue }: { defaultValue: string }) {
+  const [focused, setFocused] = useState(false);
+  const [raw, setRaw] = useState(defaultValue);
+
+  const numeric = Number(raw) || 0;
+  const display = focused
+    ? raw
+    : numeric.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-soft">L</span>
+      <input
+        name="price"
+        type="text"
+        inputMode="decimal"
+        value={display}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => setRaw(e.target.value.replace(/[^0-9.]/g, ""))}
+        placeholder="0.00"
+        className="w-full rounded-lg border border-border bg-surface-2 py-2.5 pl-7 pr-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+      />
     </div>
   );
 }

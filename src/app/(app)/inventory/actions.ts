@@ -15,7 +15,10 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   if (!name) return { error: "Ponle un nombre al producto." };
 
   const category = String(formData.get("category") ?? "").trim() || null;
-  const price = Math.max(0, Math.round(Number(formData.get("price") ?? 0)) || 0);
+  // Rounds to cents only — `price_hnl` is numeric(12,2), and the old
+  // Math.round() here was silently discarding decimals entirely.
+  const priceRaw = Number(formData.get("price") ?? 0);
+  const price = Math.max(0, Number.isFinite(priceRaw) ? Math.round(priceRaw * 100) / 100 : 0);
   const stock = Math.max(0, Math.round(Number(formData.get("stock") ?? 0)) || 0);
   const visible = formData.get("visible") === "on";
   const existingImageUrl = String(formData.get("existingImageUrl") ?? "").trim() || null;
