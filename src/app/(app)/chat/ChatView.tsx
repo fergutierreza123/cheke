@@ -65,10 +65,20 @@ export function ChatView({
   // the agent to fill in/edit, rather than sending it outright.
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // Real delivered/read ticks only ever arrive via a genuine WhatsApp
+  // webhook call, which can't happen yet (Meta business verification still
+  // pending — see README). So a freshly-sent message would otherwise sit
+  // on a single ✓ forever in the demo. This locally advances it through
+  // ✓✓ (delivered) then blue ✓✓ (read) purely for display, same as
+  // WhatsApp's own animation — it never touches the database, and a real
+  // status update arriving via Realtime always takes precedence (see
+  // effectiveStatus below).
+  const [demoTicks, setDemoTicks] = useState<Record<string, Message["status"]>>({});
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const draftInputRef = useRef<HTMLInputElement>(null);
+  const scheduledTicksRef = useRef<Set<string>>(new Set());
   // Below the `lg` breakpoint there isn't room for list + thread side by
   // side, so only one shows at a time. Default to the thread so the already
   // selected conversation is visible immediately, with no tap required.
@@ -136,6 +146,38 @@ export function ChatView({
       if (existing.some((m) => m.id === msg.id)) return prev;
       return { ...prev, [msg.conversation_id]: [...existing, msg] };
     });
+
+    if (msg.direction === "out" && msg.status === "sent" && !scheduledTicksRef.current.has(msg.id)) {
+      scheduledTicksRef.current.add(msg.id);
+      setTimeout(() => setDemoTicks((prev) => ({ ...prev, [msg.id]: "delivered" })), 1200);
+      setTimeout(() => setDemoTicks((prev) => ({ ...prev, [msg.id]: "read" })), 3200);
+    }
+  }
+
+  const STATUS_RANK: Record<Message["status"], number> = { sent: 0, delivered: 1, read: 2, failed: -1 };
+  function effectiveStatus(m: Message): Message["status"] {
+    // Terminal state: a message that actually failed to send must never
+    // show ticks, even if a demo timer was already in flight from the
+    // moment it was first inserted as "sent" (a real race — the Realtime
+    // INSERT can arrive before the follow-up UPDATE that marks it failed).
+    if (m.status === "failed") return "failed";
+    const demo = demoTicks[m.id];
+    if (!demo) return m.status;
+    return STATUS_RANK[demo] > STATUS_RANK[m.status] ? demo : m.status;
+  }
+
+  // A delivery/read receipt from Meta updates an existing row (not an
+  // insert) — without this, those status changes only ever showed up after
+  // a full page reload.
+  function patchMessage(msg: Message) {
+    setMessagesByConversation((prev) => {
+      const existing = prev[msg.conversation_id];
+      if (!existing) return prev;
+      return {
+        ...prev,
+        [msg.conversation_id]: existing.map((m) => (m.id === msg.id ? msg : m)),
+      };
+    });
   }
 
   function bumpConversation(conversationId: string, lastMessageAt: string, body: string | null) {
@@ -150,6 +192,9 @@ export function ChatView({
 
   // Realtime: new inbound/outbound messages for this business appear live,
   // in whichever conversation is open or listed — no page reload needed.
+  // Also listens for UPDATE: a WhatsApp delivery/read receipt (Meta's
+  // webhook calling updateMessageStatus) changes an existing row's status,
+  // which is how the ✓✓ ticks below actually advance once WhatsApp is live.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -161,6 +206,13 @@ export function ChatView({
           const msg = payload.new as Message;
           appendMessage(msg);
           bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `business_id=eq.${businessId}` },
+        (payload) => {
+          patchMessage(payload.new as Message);
         },
       )
       .subscribe();
@@ -523,7 +575,7 @@ export function ChatView({
                     <div className="whitespace-pre-line">{m.body}</div>
                     <div className="mt-1 flex items-center justify-end gap-1 text-[11px] opacity-65">
                       {formatMessageTime(m.created_at)}
-                      {m.direction === "out" && <MessageStatusIcon status={m.status} />}
+                      {m.direction === "out" && <MessageStatusIcon status={effectiveStatus(m)} />}
                     </div>
                   </div>
                 </div>
