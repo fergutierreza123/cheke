@@ -23,6 +23,8 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
   const prefersReducedMotion = useReducedMotion();
 
@@ -37,7 +39,27 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
 
   async function handleSave(formData: FormData) {
-    await saveContact(formData);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await saveContact(formData);
+      if (result.error) {
+        setSaveError(result.error);
+        return;
+      }
+      setDraft(null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openDraft(d: Draft) {
+    setSaveError(null);
+    setDraft(d);
+  }
+
+  function closeDraft() {
+    setSaveError(null);
     setDraft(null);
   }
 
@@ -70,7 +92,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
             />
           </div>
           <button
-            onClick={() => setDraft(EMPTY_DRAFT)}
+            onClick={() => openDraft(EMPTY_DRAFT)}
             className="flex items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
           >
             <PlusIcon className="h-3.5 w-3.5" />
@@ -190,7 +212,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                   <button
                     aria-label="Editar contacto"
                     onClick={() =>
-                      setDraft({
+                      openDraft({
                         id: selected.id,
                         name: selected.name,
                         phone: selected.phone ?? "",
@@ -240,7 +262,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              onClick={() => setDraft(null)}
+              onClick={() => closeDraft()}
               className="fixed inset-0 z-10 bg-black/45 backdrop-blur-sm"
             />
             <motion.div
@@ -260,7 +282,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                   <button
                     type="button"
                     aria-label="Cerrar"
-                    onClick={() => setDraft(null)}
+                    onClick={() => closeDraft()}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
@@ -272,7 +294,6 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                 <Field label="Nombre">
                   <input
                     name="name"
-                    required
                     defaultValue={draft.name}
                     placeholder="Nombre completo"
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
@@ -316,19 +337,26 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                   />
                 </Field>
 
+                {saveError && (
+                  <div className="rounded-lg border border-danger-border bg-danger-tint px-3 py-2.5 text-[12.5px] text-danger">
+                    {saveError}
+                  </div>
+                )}
+
                 <div className="mt-1 flex gap-2.5">
                   <button
                     type="button"
-                    onClick={() => setDraft(null)}
+                    onClick={() => closeDraft()}
                     className="flex-1 rounded-[10px] bg-surface-2 py-3 text-sm font-semibold text-ink-muted transition-colors hover:bg-surface-3"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-[2] rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                    disabled={saving}
+                    className="flex-[2] rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
-                    {draft.id ? "Guardar cambios" : "Guardar contacto"}
+                    {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Guardar contacto"}
                   </button>
                 </div>
               </form>

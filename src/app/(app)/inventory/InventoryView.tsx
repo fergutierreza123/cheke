@@ -392,7 +392,6 @@ export function InventoryView({
                   <Field label="Nombre">
                     <input
                       name="name"
-                      required
                       defaultValue={draft.name}
                       placeholder="Nombre del producto"
                       className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"

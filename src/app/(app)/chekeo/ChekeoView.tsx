@@ -31,6 +31,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<ConversationStage | null>(null);
   // The card that just changed stage — pinned to the top of its new column
@@ -89,6 +90,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
 
   async function handleSaveLead(formData: FormData) {
     setSaving(true);
+    setLeadError(null);
     try {
       const result = await createLead({
         name: String(formData.get("name") ?? ""),
@@ -99,6 +101,8 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
       if (result.conversation) {
         setConversations((prev) => [result.conversation!, ...prev]);
         setDraft(null);
+      } else if (result.error) {
+        setLeadError(result.error);
       }
     } finally {
       setSaving(false);
@@ -119,7 +123,10 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
           <StatPill value={formatLempiras(totalPipelineValue)} label="en negociación" />
           <StatPill value={`${winRate}%`} label="tasa de cierre" />
           <button
-            onClick={() => setDraft(EMPTY_DRAFT)}
+            onClick={() => {
+              setLeadError(null);
+              setDraft(EMPTY_DRAFT);
+            }}
             className="ml-1 flex items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
           >
             <PlusIcon className="h-3.5 w-3.5" />
@@ -414,7 +421,10 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              onClick={() => setDraft(null)}
+              onClick={() => {
+                setLeadError(null);
+                setDraft(null);
+              }}
               className="fixed inset-0 z-10 bg-black/45 backdrop-blur-sm"
             />
             <motion.div
@@ -430,7 +440,10 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                   <button
                     type="button"
                     aria-label="Cerrar"
-                    onClick={() => setDraft(null)}
+                    onClick={() => {
+                      setLeadError(null);
+                      setDraft(null);
+                    }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
@@ -440,7 +453,6 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                 <Field label="Nombre">
                   <input
                     name="name"
-                    required
                     placeholder="Nombre completo"
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
                   />
@@ -469,10 +481,19 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                   />
                 </Field>
 
+                {leadError && (
+                  <div className="rounded-lg border border-danger-border bg-danger-tint px-3 py-2.5 text-[12.5px] text-danger">
+                    {leadError}
+                  </div>
+                )}
+
                 <div className="mt-1 flex gap-2.5">
                   <button
                     type="button"
-                    onClick={() => setDraft(null)}
+                    onClick={() => {
+                      setLeadError(null);
+                      setDraft(null);
+                    }}
                     className="flex-1 rounded-[10px] bg-surface-2 py-3 text-sm font-semibold text-ink-muted transition-colors hover:bg-surface-3"
                   >
                     Cancelar

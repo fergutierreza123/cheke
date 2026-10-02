@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
 
-export async function saveContact(formData: FormData) {
+export async function saveContact(formData: FormData): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
-  if (!business) return;
+  if (!business) return { error: "No se encontró el negocio." };
 
   const id = String(formData.get("id") ?? "").trim() || null;
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
+  if (!name) return { error: "Ponle un nombre al contacto." };
 
   const phone = String(formData.get("phone") ?? "").trim() || null;
   const ig_handle = String(formData.get("ig_handle") ?? "").trim() || null;
@@ -25,13 +25,14 @@ export async function saveContact(formData: FormData) {
       .update({ name, phone, ig_handle, fb_id, notes })
       .eq("id", id)
       .eq("business_id", business.id);
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
   } else {
     const { error } = await supabase
       .from("contacts")
       .insert({ business_id: business.id, name, phone, ig_handle, fb_id, notes });
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
   }
 
   revalidatePath("/contacts");
+  return {};
 }

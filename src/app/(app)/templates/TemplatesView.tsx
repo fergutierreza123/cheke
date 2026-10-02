@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { saveTemplate } from "./actions";
-import { TEMPLATE_CATEGORY_META, TEMPLATE_CATEGORY_ORDER, withAlpha } from "@/lib/format";
+import { TEMPLATE_CATEGORY_META, TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
 import type { Template, TemplateCategory } from "@/lib/types";
 
 type Draft = { id: string | null; name: string; category: TemplateCategory; body: string };
@@ -85,7 +85,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
             Todas
           </CategoryChip>
           {TEMPLATE_CATEGORY_ORDER.map((cat) => (
-            <CategoryChip key={cat} active={categoryFilter === cat} color={TEMPLATE_CATEGORY_META[cat].color} onClick={() => setCategoryFilter(cat)}>
+            <CategoryChip key={cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)}>
               {TEMPLATE_CATEGORY_META[cat].label}
             </CategoryChip>
           ))}
@@ -118,10 +118,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="text-sm font-bold text-ink">{t.name}</div>
-                      <div
-                        style={{ background: withAlpha(meta.color, 0.14), color: meta.color }}
-                        className="mt-1 inline-block rounded-md px-2 py-0.5 text-[10.5px] font-bold"
-                      >
+                      <div className="mt-1 inline-block rounded-md bg-brand-tint px-2 py-0.5 text-[10.5px] font-bold text-brand-dark">
                         {meta.label}
                       </div>
                     </div>
@@ -194,7 +191,6 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
                 <Field label="Nombre de la plantilla">
                   <input
                     name="name"
-                    required
                     defaultValue={draft.name}
                     placeholder="Ej. Precio con envío"
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
@@ -208,7 +204,6 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
                 <Field label="Mensaje — usa {{producto}}, {{precio}} o {{ciudad}} para que las rellenes al copiar">
                   <textarea
                     name="body"
-                    required
                     defaultValue={draft.body}
                     placeholder="Escribe el mensaje que quieres reutilizar…"
                     className="min-h-[130px] w-full resize-y rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
@@ -272,9 +267,8 @@ function CategoryPicker({ name, defaultValue }: { name: string; defaultValue: Te
             key={cat}
             type="button"
             onClick={() => setValue(cat)}
-            style={active ? { background: withAlpha(meta.color, 0.14), borderColor: meta.color, color: meta.color } : undefined}
             className={`flex-1 rounded-lg border px-1 py-2 text-[11.5px] font-semibold transition-colors ${
-              active ? "" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
+              active ? "border-brand bg-brand-tint text-brand-dark" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
             }`}
           >
             {meta.label}
@@ -287,26 +281,18 @@ function CategoryPicker({ name, defaultValue }: { name: string; defaultValue: Te
 
 function CategoryChip({
   active,
-  color,
   onClick,
   children,
 }: {
   active: boolean;
-  color?: string;
   onClick: () => void;
   children: React.ReactNode;
 }) {
-  const style = color
-    ? active
-      ? { background: color, borderColor: color, color: "#fff" }
-      : { background: withAlpha(color, 0.14), borderColor: withAlpha(color, 0.3), color }
-    : undefined;
   return (
     <button
       onClick={onClick}
-      style={style}
       className={`rounded-lg border px-2.5 py-[5px] text-xs font-semibold transition-colors ${
-        color ? "" : active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+        active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
       }`}
     >
       {children}
