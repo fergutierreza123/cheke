@@ -7,7 +7,7 @@ import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProd
 import { sendChatMessage, simulateInboundMessage } from "./actions";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
-import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product } from "@/lib/types";
+import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "todos", label: "Todos" },
@@ -25,12 +25,14 @@ export function ChatView({
   businessId,
   conversations: initialConversations,
   products,
+  templates,
   initialSelectedId,
   initialMessages,
 }: {
   businessId: string;
   conversations: ConversationWithContact[];
   products: Product[];
+  templates: Template[];
   initialSelectedId: string | null;
   initialMessages: Message[];
 }) {
@@ -56,9 +58,14 @@ export function ChatView({
   // normal Send button.
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
   const [sendingProduct, setSendingProduct] = useState(false);
+  // Plantillas work like WhatsApp Business's own quick replies — picking
+  // one inserts its text into the compose box (placeholders and all) for
+  // the agent to fill in/edit, rather than sending it outright.
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const draftInputRef = useRef<HTMLInputElement>(null);
   // Below the `lg` breakpoint there isn't room for list + thread side by
   // side, so only one shows at a time. Default to the thread so the already
   // selected conversation is visible immediately, with no tap required.
@@ -264,6 +271,12 @@ export function ChatView({
     setShowProductPicker(false);
     setSendError(null);
     setPendingProduct(product);
+  }
+
+  function handlePickTemplate(template: Template) {
+    setShowTemplatePicker(false);
+    setDraft(template.body);
+    draftInputRef.current?.focus();
   }
 
   async function handleSeed() {
@@ -580,6 +593,50 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowTemplatePicker((v) => !v)}
+                  title="Usar una plantilla (respuesta rápida)"
+                  aria-pressed={showTemplatePicker}
+                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                    showTemplatePicker
+                      ? "border-brand bg-brand-tint text-brand-dark"
+                      : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                  }`}
+                >
+                  <TemplateIcon className="h-4 w-4" />
+                </button>
+                <AnimatePresence>
+                  {showTemplatePicker && (
+                    <motion.div
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      transition={{ type: "spring", bounce: 0, duration: 0.25 }}
+                      className="absolute bottom-[46px] left-0 z-10 w-64 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                    >
+                      <div className="px-2 py-1 text-[11px] text-ink-soft">Respuesta rápida…</div>
+                      <div className="max-h-56 overflow-y-auto">
+                        {templates.length === 0 && (
+                          <div className="px-2 py-1.5 text-[12.5px] text-ink-soft">
+                            Todavía no tienes plantillas creadas.
+                          </div>
+                        )}
+                        {templates.map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => handlePickTemplate(t)}
+                            className="block w-full rounded-[7px] px-2 py-1.5 text-left hover:bg-surface-2"
+                          >
+                            <div className="truncate text-[12.5px] font-semibold text-ink">{t.name}</div>
+                            <div className="truncate text-[11px] text-ink-soft">{t.body}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               <button
                 onClick={() => setSimulateMode((v) => !v)}
                 title="Simular mensaje de cliente (solo para pruebas, sin WhatsApp real)"
@@ -594,6 +651,7 @@ export function ChatView({
                 <BotIcon className="h-4 w-4" />
               </button>
               <input
+                ref={draftInputRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -759,6 +817,16 @@ function BoxIcon({ className }: { className?: string }) {
       <path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.1-1.8V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.78 0z" />
       <path d="M2.32 6.16L12 11l9.68-4.84" />
       <path d="M12 22.76V11" />
+    </svg>
+  );
+}
+function TemplateIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
     </svg>
   );
 }

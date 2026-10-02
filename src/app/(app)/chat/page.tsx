@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentBusiness } from "@/lib/business";
 import { getConversations, getMessages } from "@/lib/conversations";
 import { getProducts } from "@/lib/products";
+import { getTemplates } from "@/lib/templates";
 import { ChatView } from "./ChatView";
 
 export default async function ChatPage({
@@ -12,9 +13,10 @@ export default async function ChatPage({
   const business = await getCurrentBusiness();
   if (!business) redirect("/onboarding");
 
-  const [conversations, products] = await Promise.all([
+  const [conversations, products, templates] = await Promise.all([
     getConversations(business.id),
     getProducts(business.id),
+    getTemplates(business.id),
   ]);
   const { c } = await searchParams;
   const requested = c && conversations.some((conv) => conv.id === c) ? c : null;
@@ -26,6 +28,7 @@ export default async function ChatPage({
       businessId={business.id}
       conversations={conversations}
       products={products}
+      templates={templates}
       initialSelectedId={firstId}
       initialMessages={initialMessages}
     />
