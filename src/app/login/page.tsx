@@ -43,7 +43,7 @@ export default function LoginPage() {
           className="mx-auto mb-4"
         />
         <h1 className="text-display text-center font-heading text-2xl font-semibold text-white">
-          Entrar a <span className="text-accent">Cheke</span>
+          Entrar a <span className="text-accent">cheke</span>
         </h1>
         <p className="mt-1 text-center text-sm text-white/70">
           Te enviamos un enlace mágico a tu correo, sin contraseña.
