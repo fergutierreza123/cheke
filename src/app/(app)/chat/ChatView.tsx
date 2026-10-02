@@ -7,6 +7,7 @@ import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProd
 import { sendChatMessage, simulateInboundMessage } from "./actions";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
+import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
@@ -21,14 +22,6 @@ const LIST_WIDTH_MIN = 240;
 const LIST_WIDTH_MAX = 460;
 const LIST_WIDTH_DEFAULT = 320;
 
-// A small curated set covering the common cases in a sales chat — not
-// trying to replicate a full emoji keyboard/library.
-const EMOJIS = [
-  "😀", "😂", "🙂", "😉", "😍", "🥰", "😎", "🤔",
-  "👍", "👏", "🙏", "🤝", "💪", "✅", "❌", "⏰",
-  "❤️", "💙", "💚", "⭐", "🎉", "🔥", "✨", "💯",
-  "📦", "🚚", "💵", "🛍️", "📍", "📅", "📞", "👋",
-];
 
 export function ChatView({
   businessId,
@@ -705,17 +698,16 @@ export function ChatView({
                       animate={{ opacity: 1, y: 0 }}
                       exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                       transition={{ type: "spring", bounce: 0, duration: 0.25 }}
-                      className="absolute bottom-[46px] left-0 z-10 grid w-64 grid-cols-8 gap-0.5 rounded-[10px] border border-border bg-surface p-2 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                      className="absolute bottom-[46px] left-0 z-10 overflow-hidden rounded-[10px] shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
                     >
-                      {EMOJIS.map((emoji) => (
-                        <button
-                          key={emoji}
-                          onClick={() => handlePickEmoji(emoji)}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-[17px] hover:bg-surface-2"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
+                      <EmojiPicker
+                        onEmojiClick={(emojiData: EmojiClickData) => handlePickEmoji(emojiData.emoji)}
+                        autoFocusSearch={false}
+                        width={320}
+                        height={380}
+                        previewConfig={{ showPreview: false }}
+                        searchPlaceHolder="Buscar emoji"
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
