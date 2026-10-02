@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProductToConversation } from "../actions";
 import { sendChatMessage, simulateInboundMessage } from "./actions";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
+import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product } from "@/lib/types";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
@@ -342,7 +343,6 @@ export function ChatView({
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
           {filtered.map((c) => {
-            const meta = c.channel ? CHANNEL_META[c.channel.type] : null;
             const lastBody = messagesByConversation[c.id]?.at(-1)?.body ?? c.last_message_body;
             return (
               <button
@@ -361,10 +361,10 @@ export function ChatView({
                   <span className="flex h-full w-full items-center justify-center">
                     {initialsFor(c.contact.name)}
                   </span>
-                  {meta && (
-                    <span
-                      className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full border-2 border-surface"
-                      style={{ background: meta.color }}
+                  {c.channel && (
+                    <ChannelIcon
+                      type={c.channel.type}
+                      className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full ring-2 ring-surface"
                     />
                   )}
                 </div>
@@ -418,10 +418,7 @@ export function ChatView({
                 <div className="flex items-center gap-1.5">
                   {selected.channel && (
                     <>
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: CHANNEL_META[selected.channel.type].color }}
-                      />
+                      <ChannelIcon type={selected.channel.type} className="h-3.5 w-3.5 shrink-0 rounded-full" />
                       <span className="truncate text-xs text-ink-muted">
                         {CHANNEL_META[selected.channel.type].label} ·{" "}
                         {selected.contact.phone || selected.contact.ig_handle || selected.contact.fb_id}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { STAGE_META, STAGE_ORDER, CHANNEL_META, formatLempiras } from "@/lib/format";
+import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ChannelType, ConversationWithContact, Product } from "@/lib/types";
 
 type Range = "semana" | "mes" | "trimestre";
@@ -148,7 +149,7 @@ export function AnalyticsView({
                   <div key={c.type}>
                     <div className="mb-1 flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-[13.5px] text-ink">
-                        <span className="h-2 w-2 rounded-full" style={{ background: c.color }} />
+                        <ChannelIcon type={c.type} className="h-4 w-4 shrink-0 rounded-full" />
                         {c.label}
                       </div>
                       <div className="text-[13.5px] font-bold text-ink">{c.pct}%</div>

@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { saveContact } from "./actions";
 import { seedDemoData } from "../actions";
 import { initialsFor, relativeTime, primaryChannel, CHANNEL_META } from "@/lib/format";
+import { ChannelIcon } from "@/components/ChannelIcon";
 import type { Contact } from "@/lib/types";
 
 type Draft = {
@@ -124,9 +125,9 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-[13.5px] font-semibold text-ink">{c.name}</div>
-                        {meta && (
+                        {meta && channel && (
                           <div className="flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 rounded-full" style={{ background: meta.color }} />
+                            <ChannelIcon type={channel} className="h-3 w-3 shrink-0 rounded-full" />
                             <span className="text-[11.5px] text-ink-muted">{meta.label}</span>
                           </div>
                         )}

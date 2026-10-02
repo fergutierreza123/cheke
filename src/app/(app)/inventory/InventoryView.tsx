@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { saveProduct, deleteProduct } from "./actions";
 import { sendProductToConversation } from "../actions";
-import { initialsFor, formatLempiras, CHANNEL_META } from "@/lib/format";
+import { initialsFor, formatLempiras } from "@/lib/format";
+import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ConversationWithContact, Product } from "@/lib/types";
 
 const LOW_STOCK_THRESHOLD = 3;
@@ -262,15 +263,14 @@ export function InventoryView({
                                 </div>
                               )}
                               {conversations.map((c) => {
-                                const meta = c.channel ? CHANNEL_META[c.channel.type] : null;
                                 return (
                                   <button
                                     key={c.id}
                                     onClick={() => handleSend(p, c)}
                                     className="flex w-full items-center gap-2 rounded-[7px] px-2 py-1.5 text-left hover:bg-surface-2"
                                   >
-                                    {meta && (
-                                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: meta.color }} />
+                                    {c.channel && (
+                                      <ChannelIcon type={c.channel.type} className="h-3 w-3 shrink-0 rounded-full" />
                                     )}
                                     <span className="truncate text-[12.5px] text-ink">{c.contact.name}</span>
                                   </button>

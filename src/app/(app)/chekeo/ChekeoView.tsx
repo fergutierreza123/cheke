@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { setConversationStage, setConversationValue, createLead } from "../actions";
+import { ChannelIcon } from "@/components/ChannelIcon";
 import {
   initialsFor,
   relativeTime,
@@ -219,17 +220,20 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                         className="flex cursor-grab flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-[11px] transition-[opacity,box-shadow] duration-300 active:cursor-grabbing"
                       >
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-[12.5px] font-bold text-white">
-                            {initialsFor(c.contact.name)}
+                          <div className="relative h-7 w-7 shrink-0 rounded-full bg-brand text-[12.5px] font-bold text-white">
+                            <span className="flex h-full w-full items-center justify-center">
+                              {initialsFor(c.contact.name)}
+                            </span>
+                            {c.channel && (
+                              <ChannelIcon
+                                type={c.channel.type}
+                                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-surface"
+                              />
+                            )}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-[13.5px] font-semibold text-ink">{c.contact.name}</div>
-                            {channelMeta && (
-                              <div className="flex items-center gap-1">
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: channelMeta.color }} />
-                                <span className="truncate text-xs text-ink-muted">{channelMeta.label}</span>
-                              </div>
-                            )}
+                            {channelMeta && <div className="truncate text-xs text-ink-muted">{channelMeta.label}</div>}
                           </div>
                         </div>
                         <div className="truncate text-[13px] text-ink-muted">{c.last_message_body ?? ""}</div>
