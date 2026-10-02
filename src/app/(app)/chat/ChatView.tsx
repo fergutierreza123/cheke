@@ -21,6 +21,15 @@ const LIST_WIDTH_MIN = 240;
 const LIST_WIDTH_MAX = 460;
 const LIST_WIDTH_DEFAULT = 320;
 
+// A small curated set covering the common cases in a sales chat — not
+// trying to replicate a full emoji keyboard/library.
+const EMOJIS = [
+  "😀", "😂", "🙂", "😉", "😍", "🥰", "😎", "🤔",
+  "👍", "👏", "🙏", "🤝", "💪", "✅", "❌", "⏰",
+  "❤️", "💙", "💚", "⭐", "🎉", "🔥", "✨", "💯",
+  "📦", "🚚", "💵", "🛍️", "📍", "📅", "📞", "👋",
+];
+
 export function ChatView({
   businessId,
   conversations: initialConversations,
@@ -62,6 +71,7 @@ export function ChatView({
   // one inserts its text into the compose box (placeholders and all) for
   // the agent to fill in/edit, rather than sending it outright.
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -279,6 +289,11 @@ export function ChatView({
     draftInputRef.current?.focus();
   }
 
+  function handlePickEmoji(emoji: string) {
+    setDraft((prev) => prev + emoji);
+    draftInputRef.current?.focus();
+  }
+
   async function handleSeed() {
     setSeeding(true);
     try {
@@ -452,8 +467,26 @@ export function ChatView({
                     : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
                 }`}
               >
-                <BotIcon className="h-3.5 w-3.5" />
+                {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, not worth next/image's overhead here */}
+                <img src="/logos/cheke-icon-blue.png" alt="" className="h-3.5 w-3.5 object-contain" />
                 <span className="hidden sm:inline">chekelin {selected.bot_enabled ? "activo" : "pausado"}</span>
+              </button>
+
+              {/* Demo/testing only — tucked away as a small secondary icon
+                  instead of a primary compose-bar button, since real
+                  WhatsApp sending doesn't need this; it exists purely to
+                  show chekelin's first-reply flow before WhatsApp is live. */}
+              <button
+                onClick={() => setSimulateMode((v) => !v)}
+                title="Modo prueba: simular mensaje de cliente (sin WhatsApp real)"
+                aria-pressed={simulateMode}
+                className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                  simulateMode
+                    ? "border-accent bg-accent-tint text-brand-dark"
+                    : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                }`}
+              >
+                <FlaskIcon className="h-3.5 w-3.5" />
               </button>
 
               {/* Compact tile replacing the old always-open side panel — tap
@@ -472,7 +505,8 @@ export function ChatView({
                 <div key={m.id} className={`flex flex-col ${m.direction === "out" ? "items-end" : "items-start"}`}>
                   {m.is_bot && (
                     <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
-                      <BotIcon className="h-3 w-3" />
+                      {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
+                      <img src="/logos/cheke-icon-blue.png" alt="" className="h-3 w-3 object-contain" />
                       chekelin
                     </div>
                   )}
@@ -494,15 +528,29 @@ export function ChatView({
                       />
                     )}
                     <div className="whitespace-pre-line">{m.body}</div>
-                    <div className="mt-1 text-[11px] opacity-65">{formatMessageTime(m.created_at)}</div>
+                    <div className="mt-1 flex items-center justify-end gap-1 text-[11px] opacity-65">
+                      {formatMessageTime(m.created_at)}
+                      {m.direction === "out" && <MessageStatusIcon status={m.status} />}
+                    </div>
                   </div>
                 </div>
               ))}
               {botTyping && (
-                <div className="flex items-start">
-                  <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-surface-2 px-3.5 py-2.5 text-[13px] text-ink-muted">
-                    <BotIcon className="h-3.5 w-3.5" />
-                    chekelin está escribiendo…
+                <div className="flex flex-col items-end">
+                  <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
+                    <img src="/logos/cheke-icon-blue.png" alt="" className="h-3 w-3 object-contain" />
+                    chekelin
+                  </div>
+                  <div className="flex items-center gap-1 rounded-2xl rounded-br-sm bg-accent px-4 py-3">
+                    {[0, 1, 2].map((i) => (
+                      <motion.span
+                        key={i}
+                        className="h-1.5 w-1.5 rounded-full bg-brand-dark/60"
+                        animate={prefersReducedMotion ? undefined : { y: [0, -4, 0] }}
+                        transition={{ repeat: Infinity, duration: 0.9, delay: i * 0.15, ease: "easeInOut" }}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -637,19 +685,41 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
-              <button
-                onClick={() => setSimulateMode((v) => !v)}
-                title="Simular mensaje de cliente (solo para pruebas, sin WhatsApp real)"
-                aria-pressed={simulateMode}
-                disabled={!!pendingProduct}
-                className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
-                  simulateMode
-                    ? "border-accent bg-accent text-brand-dark"
-                    : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
-                }`}
-              >
-                <BotIcon className="h-4 w-4" />
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowEmojiPicker((v) => !v)}
+                  title="Emoji"
+                  aria-pressed={showEmojiPicker}
+                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                    showEmojiPicker
+                      ? "border-brand bg-brand-tint text-brand-dark"
+                      : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                  }`}
+                >
+                  <EmojiIcon className="h-4 w-4" />
+                </button>
+                <AnimatePresence>
+                  {showEmojiPicker && (
+                    <motion.div
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      transition={{ type: "spring", bounce: 0, duration: 0.25 }}
+                      className="absolute bottom-[46px] left-0 z-10 grid w-64 grid-cols-8 gap-0.5 rounded-[10px] border border-border bg-surface p-2 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                    >
+                      {EMOJIS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => handlePickEmoji(emoji)}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[17px] hover:bg-surface-2"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               <input
                 ref={draftInputRef}
                 value={draft}
@@ -800,14 +870,42 @@ function SendIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-function BotIcon({ className }: { className?: string }) {
+function FlaskIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="8" width="16" height="12" rx="3" />
-      <path d="M12 8V4" />
-      <circle cx="12" cy="3" r="1" />
-      <path d="M8 14v1" />
-      <path d="M16 14v1" />
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 2v6.5L4.5 17a2 2 0 0 0 1.76 3h11.48a2 2 0 0 0 1.76-3L15 8.5V2" />
+      <path d="M8 2h8" />
+      <path d="M7.5 14h9" />
+    </svg>
+  );
+}
+function EmojiIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <path d="M9 9h.01" />
+      <path d="M15 9h.01" />
+    </svg>
+  );
+}
+// WhatsApp-style delivery ticks: one gray check (sent), two gray checks
+// (delivered), two blue checks (read) — nothing shown for a failed send
+// since that's already surfaced via the sendError banner above.
+function MessageStatusIcon({ status }: { status: Message["status"] }) {
+  if (status === "failed") return null;
+  if (status === "sent") {
+    return (
+      <svg viewBox="0 0 16 11" className="h-3 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 5.5L5 10 15 1" />
+      </svg>
+    );
+  }
+  const color = status === "read" ? "#53BDEB" : "currentColor";
+  return (
+    <svg viewBox="0 0 20 11" className="h-3 w-4" fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 5.5L5 10 15 1" />
+      <path d="M6 5.5L10 10 20 1" />
     </svg>
   );
 }
