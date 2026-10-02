@@ -84,3 +84,15 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   revalidatePath("/inventory");
   return { photoWarning };
 }
+
+export async function deleteProduct(id: string): Promise<{ error?: string }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("products").delete().eq("id", id).eq("business_id", business.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/inventory");
+  return {};
+}

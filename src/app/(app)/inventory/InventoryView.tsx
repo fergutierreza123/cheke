@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
-import { saveProduct } from "./actions";
+import { saveProduct, deleteProduct } from "./actions";
 import { sendProductToConversation } from "../actions";
 import { initialsFor, formatLempiras, CHANNEL_META } from "@/lib/format";
 import type { ConversationWithContact, Product } from "@/lib/types";
@@ -37,6 +37,8 @@ export function InventoryView({
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [sendMenuId, setSendMenuId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -93,6 +95,23 @@ export function InventoryView({
       closeDraft();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!draft?.id) return;
+    if (!confirm(`¿Eliminar "${draft.name}" del catálogo? Esto no se puede deshacer.`)) return;
+    setDeleting(true);
+    try {
+      const result = await deleteProduct(draft.id);
+      if (result.error) {
+        setSaveError(result.error);
+        return;
+      }
+      setToast(`"${draft.name}" se eliminó del catálogo.`);
+      closeDraft();
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -164,8 +183,15 @@ export function InventoryView({
                     className="relative flex h-[120px] items-center justify-center overflow-hidden"
                   >
                     {p.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL, not a local/optimizable asset
-                      <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(p.image_url)}
+                        aria-label={`Ver foto completa de ${p.name}`}
+                        className="h-full w-full cursor-zoom-in"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL, not a local/optimizable asset */}
+                        <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                      </button>
                     ) : (
                       <span style={{ color: tile.text }} className="font-heading text-3xl font-bold">
                         {initialsFor(p.name)}
@@ -182,7 +208,8 @@ export function InventoryView({
                       </div>
                     )}
                     <button
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         openDraft({
                           id: p.id,
                           name: p.name,
@@ -191,10 +218,10 @@ export function InventoryView({
                           stock: String(p.stock),
                           visible: p.visible,
                           imageUrl: p.image_url,
-                        })
-                      }
+                        });
+                      }}
                       aria-label="Editar producto"
-                      className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-[7px] bg-white/85 text-brand-dark"
+                      className="absolute bottom-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-[7px] bg-white/85 text-brand-dark"
                     >
                       <EditIcon className="h-3 w-3" />
                     </button>
@@ -405,6 +432,17 @@ export function InventoryView({
                   </div>
                 )}
 
+                {draft.id && (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting || saving}
+                    className="w-fit text-[12.5px] font-semibold text-danger hover:underline disabled:opacity-60"
+                  >
+                    {deleting ? "Eliminando…" : "Eliminar producto"}
+                  </button>
+                )}
+
                 <div className="mt-1 flex gap-2.5">
                   <button
                     type="button"
@@ -415,7 +453,7 @@ export function InventoryView({
                   </button>
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || deleting}
                     className="flex-[2] rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
                     {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Guardar producto"}
@@ -441,6 +479,34 @@ export function InventoryView({
             <div className="text-[13px] leading-relaxed">{toast}</div>
             <button onClick={() => setToast(null)} aria-label="Cerrar" className="ml-1 shrink-0 text-[#A9B1CC]">
               <CloseIcon className="h-3.5 w-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Lightbox — full-size view of a product photo */}
+      <AnimatePresence>
+        {lightboxUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setLightboxUrl(null)}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-8"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL */}
+            <img
+              src={lightboxUrl}
+              alt=""
+              className="max-h-full max-w-full rounded-lg object-contain shadow-[0_24px_64px_rgba(0,0,0,0.5)]"
+            />
+            <button
+              onClick={() => setLightboxUrl(null)}
+              aria-label="Cerrar"
+              className="absolute right-6 top-6 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25"
+            >
+              <CloseIcon className="h-4 w-4" />
             </button>
           </motion.div>
         )}
