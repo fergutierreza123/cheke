@@ -163,7 +163,12 @@ export function AnalyticsView({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-4">
+          {/* items-start, not the flex default (stretch) — with real data
+              these two cards rarely have comparable content length (a
+              fixed-height chart vs. a handful of product rows), and
+              stretching the sparser one to match just leaves a dead void
+              inside it instead of looking "aligned". */}
+          <div className="flex flex-wrap items-start gap-4">
             <div className="min-w-[320px] flex-1 rounded-2xl border border-border bg-surface p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Nuevas conversaciones — últimos 7 días</div>
               <div className="mb-4.5 text-[13px] text-ink-muted">Mensajes entrantes de los tres canales combinados</div>
@@ -178,7 +183,7 @@ export function AnalyticsView({
               </div>
             </div>
 
-            <div className="min-w-[320px] flex-1 rounded-2xl border border-border bg-surface p-5">
+            <div className="min-h-[180px] min-w-[320px] flex-1 rounded-2xl border border-border bg-surface p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Productos con más valor en existencia</div>
               <div className="mb-3.5 text-[13px] text-ink-muted">Precio × stock — para saber dónde está tu capital</div>
               {topProducts.length === 0 ? (
