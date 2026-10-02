@@ -167,12 +167,7 @@ export function AnalyticsView({
               </div>
             </div>
 
-            {/* self-start, not the grid default (stretch) — with real data
-                these two cards rarely have comparable content length (a
-                fixed-height chart vs. a handful of product rows), and
-                stretching the sparser one to match just leaves a dead void
-                inside it instead of looking "aligned". */}
-            <div className="self-start rounded-2xl border border-border bg-surface p-5">
+            <div className="flex flex-col rounded-2xl border border-border bg-surface p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Nuevas conversaciones — últimos 7 días</div>
               <div className="mb-4.5 text-[13px] text-ink-muted">Mensajes entrantes de los tres canales combinados</div>
               <div className="flex h-[140px] items-end gap-4 px-1">
@@ -186,13 +181,20 @@ export function AnalyticsView({
               </div>
             </div>
 
-            <div className="min-h-[180px] self-start rounded-2xl border border-border bg-surface p-5">
+            <div className="flex flex-col rounded-2xl border border-border bg-surface p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Productos con más valor en existencia</div>
               <div className="mb-3.5 text-[13px] text-ink-muted">Precio × stock — para saber dónde está tu capital</div>
+              {/* flex-1 + justify-center — this card is stretched to match
+                  its sibling's height (the chart), but a short product list
+                  has nowhere near as much natural content, so center it in
+                  the available space instead of leaving it pinned to the
+                  top with a dead gap trailing below. */}
               {topProducts.length === 0 ? (
-                <div className="py-6 text-center text-[13px] text-ink-soft">Todavía no tienes productos en el catálogo.</div>
+                <div className="flex flex-1 items-center justify-center text-center text-[13px] text-ink-soft">
+                  Todavía no tienes productos en el catálogo.
+                </div>
               ) : (
-                <div className="flex flex-col">
+                <div className="flex flex-1 flex-col justify-center">
                   <div className="flex justify-between border-b border-border py-2 text-[12px] uppercase tracking-wide text-ink-soft">
                     <div>Producto</div>
                     <div className="flex gap-7">
