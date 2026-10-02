@@ -14,6 +14,19 @@ export function initialsFromEmail(email: string): string {
   return local.slice(0, 2).toUpperCase();
 }
 
+// Built by hand instead of toLocaleTimeString("es-HN", ...) — that locale
+// inserts a narrow no-break space inside "p. m." that several fonts (ours
+// included) render as an oversized, uneven gap. "p.m."/"a.m." with no
+// internal space reads consistently everywhere.
+export function formatMessageTime(iso: string): string {
+  const date = new Date(iso);
+  const hours24 = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const period = hours24 < 12 ? "a.m." : "p.m.";
+  const hours12 = hours24 % 12 || 12;
+  return `${hours12}:${minutes} ${period}`;
+}
+
 export function relativeTime(iso: string | null): string {
   if (!iso) return "";
   const diffMs = Date.now() - new Date(iso).getTime();

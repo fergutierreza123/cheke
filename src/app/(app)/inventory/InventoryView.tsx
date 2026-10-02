@@ -483,8 +483,12 @@ function PriceInput({ defaultValue }: { defaultValue: string }) {
   return (
     <div className="relative">
       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-soft">L</span>
+      {/* The visible input is display-only (shows the comma-formatted
+          value); the actual form field is this hidden input, always the
+          raw number — submitting the formatted string broke parsing on
+          the server (Number("1,500.00") is NaN). */}
+      <input type="hidden" name="price" value={raw} />
       <input
-        name="price"
         type="text"
         inputMode="decimal"
         value={display}

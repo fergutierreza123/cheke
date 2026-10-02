@@ -169,9 +169,11 @@ export async function setConversationStage(
 export async function sendProductToConversation(
   conversationId: string,
   product: Pick<Product, "name" | "price_hnl" | "description" | "image_url">,
+  caption?: string,
 ): Promise<{ error?: string }> {
   const lines = [`${product.name} — ${formatLempiras(product.price_hnl)}`];
   if (product.description) lines.push(product.description);
+  if (caption?.trim()) lines.push(caption.trim());
   const text = lines.join("\n");
 
   const result = await sendChatMessage(conversationId, text, product.image_url);

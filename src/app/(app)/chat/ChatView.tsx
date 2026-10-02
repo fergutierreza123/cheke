@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
 import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProductToConversation } from "../actions";
 import { sendChatMessage, simulateInboundMessage } from "./actions";
-import { initialsFor, relativeTime, formatLempiras, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
+import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product } from "@/lib/types";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
@@ -49,7 +49,12 @@ export function ChatView({
   const [simulateMode, setSimulateMode] = useState(false);
   const [botTyping, setBotTyping] = useState(false);
   const [showProductPicker, setShowProductPicker] = useState(false);
-  const [sendingProductId, setSendingProductId] = useState<string | null>(null);
+  // Picking a product no longer sends it immediately — it loads a preview
+  // into the compose area (image, name, price) so the agent can see exactly
+  // what's about to go out, optionally add a caption, and confirm with the
+  // normal Send button.
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [sendingProduct, setSendingProduct] = useState(false);
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   // Below the `lg` breakpoint there isn't room for list + thread side by
@@ -176,9 +181,27 @@ export function ChatView({
 
   async function handleSend() {
     const text = draft.trim();
-    if (!text || !selected) return;
-    setDraft("");
+    if (!selected || (!text && !pendingProduct)) return;
     setSendError(null);
+
+    if (pendingProduct) {
+      setSendingProduct(true);
+      try {
+        const result = await sendProductToConversation(selected.id, pendingProduct, text);
+        // The message itself arrives through the Realtime subscription
+        // above (same as any other outbound message) — nothing to append.
+        if (result.error) setSendError(result.error);
+        else {
+          setDraft("");
+          setPendingProduct(null);
+        }
+      } finally {
+        setSendingProduct(false);
+      }
+      return;
+    }
+
+    setDraft("");
 
     if (simulateMode) {
       setBotTyping(true);
@@ -225,18 +248,10 @@ export function ChatView({
     await setConversationBotEnabled(selected.id, next);
   }
 
-  async function handleSendProduct(product: Product) {
-    if (!selected) return;
+  function handlePickProduct(product: Product) {
     setShowProductPicker(false);
-    setSendingProductId(product.id);
-    try {
-      const result = await sendProductToConversation(selected.id, product);
-      // The message itself arrives through the Realtime subscription above
-      // (same as any other outbound message) — nothing to append here.
-      if (result.error) setSendError(result.error);
-    } finally {
-      setSendingProductId(null);
-    }
+    setSendError(null);
+    setPendingProduct(product);
   }
 
   async function handleSeed() {
@@ -458,12 +473,7 @@ export function ChatView({
                       />
                     )}
                     <div className="whitespace-pre-line">{m.body}</div>
-                    <div className="mt-1 text-[11px] opacity-65">
-                      {new Date(m.created_at).toLocaleTimeString("es-HN", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </div>
+                    <div className="mt-1 text-[11px] opacity-65">{formatMessageTime(m.created_at)}</div>
                   </div>
                 </div>
               ))}
@@ -485,9 +495,36 @@ export function ChatView({
                 {sendError}
               </div>
             )}
-            {simulateMode && (
+            {simulateMode && !pendingProduct && (
               <div className="shrink-0 border-t border-accent bg-accent-tint px-6 py-1.5 text-[12px] font-semibold text-brand-dark">
                 Modo prueba: estás escribiendo como si fueras el cliente, para ver cómo responde chekelin.
+              </div>
+            )}
+            {/* Draft preview — picking a product no longer sends it right
+                away. It loads here so the agent sees exactly what's about
+                to go out (photo included) and can still cancel or add a
+                caption before confirming with Send. */}
+            {pendingProduct && (
+              <div className="flex shrink-0 items-center gap-3 border-t border-accent bg-accent-tint px-6 py-2.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface">
+                  {pendingProduct.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage thumbnail
+                    <img src={pendingProduct.image_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <BoxIcon className="h-4 w-4 text-ink-soft" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12.5px] font-semibold text-brand-dark">{pendingProduct.name}</div>
+                  <div className="text-[11.5px] text-brand-dark/80">{formatLempiras(pendingProduct.price_hnl)}</div>
+                </div>
+                <button
+                  onClick={() => setPendingProduct(null)}
+                  aria-label="Cancelar envío de producto"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/70 text-brand-dark"
+                >
+                  <CloseIcon className="h-3 w-3" />
+                </button>
               </div>
             )}
             <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface px-6 py-3.5">
@@ -496,8 +533,7 @@ export function ChatView({
                   onClick={() => setShowProductPicker((v) => !v)}
                   title="Enviar un producto del catálogo"
                   aria-pressed={showProductPicker}
-                  disabled={sendingProductId !== null}
-                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-60 ${
+                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
                     showProductPicker
                       ? "border-brand bg-brand-tint text-brand-dark"
                       : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -512,7 +548,7 @@ export function ChatView({
                       animate={{ opacity: 1, y: 0 }}
                       exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                       transition={{ type: "spring", bounce: 0, duration: 0.25 }}
-                      className="absolute bottom-[46px] left-0 z-10 w-64 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                      className="absolute bottom-[46px] left-0 z-10 w-56 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
                     >
                       <div className="px-2 py-1 text-[11px] text-ink-soft">Enviar producto del catálogo…</div>
                       <div className="max-h-56 overflow-y-auto">
@@ -524,22 +560,10 @@ export function ChatView({
                         {products.map((p) => (
                           <button
                             key={p.id}
-                            onClick={() => handleSendProduct(p)}
-                            disabled={sendingProductId !== null}
-                            className="flex w-full items-center gap-2.5 rounded-[7px] px-2 py-1.5 text-left hover:bg-surface-2 disabled:opacity-60"
+                            onClick={() => handlePickProduct(p)}
+                            className="block w-full truncate rounded-[7px] px-2 py-1.5 text-left text-[12.5px] text-ink hover:bg-surface-2"
                           >
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-2">
-                              {p.image_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage thumbnail
-                                <img src={p.image_url} alt="" className="h-full w-full object-cover" />
-                              ) : (
-                                <BoxIcon className="h-3.5 w-3.5 text-ink-soft" />
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-[12.5px] font-semibold text-ink">{p.name}</div>
-                              <div className="text-[11px] text-ink-muted">{formatLempiras(p.price_hnl)}</div>
-                            </div>
+                            {p.name}
                           </button>
                         ))}
                       </div>
@@ -551,7 +575,8 @@ export function ChatView({
                 onClick={() => setSimulateMode((v) => !v)}
                 title="Simular mensaje de cliente (solo para pruebas, sin WhatsApp real)"
                 aria-pressed={simulateMode}
-                className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                disabled={!!pendingProduct}
+                className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
                   simulateMode
                     ? "border-accent bg-accent text-brand-dark"
                     : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -568,12 +593,18 @@ export function ChatView({
                     handleSend();
                   }
                 }}
-                placeholder={simulateMode ? "Escribe como si fueras el cliente…" : "Escribe una respuesta…"}
+                placeholder={
+                  pendingProduct
+                    ? "Agrega un mensaje (opcional)…"
+                    : simulateMode
+                      ? "Escribe como si fueras el cliente…"
+                      : "Escribe una respuesta…"
+                }
                 className="flex-1 rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
               />
               <button
                 onClick={handleSend}
-                disabled={botTyping}
+                disabled={botTyping || sendingProduct}
                 aria-label="Enviar"
                 className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-60"
               >
