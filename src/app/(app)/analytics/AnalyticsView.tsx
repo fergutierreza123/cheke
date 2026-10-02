@@ -124,8 +124,13 @@ export function AnalyticsView({
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-4">
-            <div className="min-w-[320px] flex-[1.3] rounded-2xl border border-border bg-surface p-5">
+          {/* One grid spanning both rows, not two independent flex rows —
+              each flex row was computing its own column widths from its
+              own children's flex-basis/min-width, so the gap between left
+              and right cards landed at a different x position per row
+              instead of lining up into a clean 2-column grid. */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
+            <div className="rounded-2xl border border-border bg-surface p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Embudo por etapa</div>
               <div className="mb-4 text-[13px] text-ink-muted">Cuántos contactos hay en cada etapa del Chekeo</div>
               <div className="flex flex-col gap-3">
@@ -141,7 +146,7 @@ export function AnalyticsView({
               </div>
             </div>
 
-            <div className="min-w-[260px] flex-1 rounded-2xl border border-border bg-surface p-5">
+            <div className="rounded-2xl border border-border bg-surface p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Conversaciones por canal</div>
               <div className="mb-4 text-[13px] text-ink-muted">De dónde llegan tus clientes</div>
               <div className="flex flex-col gap-3.5">
@@ -161,15 +166,13 @@ export function AnalyticsView({
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* items-start, not the flex default (stretch) — with real data
-              these two cards rarely have comparable content length (a
-              fixed-height chart vs. a handful of product rows), and
-              stretching the sparser one to match just leaves a dead void
-              inside it instead of looking "aligned". */}
-          <div className="flex flex-wrap items-start gap-4">
-            <div className="min-w-[320px] flex-1 rounded-2xl border border-border bg-surface p-5">
+            {/* self-start, not the grid default (stretch) — with real data
+                these two cards rarely have comparable content length (a
+                fixed-height chart vs. a handful of product rows), and
+                stretching the sparser one to match just leaves a dead void
+                inside it instead of looking "aligned". */}
+            <div className="self-start rounded-2xl border border-border bg-surface p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Nuevas conversaciones — últimos 7 días</div>
               <div className="mb-4.5 text-[13px] text-ink-muted">Mensajes entrantes de los tres canales combinados</div>
               <div className="flex h-[140px] items-end gap-4 px-1">
@@ -183,7 +186,7 @@ export function AnalyticsView({
               </div>
             </div>
 
-            <div className="min-h-[180px] min-w-[320px] flex-1 rounded-2xl border border-border bg-surface p-5">
+            <div className="min-h-[180px] self-start rounded-2xl border border-border bg-surface p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Productos con más valor en existencia</div>
               <div className="mb-3.5 text-[13px] text-ink-muted">Precio × stock — para saber dónde está tu capital</div>
               {topProducts.length === 0 ? (
