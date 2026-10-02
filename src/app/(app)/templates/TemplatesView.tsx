@@ -221,7 +221,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex-[2] rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                    className="flex-1 rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
                     {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Guardar plantilla"}
                   </button>

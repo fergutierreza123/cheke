@@ -454,18 +454,21 @@ export function InventoryView({
                   </div>
                 )}
 
-                {draft.id && (
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={deleting || saving}
-                    className="w-fit text-[11.5px] text-danger hover:underline disabled:opacity-60"
-                  >
-                    {deleting ? "Eliminando…" : "Eliminar producto"}
-                  </button>
-                )}
-
+                {/* All three actions share one equal-width row — previously
+                    "Eliminar producto" was a small text link stacked above a
+                    separate 1:2-ratio Cancelar/Guardar row, which read as
+                    uneven and unbalanced. */}
                 <div className="mt-1 flex gap-2.5">
+                  {draft.id && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={deleting || saving}
+                      className="flex-1 rounded-[10px] border border-danger-border bg-danger-tint py-3 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60"
+                    >
+                      {deleting ? "Eliminando…" : "Eliminar"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => closeDraft()}
@@ -476,7 +479,7 @@ export function InventoryView({
                   <button
                     type="submit"
                     disabled={saving || deleting}
-                    className="flex-[2] rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                    className="flex-1 rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
                     {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Guardar producto"}
                   </button>
