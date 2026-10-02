@@ -14,70 +14,34 @@ export default function LoginPage() {
   );
 }
 
-type Phase = "request" | "code";
-
 function LoginForm() {
-  const [phase, setPhase] = useState<Phase>("request");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [sending, setSending] = useState(false);
-  const [resending, setResending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const searchParams = useSearchParams();
   const callbackFailed = searchParams.get("error") === "auth";
 
-  async function sendCode(targetEmail: string) {
-    const supabase = createClient();
-    // No emailRedirectTo here on purpose — that option is for the
-    // click-a-link flow. We only want the 6-digit code this time, which
-    // verifyOtp() below checks directly, no redirect involved.
-    const { error } = await supabase.auth.signInWithOtp({ email: targetEmail });
-    return error;
-  }
-
-  async function handleRequestCode(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSending(true);
+    setStatus("sending");
     setErrorMessage("");
 
-    const error = await sendCode(email);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
 
-    setSending(false);
     if (error) {
+      setStatus("error");
       setErrorMessage(error.message);
       return;
     }
-    setPhase("code");
-  }
-
-  async function handleResend() {
-    setResending(true);
-    setErrorMessage("");
-    const error = await sendCode(email);
-    setResending(false);
-    if (error) setErrorMessage(error.message);
-  }
-
-  async function handleVerifyCode(e: React.FormEvent) {
-    e.preventDefault();
-    setVerifying(true);
-    setErrorMessage("");
-
-    const supabase = createClient();
-    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
-
-    if (error) {
-      setVerifying(false);
-      setErrorMessage("Código incorrecto o vencido. Intenta de nuevo.");
-      return;
-    }
-    // Full reload (not router.push) so the server picks up the new
-    // session cookie right away — same reasoning as the OAuth/magic-link
-    // redirects, which both land on a fresh server request too.
-    window.location.href = "/chekeo";
+    setStatus("sent");
   }
 
   async function handleGoogleLogin() {
@@ -92,6 +56,7 @@ function LoginForm() {
     });
     if (error) {
       setGoogleLoading(false);
+      setStatus("error");
       setErrorMessage(error.message);
     }
   }
@@ -110,7 +75,7 @@ function LoginForm() {
           Entrar a <span className="text-accent">cheke</span>
         </h1>
         <p className="mt-1 text-center text-sm text-white/70">
-          Te enviamos un código a tu correo, sin contraseña.
+          Te enviamos un enlace mágico a tu correo, sin contraseña.
         </p>
 
         <motion.div
@@ -123,9 +88,8 @@ function LoginForm() {
           }
           className="mt-6 rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_60px_rgba(0,16,55,0.25)]"
         >
-          {phase === "code" ? (
-            <motion.form
-              onSubmit={handleVerifyCode}
+          {status === "sent" ? (
+            <motion.div
               initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={
@@ -133,55 +97,11 @@ function LoginForm() {
                   ? { duration: 0.15 }
                   : { type: "spring", bounce: 0, duration: 0.35 }
               }
-              className="flex flex-col gap-3"
+              className="rounded-lg border border-accent bg-accent-tint px-4 py-3 text-sm text-brand-dark"
             >
-              <p className="text-sm text-ink-muted">
-                Escribe el código de 6 dígitos que enviamos a <strong className="text-ink">{email}</strong>.
-                Si llega por correo en tu teléfono, puede que se rellene solo.
-              </p>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                autoComplete="one-time-code"
-                autoFocus
-                required
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="000000"
-                className="rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-center text-2xl font-semibold tracking-[0.5em] text-ink outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-tint"
-              />
-              {errorMessage && <p className="text-sm text-danger">{errorMessage}</p>}
-              <button
-                type="submit"
-                disabled={verifying || code.length < 6}
-                className="mt-1 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              >
-                {verifying ? "Verificando…" : "Verificar código"}
-              </button>
-              <div className="flex items-center justify-between text-[12.5px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhase("request");
-                    setCode("");
-                    setErrorMessage("");
-                  }}
-                  className="text-ink-muted hover:underline"
-                >
-                  Usar otro correo
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResend}
-                  disabled={resending}
-                  className="font-semibold text-brand hover:underline disabled:opacity-60"
-                >
-                  {resending ? "Reenviando…" : "Reenviar código"}
-                </button>
-              </div>
-            </motion.form>
+              Revisa tu correo <strong>{email}</strong> y haz clic en el enlace para
+              entrar.
+            </motion.div>
           ) : (
             <div className="flex flex-col gap-4">
               {callbackFailed && (
@@ -206,7 +126,7 @@ function LoginForm() {
                 <div className="h-px flex-1 bg-border" />
               </div>
 
-              <form onSubmit={handleRequestCode} className="flex flex-col gap-3">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
                 <label className="text-xs font-medium uppercase tracking-wide text-ink-muted">
                   Correo electrónico
                 </label>
@@ -218,13 +138,15 @@ function LoginForm() {
                   placeholder="tu@negocio.com"
                   className="rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-tint"
                 />
-                {errorMessage && <p className="text-sm text-danger">{errorMessage}</p>}
+                {status === "error" && (
+                  <p className="text-sm text-danger">{errorMessage}</p>
+                )}
                 <button
                   type="submit"
-                  disabled={sending}
+                  disabled={status === "sending"}
                   className="mt-1 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
-                  {sending ? "Enviando…" : "Enviar código"}
+                  {status === "sending" ? "Enviando…" : "Enviar enlace mágico"}
                 </button>
               </form>
             </div>
