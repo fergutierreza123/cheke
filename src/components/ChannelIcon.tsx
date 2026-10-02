@@ -15,12 +15,11 @@ function WhatsAppIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-label="WhatsApp" role="img">
       <circle cx="12" cy="12" r="12" fill="#25D366" />
-      {/* White speech-bubble body + tail, matching the real mark — just the
-          phone glyph alone (no bubble) read as a generic "call" icon. */}
-      <path
-        d="M12 4.3c-4.56 0-8.26 3.58-8.26 8 0 1.42.39 2.75 1.06 3.9L3.5 20.2l4.18-1.26a8.5 8.5 0 0 0 4.32 1.16c4.56 0 8.26-3.58 8.26-8s-3.7-7.8-8.26-7.8z"
-        fill="#fff"
-      />
+      {/* Bubble body as an actual rounded square (not a hand-drawn blob) so
+          it nests evenly in the circle the same way the Instagram/Facebook
+          badges do — plus a small tail to read as a chat bubble. */}
+      <path d="M6.3 17.2 L5 20.3 L8.3 19.1 Z" fill="#fff" />
+      <rect x="5" y="4.5" width="14" height="14" rx="5.5" fill="#fff" />
       {/* Phone-receiver glyph knocked out in the brand green so it reads
           as a cutout inside the white bubble, same as the official mark. */}
       <path
