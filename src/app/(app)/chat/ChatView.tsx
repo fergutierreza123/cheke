@@ -57,6 +57,7 @@ export function ChatView({
   const [sendingProduct, setSendingProduct] = useState(false);
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   // Below the `lg` breakpoint there isn't room for list + thread side by
   // side, so only one shows at a time. Default to the thread so the already
   // selected conversation is visible immediately, with no tap required.
@@ -113,7 +114,10 @@ export function ChatView({
   // Falls back to "nuevo" if the `stage` migration hasn't run yet on this
   // database — avoids a hard crash on old rows missing the column.
   const selectedStage = selected?.stage ?? "nuevo";
-  const messages = selectedId ? (messagesByConversation[selectedId] ?? []) : [];
+  const messages = useMemo(
+    () => (selectedId ? (messagesByConversation[selectedId] ?? []) : []),
+    [selectedId, messagesByConversation],
+  );
 
   function appendMessage(msg: Message) {
     setMessagesByConversation((prev) => {
@@ -169,6 +173,13 @@ export function ChatView({
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
+
+  // Keep the newest message in view — without this, a message you just
+  // sent can land below the fold with no visible change, which reads as
+  // "it didn't send" and invites clicking Send again.
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
+  }, [messages, prefersReducedMotion]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -488,6 +499,7 @@ export function ChatView({
               {messages.length === 0 && !botTyping && (
                 <div className="py-10 text-center text-[13px] text-ink-soft">Sin mensajes todavía.</div>
               )}
+              <div ref={messagesEndRef} />
             </div>
 
             {sendError && (
