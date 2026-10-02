@@ -57,8 +57,11 @@ export function NotificationsView({ notifications }: { notifications: Notificati
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-5">
-        <div className="flex max-w-[640px] flex-col gap-1.5">
+      {/* Flat, full-width feed (like a social app's notification list) —
+          no per-row card chrome or gaps eating space, just a continuous
+          divided list with a hairline between rows. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="divide-y divide-border">
           {filtered.map((n) => {
             const style = KIND_STYLE[n.kind];
             const unread = !readIds.has(n.id);
@@ -67,22 +70,22 @@ export function NotificationsView({ notifications }: { notifications: Notificati
                 key={n.id}
                 href={n.link}
                 onClick={() => markRead(n.id)}
-                className={`flex items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 transition-colors ${
-                  unread ? "bg-brand-tint hover:bg-brand-tint/70" : "bg-surface hover:bg-surface-2"
+                className={`flex items-center gap-3 px-6 py-2.5 transition-colors ${
+                  unread ? "bg-brand-tint hover:bg-brand-tint/70" : "hover:bg-surface-2"
                 }`}
               >
                 <div
                   style={{ background: style.bg, color: style.color }}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
                 >
-                  {n.kind === "message" && <MessageIcon className="h-4 w-4" />}
-                  {n.kind === "warning" && <WarningIcon className="h-4 w-4" />}
-                  {n.kind === "success" && <CheckIcon className="h-4 w-4" />}
+                  {n.kind === "message" && <MessageIcon className="h-3.5 w-3.5" />}
+                  {n.kind === "warning" && <WarningIcon className="h-3.5 w-3.5" />}
+                  {n.kind === "success" && <CheckIcon className="h-3.5 w-3.5" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="truncate text-[12.5px] font-semibold text-ink">{n.title}</div>
-                    <div className="shrink-0 text-[11px] text-ink-soft">{relativeTime(n.time)}</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="truncate text-[12.5px] font-semibold text-ink">{n.title}</span>
+                    <span className="shrink-0 text-[11px] text-ink-soft">· {relativeTime(n.time)}</span>
                   </div>
                   <div className="truncate text-[12px] text-ink-muted">{n.description}</div>
                 </div>

@@ -69,27 +69,32 @@ export function TeamView({
             </button>
           </div>
 
+          {/* No separate column-header row — on a narrow screen a header's
+              columns and a data row's columns can wrap independently and
+              drift apart. Each row below is self-contained instead: the
+              role pill and the date read fine on their own with no header
+              to line up with. */}
           <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-            <div className="flex items-center border-b border-border px-5 py-3 text-[11.5px] uppercase tracking-wide text-ink-soft">
-              <div className="flex-1">Miembro</div>
-              <div className="w-32">Rol</div>
-              <div className="w-28">Desde</div>
-              {isOwner && <div className="w-16 text-right">&nbsp;</div>}
-            </div>
             {members.map((m) => {
               const isMe = m.user_id === currentUserId;
               return (
-                <div key={m.user_id} className="flex items-center border-b border-border px-5 py-3.5 last:border-b-0">
-                  <div className="flex flex-1 items-center gap-3">
+                <div
+                  key={m.user_id}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-5 py-3.5 last:border-b-0"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-bold text-white">
                       {initialsFromEmail(m.email)}
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-[13.5px] font-semibold text-ink">{m.email}</div>
-                      {isMe && <div className="text-[11px] text-brand">Tú</div>}
+                      <div className="text-[11px] text-ink-soft">
+                        {isMe && <span className="text-brand">Tú · </span>}
+                        Desde {relativeTime(m.joined_at)}
+                      </div>
                     </div>
                   </div>
-                  <div className="w-32">
+                  <div className="flex shrink-0 items-center gap-2">
                     {isOwner && !isMe ? (
                       <select
                         value={m.role}
@@ -108,21 +113,16 @@ export function TeamView({
                         {m.role === "owner" ? "Dueño" : "Agente"}
                       </span>
                     )}
+                    {isOwner && !isMe && (
+                      <button
+                        onClick={() => handleRemove(m.user_id, m.email)}
+                        aria-label="Quitar del negocio"
+                        className="rounded-lg p-1.5 text-ink-soft hover:bg-danger-tint hover:text-danger"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
-                  <div className="w-28 text-[13px] text-ink-soft">{relativeTime(m.joined_at)}</div>
-                  {isOwner && (
-                    <div className="w-16 text-right">
-                      {!isMe && (
-                        <button
-                          onClick={() => handleRemove(m.user_id, m.email)}
-                          aria-label="Quitar del negocio"
-                          className="rounded-lg p-1.5 text-ink-soft hover:bg-danger-tint hover:text-danger"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })}
