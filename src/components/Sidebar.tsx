@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
+import { useEffect, useState } from "react";
 
-const NAV_ITEMS = [
+const DEFAULT_NAV_ITEMS = [
   { href: "/chat", label: "Chat", icon: ChatIcon },
   { href: "/chekeo", label: "Chekeo", icon: KanbanIcon },
   { href: "/contacts", label: "Contactos", icon: UsersIcon },
@@ -16,6 +17,8 @@ const NAV_ITEMS = [
   { href: "/notifications", label: "Notificaciones", icon: BellIcon },
   { href: "/analytics", label: "Analítica", icon: ChartIcon },
 ];
+const DEFAULT_ORDER = DEFAULT_NAV_ITEMS.map((i) => i.href);
+const NAV_ORDER_KEY = "cheke-nav-order";
 
 export function Sidebar({
   businessName,
@@ -28,6 +31,46 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion();
+  const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
+  const [draggingHref, setDraggingHref] = useState<string | null>(null);
+
+  // Restore the order this viewer left it in last time — per-browser only,
+  // same pattern as Chat's resizable list width. Read after mount (not a
+  // lazy initial state) so server-rendered markup matches the first client
+  // render with no hydration diff.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(NAV_ORDER_KEY) ?? "null") as string[] | null;
+      if (!saved) return;
+      // Stay forward-compatible with nav items added/removed later: keep
+      // the saved positions for hrefs that still exist, then append any
+      // current item that wasn't in the saved list.
+      const restored = saved.filter((href) => DEFAULT_ORDER.includes(href));
+      const missing = DEFAULT_ORDER.filter((href) => !restored.includes(href));
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from an external store (localStorage) on mount
+      setOrder([...restored, ...missing]);
+    } catch {
+      // ignore — private browsing, blocked storage, etc.
+    }
+  }, []);
+
+  function moveBefore(draggedHref: string, targetHref: string) {
+    if (draggedHref === targetHref) return;
+    setOrder((prev) => {
+      const next = prev.filter((h) => h !== draggedHref);
+      next.splice(next.indexOf(targetHref), 0, draggedHref);
+      try {
+        localStorage.setItem(NAV_ORDER_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+
+  const items = order
+    .map((href) => DEFAULT_NAV_ITEMS.find((i) => i.href === href))
+    .filter((i): i is (typeof DEFAULT_NAV_ITEMS)[number] => Boolean(i));
 
   return (
     <div className="flex h-full w-60 min-w-60 flex-col bg-brand-dark py-6">
@@ -35,39 +78,68 @@ export function Sidebar({
         <Image src="/logos/cheke-wordmark-color.png" alt="Cheke" width={148} height={80} priority />
       </div>
 
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label, icon: Icon }) => {
         const active = pathname.startsWith(href);
         const badge = href === "/notifications" ? notificationCount : 0;
         return (
-          <Link
+          <motion.div
             key={href}
-            href={href}
-            className={`relative flex items-center gap-3 px-6 py-[11px] text-[14.5px] transition-colors ${
-              active ? "font-semibold text-white" : "text-[#A9B1CC] hover:bg-white/[0.06] hover:text-white"
-            }`}
+            layout
+            transition={
+              prefersReducedMotion ? { duration: 0.01 } : { type: "spring", bounce: 0, duration: 0.35 }
+            }
+            // Order each item can be dragged to reorder the whole menu —
+            // native HTML5 DnD, same approach as the Chekeo kanban cards.
+            // `layout` above claims onDragStart/onDragEnd for motion's own
+            // (unrelated) drag gesture system, so the real DragEvent with
+            // dataTransfer has to come through the capture-phase variants.
+            draggable
+            onDragStartCapture={(e: React.DragEvent<HTMLDivElement>) => {
+              e.dataTransfer.effectAllowed = "move";
+              setDraggingHref(href);
+            }}
+            onDragEndCapture={() => setDraggingHref(null)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggingHref) moveBefore(draggingHref, href);
+              setDraggingHref(null);
+            }}
+            style={{ opacity: draggingHref === href ? 0.4 : 1 }}
+            className="relative"
           >
-            {/* Shared-layout pill: animates from the previous active item to
-                this one instead of just appearing here (spatial consistency —
-                the highlight travels, it doesn't teleport). */}
-            {active && (
-              <motion.div
-                layoutId="nav-active-pill"
-                className="absolute inset-0 border-l-[3px] border-accent bg-white/[0.06]"
-                transition={
-                  prefersReducedMotion
-                    ? { duration: 0.01 }
-                    : { type: "spring", bounce: 0, duration: 0.4 }
-                }
-              />
-            )}
-            <Icon className="relative z-10 h-[18px] w-[18px] shrink-0" />
-            <span className="relative z-10 flex-1">{label}</span>
-            {badge > 0 && (
-              <span className="relative z-10 flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[10.5px] font-bold text-white">
-                {badge > 9 ? "9+" : badge}
-              </span>
-            )}
-          </Link>
+            <Link
+              href={href}
+              className={`group flex items-center gap-3 px-6 py-[11px] text-[14.5px] transition-colors ${
+                active ? "font-semibold text-white" : "text-[#A9B1CC] hover:bg-white/[0.06] hover:text-white"
+              }`}
+            >
+              {/* Shared-layout pill: animates from the previous active item to
+                  this one instead of just appearing here (spatial consistency —
+                  the highlight travels, it doesn't teleport). */}
+              {active && (
+                <motion.div
+                  layoutId="nav-active-pill"
+                  className="absolute inset-0 border-l-[3px] border-accent bg-white/[0.06]"
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0.01 }
+                      : { type: "spring", bounce: 0, duration: 0.4 }
+                  }
+                />
+              )}
+              <Icon className="relative z-10 h-[18px] w-[18px] shrink-0" />
+              <span className="relative z-10 flex-1">{label}</span>
+              {badge > 0 && (
+                <span className="relative z-10 flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[10.5px] font-bold text-white">
+                  {badge > 9 ? "9+" : badge}
+                </span>
+              )}
+              {/* Visible (not hover-only) so the row reads as draggable
+                  without requiring a mouse-hover discovery step. */}
+              <GripIcon className="relative z-10 h-3.5 w-3.5 shrink-0 cursor-grab text-white/25 active:cursor-grabbing" />
+            </Link>
+          </motion.div>
         );
       })}
 
@@ -171,6 +243,18 @@ function ChartIcon({ className }: { className?: string }) {
       <path d="M4 19V10" />
       <path d="M12 19V5" />
       <path d="M20 19v-7" />
+    </svg>
+  );
+}
+function GripIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="9" cy="6" r="1.4" />
+      <circle cx="15" cy="6" r="1.4" />
+      <circle cx="9" cy="12" r="1.4" />
+      <circle cx="15" cy="12" r="1.4" />
+      <circle cx="9" cy="18" r="1.4" />
+      <circle cx="15" cy="18" r="1.4" />
     </svg>
   );
 }
