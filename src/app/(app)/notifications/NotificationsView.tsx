@@ -58,47 +58,36 @@ export function NotificationsView({ notifications }: { notifications: Notificati
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-8 py-5">
-        <div className="flex max-w-[760px] flex-col gap-2">
+        <div className="flex max-w-[640px] flex-col gap-1.5">
           {filtered.map((n) => {
             const style = KIND_STYLE[n.kind];
             const unread = !readIds.has(n.id);
             return (
-              <div
+              <Link
                 key={n.id}
-                className={`flex items-start gap-3.5 rounded-xl border border-border px-4 py-3.5 ${
-                  unread ? "bg-brand-tint" : "bg-surface"
+                href={n.link}
+                onClick={() => markRead(n.id)}
+                className={`flex items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 transition-colors ${
+                  unread ? "bg-brand-tint hover:bg-brand-tint/70" : "bg-surface hover:bg-surface-2"
                 }`}
               >
-                <Link href={n.link} className="flex min-w-0 flex-1 items-start gap-3.5">
-                  <div
-                    style={{ background: style.bg, color: style.color }}
-                    className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px]"
-                  >
-                    {n.kind === "message" && <MessageIcon className="h-[18px] w-[18px]" />}
-                    {n.kind === "warning" && <WarningIcon className="h-[18px] w-[18px]" />}
-                    {n.kind === "success" && <CheckIcon className="h-[18px] w-[18px]" />}
+                <div
+                  style={{ background: style.bg, color: style.color }}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                >
+                  {n.kind === "message" && <MessageIcon className="h-4 w-4" />}
+                  {n.kind === "warning" && <WarningIcon className="h-4 w-4" />}
+                  {n.kind === "success" && <CheckIcon className="h-4 w-4" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="truncate text-[12.5px] font-semibold text-ink">{n.title}</div>
+                    <div className="shrink-0 text-[11px] text-ink-soft">{relativeTime(n.time)}</div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <div className="text-[13.5px] font-bold text-ink">{n.title}</div>
-                      <div className="shrink-0 text-[11.5px] text-ink-soft">{relativeTime(n.time)}</div>
-                    </div>
-                    <div className="mt-0.5 text-[13px] leading-relaxed text-ink-muted">{n.description}</div>
-                  </div>
-                </Link>
-                {unread ? (
-                  <button
-                    onClick={() => markRead(n.id)}
-                    aria-label="Marcar como leída"
-                    title="Marcar como leída"
-                    className="mt-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-brand text-brand transition-colors hover:bg-brand hover:text-white"
-                  >
-                    <CheckIcon className="h-2.5 w-2.5" />
-                  </button>
-                ) : (
-                  <div className="mt-1.5 h-5 w-5 shrink-0" />
-                )}
-              </div>
+                  <div className="truncate text-[12px] text-ink-muted">{n.description}</div>
+                </div>
+                {unread && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />}
+              </Link>
             );
           })}
           {filtered.length === 0 && (

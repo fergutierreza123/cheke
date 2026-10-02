@@ -437,7 +437,7 @@ export function InventoryView({
                     type="button"
                     onClick={handleDelete}
                     disabled={deleting || saving}
-                    className="w-fit text-[12.5px] font-semibold text-danger hover:underline disabled:opacity-60"
+                    className="w-fit text-[11.5px] text-danger hover:underline disabled:opacity-60"
                   >
                     {deleting ? "Eliminando…" : "Eliminar producto"}
                   </button>
