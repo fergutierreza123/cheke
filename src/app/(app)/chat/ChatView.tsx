@@ -65,20 +65,20 @@ export function ChatView({
   // the agent to fill in/edit, rather than sending it outright.
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  // Real delivered/read ticks only ever arrive via a genuine WhatsApp
-  // webhook call, which can't happen yet (Meta business verification still
-  // pending — see README). So a freshly-sent message would otherwise sit
-  // on a single ✓ forever in the demo. This locally advances it through
-  // ✓✓ (delivered) then blue ✓✓ (read) purely for display, same as
-  // WhatsApp's own animation — it never touches the database, and a real
-  // status update arriving via Realtime always takes precedence (see
-  // effectiveStatus below).
-  const [demoTicks, setDemoTicks] = useState<Record<string, Message["status"]>>({});
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const draftInputRef = useRef<HTMLInputElement>(null);
-  const scheduledTicksRef = useRef<Set<string>>(new Set());
+  // Ticks forward every second so demo message statuses (see
+  // effectiveStatus below) visibly advance over time with no user
+  // interaction needed. Stored as state (not read live via Date.now() at
+  // render time) because calling an impure function during render is
+  // disallowed — this keeps the component pure while still updating.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
   // Below the `lg` breakpoint there isn't room for list + thread side by
   // side, so only one shows at a time. Default to the thread so the already
   // selected conversation is visible immediately, with no tap required.
@@ -146,24 +146,26 @@ export function ChatView({
       if (existing.some((m) => m.id === msg.id)) return prev;
       return { ...prev, [msg.conversation_id]: [...existing, msg] };
     });
-
-    if (msg.direction === "out" && msg.status === "sent" && !scheduledTicksRef.current.has(msg.id)) {
-      scheduledTicksRef.current.add(msg.id);
-      setTimeout(() => setDemoTicks((prev) => ({ ...prev, [msg.id]: "delivered" })), 1200);
-      setTimeout(() => setDemoTicks((prev) => ({ ...prev, [msg.id]: "read" })), 3200);
-    }
   }
 
-  const STATUS_RANK: Record<Message["status"], number> = { sent: 0, delivered: 1, read: 2, failed: -1 };
+  // Real delivered/read ticks only ever arrive via a genuine WhatsApp
+  // webhook call, which can't happen yet (Meta business verification still
+  // pending — see README). So a freshly-sent message would otherwise sit on
+  // a single ✓ forever in the demo. This derives a demo progression from
+  // elapsed time since created_at instead — ✓ for the first 1.2s, ✓✓
+  // (delivered) after that, blue ✓✓ (read) after 3.2s — same as WhatsApp's
+  // own animation. Being time-based (not a one-shot timer fired only at the
+  // moment the message was appended) means it also applies correctly to
+  // messages loaded fresh from the database on page load/reload, not just
+  // ones sent live during the current session. A real status update always
+  // takes precedence, since this branch is only reached while the DB status
+  // is still "sent".
   function effectiveStatus(m: Message): Message["status"] {
-    // Terminal state: a message that actually failed to send must never
-    // show ticks, even if a demo timer was already in flight from the
-    // moment it was first inserted as "sent" (a real race — the Realtime
-    // INSERT can arrive before the follow-up UPDATE that marks it failed).
-    if (m.status === "failed") return "failed";
-    const demo = demoTicks[m.id];
-    if (!demo) return m.status;
-    return STATUS_RANK[demo] > STATUS_RANK[m.status] ? demo : m.status;
+    if (m.direction !== "out" || m.status !== "sent") return m.status;
+    const elapsed = now - new Date(m.created_at).getTime();
+    if (elapsed > 3200) return "read";
+    if (elapsed > 1200) return "delivered";
+    return "sent";
   }
 
   // A delivery/read receipt from Meta updates an existing row (not an
@@ -534,14 +536,39 @@ export function ChatView({
                 <FlaskIcon className="h-3.5 w-3.5" />
               </button>
 
-              {/* Compact tile replacing the old always-open side panel — tap
-                  to see contact details and change the Chekeo stage. */}
+              {/* A plain colored pill here just read as a static label, not
+                  something clickable — a real dropdown with its own
+                  caption makes both facts (what it is, that it's
+                  editable) obvious at a glance. Changes the stage
+                  directly, no need to open the side panel for this. */}
+              <label className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface-2 py-1.5 pl-2.5 pr-1.5 text-[12.5px] font-semibold text-ink">
+                <span className="hidden text-[10.5px] font-medium uppercase tracking-wide text-ink-soft sm:inline">
+                  Estado de venta
+                </span>
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STAGE_META[selectedStage].color }} />
+                <select
+                  value={selectedStage}
+                  onChange={(e) => handleSetStage(e.target.value as ConversationStage)}
+                  className="bg-transparent text-[12.5px] font-semibold text-ink outline-none"
+                >
+                  {STAGE_ORDER.map((s) => (
+                    <option key={s} value={s}>
+                      {STAGE_META[s].label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {/* Opens the side panel for contact details (phone, notes) —
+                  the stage picker used to live only inside this panel,
+                  which buried a very common action two clicks deep. */}
               <button
                 onClick={() => setShowDetail(true)}
-                className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-ink transition-colors hover:bg-surface-3"
+                title="Ver detalles del contacto"
+                aria-label="Ver detalles del contacto"
+                className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-ink-muted transition-colors hover:bg-surface-3"
               >
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STAGE_META[selectedStage].color }} />
-                <span className="hidden sm:inline">{STAGE_META[selectedStage].label}</span>
+                <InfoIcon className="h-3.5 w-3.5" />
               </button>
             </div>
 
@@ -846,30 +873,6 @@ export function ChatView({
               </div>
 
               <div>
-                <div className="mb-2 text-xs uppercase tracking-wide text-ink-muted">Etapa en el chekeo</div>
-                <div className="flex flex-col gap-1.5">
-                  {STAGE_ORDER.map((s) => {
-                    const meta = STAGE_META[s];
-                    const active = selectedStage === s;
-                    return (
-                      <button
-                        key={s}
-                        onClick={() => handleSetStage(s)}
-                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[13px] transition-colors ${
-                          active
-                            ? "border-ink-soft bg-surface-2 font-semibold text-ink"
-                            : "border-border bg-surface text-ink-muted hover:bg-surface-2"
-                        }`}
-                      >
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: meta.color }} />
-                        {meta.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
                 <div className="mb-1.5 text-xs uppercase tracking-wide text-ink-muted">Notas</div>
                 <div className="rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink">
                   {selected.contact.notes || "Sin notas todavía."}
@@ -903,6 +906,15 @@ function CloseIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
       <path d="M18 6L6 18" />
       <path d="M6 6l12 12" />
+    </svg>
+  );
+}
+function InfoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5" />
+      <path d="M12 7.5h.01" />
     </svg>
   );
 }
