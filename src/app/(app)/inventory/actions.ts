@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentBusiness } from "@/lib/business";
 import { removeBackgroundToWhite } from "@/lib/images";
 
@@ -44,12 +45,19 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
       photoWarning = `Se guardó la foto original: ${bg.error}`;
     }
 
+    // Storage RLS on `storage.objects` (0009_product_images.sql) is scoped
+    // per-business, but the storage REST API doesn't reliably see this
+    // Server Action's user session the way PostgREST table queries do.
+    // Membership is already confirmed above via getCurrentBusiness(), so
+    // use the admin client for just this write — same pattern as the
+    // WhatsApp webhook (src/app/api/whatsapp/webhook/route.ts).
+    const adminSupabase = createAdminClient();
     const path = `${business.id}/${randomUUID()}-${file.name}`;
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await adminSupabase.storage
       .from("product-images")
       .upload(path, uploadBody, { contentType, upsert: true });
     if (uploadError) return { error: `No se pudo subir la foto: ${uploadError.message}` };
-    imageUrl = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+    imageUrl = adminSupabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
   }
 
   if (id) {
