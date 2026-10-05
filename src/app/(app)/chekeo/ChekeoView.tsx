@@ -165,7 +165,12 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                 }}
                 style={{
                   background: isDropTarget ? `${meta.color}22` : `${meta.color}14`,
-                  boxShadow: isDropTarget ? `0 0 0 2px ${meta.color}` : "0 0 0 2px transparent",
+                  // inset, not a regular ring — a regular box-shadow is
+                  // drawn outside the border box, which this column's own
+                  // height (exactly matching its scroll-container parent)
+                  // was clipping on the top/bottom edges, making the
+                  // highlight look cut off instead of wrapping the shape.
+                  boxShadow: isDropTarget ? `inset 0 0 0 2px ${meta.color}` : "inset 0 0 0 2px transparent",
                 }}
                 className="flex h-full w-[246px] min-w-[246px] max-w-[246px] shrink-0 flex-col rounded-[14px] p-3 transition-[background-color,box-shadow] duration-150"
               >
@@ -292,17 +297,6 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                   {items.length === 0 && !isDropTarget && (
                     <div className="flex min-h-14 flex-1 items-center justify-center rounded-[10px] text-center text-[12.5px] text-ink-soft">
                       Sin contactos aquí
-                    </div>
-                  )}
-                  {/* Shown at the end of the list on every column being dragged
-                      over, not just empty ones — always visible proof of
-                      exactly where the card will land. */}
-                  {isDropTarget && (
-                    <div
-                      style={{ borderColor: meta.color, color: meta.color }}
-                      className="flex h-12 shrink-0 items-center justify-center rounded-[10px] border-2 border-dashed bg-surface text-[12.5px] font-semibold"
-                    >
-                      Soltar aquí
                     </div>
                   )}
                 </div>
