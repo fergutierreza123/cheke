@@ -185,7 +185,12 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                   {total ? `${formatLempiras(total)} en esta etapa` : "Sin valor asignado"}
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5">
+                {/* A scrolling box clips anything drawn outside its edge, which
+                    cut the "just moved" ring/glow off on the top and right of
+                    a card. Padding gives that ring room to draw, and the
+                    matching negative margin cancels it out so the cards
+                    don't actually shift. */}
+                <div className="-m-2.5 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
                   {items.map((c) => {
                     const channelMeta = c.channel ? CHANNEL_META[c.channel.type] : null;
                     const stageIdx = STAGE_ORDER.indexOf(c.stage);
@@ -226,7 +231,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                           scale: draggingId === c.id ? 0.96 : 1,
                           rotate: draggingId === c.id ? -2 : 0,
                           boxShadow: justMoved
-                            ? `0 0 0 2px ${STAGE_META[c.stage].color}, 0 4px 16px ${STAGE_META[c.stage].color}55`
+                            ? `0 0 0 2px ${STAGE_META[c.stage].color}, 0 2px 8px ${STAGE_META[c.stage].color}55`
                             : "0 1px 2px rgba(34,29,23,0.05)",
                         }}
                         className="flex cursor-grab flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-[11px] transition-[opacity,box-shadow] duration-300 active:cursor-grabbing"
