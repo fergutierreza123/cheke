@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, useReducedMotion } from "motion/react";
+import { motion, Reorder, useDragControls, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 
 const DEFAULT_NAV_ITEMS = [
@@ -32,7 +32,6 @@ export function Sidebar({
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion();
   const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
-  const [draggingHref, setDraggingHref] = useState<string | null>(null);
 
   // Restore the order this viewer left it in last time — per-browser only,
   // same pattern as Chat's resizable list width. Read after mount (not a
@@ -54,18 +53,13 @@ export function Sidebar({
     }
   }, []);
 
-  function moveBefore(draggedHref: string, targetHref: string) {
-    if (draggedHref === targetHref) return;
-    setOrder((prev) => {
-      const next = prev.filter((h) => h !== draggedHref);
-      next.splice(next.indexOf(targetHref), 0, draggedHref);
-      try {
-        localStorage.setItem(NAV_ORDER_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+  function handleReorder(next: string[]) {
+    setOrder(next);
+    try {
+      localStorage.setItem(NAV_ORDER_KEY, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
   }
 
   const items = order
@@ -78,70 +72,17 @@ export function Sidebar({
         <Image src="/logos/cheke-wordmark-color.png" alt="Cheke" width={148} height={80} priority />
       </div>
 
-      {items.map(({ href, label, icon: Icon }) => {
-        const active = pathname.startsWith(href);
-        const badge = href === "/notifications" ? notificationCount : 0;
-        return (
-          <motion.div
-            key={href}
-            layout
-            transition={
-              prefersReducedMotion ? { duration: 0.01 } : { type: "spring", bounce: 0, duration: 0.35 }
-            }
-            // Order each item can be dragged to reorder the whole menu —
-            // native HTML5 DnD, same approach as the Chekeo kanban cards.
-            // `layout` above claims onDragStart/onDragEnd for motion's own
-            // (unrelated) drag gesture system, so the real DragEvent with
-            // dataTransfer has to come through the capture-phase variants.
-            draggable
-            onDragStartCapture={(e: React.DragEvent<HTMLDivElement>) => {
-              e.dataTransfer.effectAllowed = "move";
-              setDraggingHref(href);
-            }}
-            onDragEndCapture={() => setDraggingHref(null)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (draggingHref) moveBefore(draggingHref, href);
-              setDraggingHref(null);
-            }}
-            style={{ opacity: draggingHref === href ? 0.4 : 1 }}
-            className="relative"
-          >
-            <Link
-              href={href}
-              className={`group flex items-center gap-3 px-6 py-[11px] text-[14.5px] transition-colors ${
-                active ? "font-semibold text-white" : "text-[#A9B1CC] hover:bg-white/[0.06] hover:text-white"
-              }`}
-            >
-              {/* Shared-layout pill: animates from the previous active item to
-                  this one instead of just appearing here (spatial consistency —
-                  the highlight travels, it doesn't teleport). */}
-              {active && (
-                <motion.div
-                  layoutId="nav-active-pill"
-                  className="absolute inset-0 border-l-[3px] border-accent bg-white/[0.06]"
-                  transition={
-                    prefersReducedMotion
-                      ? { duration: 0.01 }
-                      : { type: "spring", bounce: 0, duration: 0.4 }
-                  }
-                />
-              )}
-              <Icon className="relative z-10 h-[18px] w-[18px] shrink-0" />
-              <span className="relative z-10 flex-1">{label}</span>
-              {badge > 0 && (
-                <span className="relative z-10 flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[10.5px] font-bold text-white">
-                  {badge > 9 ? "9+" : badge}
-                </span>
-              )}
-              {/* Visible (not hover-only) so the row reads as draggable
-                  without requiring a mouse-hover discovery step. */}
-              <GripIcon className="relative z-10 h-3.5 w-3.5 shrink-0 cursor-grab text-white/25 active:cursor-grabbing" />
-            </Link>
-          </motion.div>
-        );
-      })}
+      <Reorder.Group axis="y" values={order} onReorder={handleReorder} as="div" className="flex flex-col">
+        {items.map((item) => (
+          <NavRow
+            key={item.href}
+            item={item}
+            active={pathname.startsWith(item.href)}
+            badge={item.href === "/notifications" ? notificationCount : 0}
+            reducedMotion={!!prefersReducedMotion}
+          />
+        ))}
+      </Reorder.Group>
 
       <div className="mt-auto flex items-center gap-2.5 border-t border-white/[0.08] px-6 pt-4">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand p-1.5 ring-2 ring-white/15">
@@ -153,6 +94,72 @@ export function Sidebar({
         </div>
       </div>
     </div>
+  );
+}
+
+// Dragging starts only from the grip (dragListener off + manual controls),
+// so clicking the label still just navigates. The grip is a sibling of the
+// Link, not inside it, so letting go of a drag can't register as a click on
+// the link and navigate away.
+function NavRow({
+  item,
+  active,
+  badge,
+  reducedMotion,
+}: {
+  item: (typeof DEFAULT_NAV_ITEMS)[number];
+  active: boolean;
+  badge: number;
+  reducedMotion: boolean;
+}) {
+  const controls = useDragControls();
+  const { href, label, icon: Icon } = item;
+  return (
+    <Reorder.Item
+      as="div"
+      value={href}
+      dragListener={false}
+      dragControls={controls}
+      whileDrag={reducedMotion ? undefined : { scale: 1.03, backgroundColor: "#0D1B4B", zIndex: 10 }}
+      transition={reducedMotion ? { duration: 0.01 } : { type: "spring", bounce: 0, duration: 0.35 }}
+      className={`relative flex items-stretch text-[14.5px] ${
+        active ? "font-semibold text-white" : "text-[#A9B1CC] hover:bg-white/[0.06] hover:text-white"
+      }`}
+    >
+      {/* Shared-layout pill: animates from the previous active item to
+          this one instead of just appearing here (spatial consistency —
+          the highlight travels, it doesn't teleport). */}
+      {active && (
+        <motion.div
+          layoutId="nav-active-pill"
+          className="absolute inset-0 border-l-[3px] border-accent bg-white/[0.06]"
+          transition={
+            reducedMotion ? { duration: 0.01 } : { type: "spring", bounce: 0, duration: 0.4 }
+          }
+        />
+      )}
+      <Link href={href} className="relative z-10 flex flex-1 items-center gap-3 py-[11px] pl-6">
+        <Icon className="h-[18px] w-[18px] shrink-0" />
+        <span className="flex-1">{label}</span>
+        {badge > 0 && (
+          <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[10.5px] font-bold text-white">
+            {badge > 9 ? "9+" : badge}
+          </span>
+        )}
+      </Link>
+      <div
+        onPointerDown={(e) => {
+          e.preventDefault();
+          controls.start(e);
+        }}
+        title="Arrastra para reordenar"
+        aria-label={`Reordenar ${label}`}
+        style={{ touchAction: "none" }}
+        className="relative z-10 flex w-10 shrink-0 cursor-grab items-center justify-center text-white/25 hover:text-white/60 active:cursor-grabbing"
+      >
+        <GripIcon className="h-3.5 w-3.5" />
+      </div>
+    </Reorder.Item>
   );
 }
 
