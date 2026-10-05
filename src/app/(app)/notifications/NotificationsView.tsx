@@ -6,7 +6,7 @@ import { relativeTime } from "@/lib/format";
 import type { NotificationItem, NotificationKind } from "@/lib/notifications";
 
 const KIND_STYLE: Record<NotificationKind, { bg: string; color: string }> = {
-  message: { bg: "var(--color-brand-tint)", color: "var(--color-brand-dark)" },
+  message: { bg: "var(--color-accent-tint)", color: "var(--color-brand-dark)" },
   warning: { bg: "var(--color-danger-tint)", color: "var(--color-danger)" },
   success: { bg: "var(--color-accent-tint)", color: "var(--color-brand-dark)" },
 };
@@ -30,7 +30,7 @@ export function NotificationsView({ notifications }: { notifications: Notificati
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-8 py-[18px]">
+      <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div className="flex items-center gap-2.5">
           <h1 className="font-heading text-xl font-semibold text-ink">Notificaciones</h1>
           {unreadCount > 0 && (
@@ -39,14 +39,14 @@ export function NotificationsView({ notifications }: { notifications: Notificati
             </span>
           )}
         </div>
-        <div className="flex gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5 lg:flex">
           {(["todas", "no-leidas"] as const).map((f) => {
             const active = filter === f;
             return (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`rounded-lg border px-3 py-[7px] text-[12.5px] font-semibold transition-colors ${
+                className={`min-h-10 rounded-lg border px-3 py-[7px] text-[13.5px] font-semibold transition-colors lg:min-h-0 lg:text-[12.5px] ${
                   active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
                 }`}
               >
@@ -70,31 +70,31 @@ export function NotificationsView({ notifications }: { notifications: Notificati
                 key={n.id}
                 href={n.link}
                 onClick={() => markRead(n.id)}
-                className={`flex items-center gap-3 px-6 py-2.5 transition-colors ${
+                className={`flex min-h-16 items-center gap-3 px-4 py-3 transition-colors lg:min-h-0 lg:px-6 lg:py-2.5 ${
                   unread ? "bg-brand-tint hover:bg-brand-tint/70" : "hover:bg-surface-2"
                 }`}
               >
                 <div
                   style={{ background: style.bg, color: style.color }}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full lg:h-7 lg:w-7"
                 >
-                  {n.kind === "message" && <MessageIcon className="h-3.5 w-3.5" />}
-                  {n.kind === "warning" && <WarningIcon className="h-3.5 w-3.5" />}
-                  {n.kind === "success" && <CheckIcon className="h-3.5 w-3.5" />}
+                  {n.kind === "message" && <MessageIcon className="h-4 w-4 lg:h-3.5 lg:w-3.5" />}
+                  {n.kind === "warning" && <WarningIcon className="h-4 w-4 lg:h-3.5 lg:w-3.5" />}
+                  {n.kind === "success" && <CheckIcon className="h-4 w-4 lg:h-3.5 lg:w-3.5" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="truncate text-[12.5px] font-semibold text-ink">{n.title}</span>
-                    <span className="shrink-0 text-[11px] text-ink-soft">· {relativeTime(n.time)}</span>
+                    <span className="truncate text-[14px] font-semibold text-ink lg:text-[12.5px]">{n.title}</span>
+                    <span className="shrink-0 text-[12px] text-ink-soft lg:text-[11px]">· {relativeTime(n.time)}</span>
                   </div>
-                  <div className="truncate text-[12px] text-ink-muted">{n.description}</div>
+                  <div className="truncate text-[13px] text-ink-muted lg:text-[12px]">{n.description}</div>
                 </div>
-                {unread && <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />}
+                {unread && <div className="h-2 w-2 shrink-0 rounded-full bg-brand lg:h-1.5 lg:w-1.5" />}
               </Link>
             );
           })}
           {filtered.length === 0 && (
-            <div className="py-16 text-center text-[13px] text-ink-soft">
+            <div className="px-4 py-16 text-center text-[13px] text-ink-soft">
               Ya estás al día — no hay notificaciones sin leer.
             </div>
           )}

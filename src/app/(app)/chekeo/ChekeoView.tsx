@@ -111,14 +111,15 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-8 py-[18px]">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
           <h1 className="font-heading text-xl font-semibold text-ink">Chekeo de ventas</h1>
           <p className="text-[13.5px] text-ink-muted">
-            Arrastra una tarjeta o usa las flechas para mover un contacto de etapa
+            <span className="lg:hidden">Usa las flechas para mover un contacto de etapa</span>
+            <span className="hidden lg:inline">Arrastra una tarjeta o usa las flechas para mover un contacto de etapa</span>
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="grid grid-cols-3 gap-2 lg:flex lg:items-center lg:gap-2.5">
           <StatPill value={String(activeConversations.length)} label="activas" />
           <StatPill value={formatLempiras(totalPipelineValue)} label="en negociación" />
           <StatPill value={`${winRate}%`} label="tasa de cierre" />
@@ -127,7 +128,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
               setLeadError(null);
               setDraft(EMPTY_DRAFT);
             }}
-            className="ml-1 flex items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="col-span-3 flex items-center justify-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:ml-1 lg:py-2"
           >
             <PlusIcon className="h-3.5 w-3.5" />
             Nuevo contacto
@@ -136,7 +137,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
       </div>
 
       {staleCount > 0 && (
-        <div className="mx-8 mt-4 flex items-center gap-2 rounded-[10px] border border-danger-border bg-danger-tint px-3.5 py-2.5">
+        <div className="mx-4 mt-4 flex items-center gap-2 rounded-[10px] border border-danger-border bg-danger-tint px-3.5 py-2.5 lg:mx-8">
           <WarningIcon className="h-4 w-4 shrink-0 text-danger" />
           <div className="text-[13.5px] text-danger">
             <strong>{staleCount} contacto{staleCount === 1 ? "" : "s"}</strong> lleva
@@ -145,7 +146,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-8 py-4">
+      <div className="min-h-0 flex-1 snap-x snap-mandatory scroll-px-4 overflow-x-auto overflow-y-hidden px-4 py-4 lg:snap-none lg:px-8">
         <div className="flex h-full items-start gap-4">
           {columns.map(({ stage, items, total }) => {
             const meta = STAGE_META[stage];
@@ -172,7 +173,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                   // highlight look cut off instead of wrapping the shape.
                   boxShadow: isDropTarget ? `inset 0 0 0 2px ${meta.color}` : "inset 0 0 0 2px transparent",
                 }}
-                className="flex h-full w-[246px] min-w-[246px] max-w-[246px] shrink-0 flex-col rounded-[14px] p-3 transition-[background-color,box-shadow] duration-150"
+                className="flex h-full w-[84vw] min-w-[84vw] max-w-[84vw] shrink-0 snap-start flex-col rounded-[14px] p-3 transition lg:w-[246px] lg:min-w-[246px] lg:max-w-[246px]-[background-color,box-shadow] duration-150"
               >
                 <div className="flex items-center gap-2 px-1 pb-0.5">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color }} />
@@ -328,7 +329,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
               animate={{ x: 0, opacity: 1 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { x: 24, opacity: 0 }}
               transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }}
-              className="fixed right-0 top-0 z-20 flex h-full w-[380px] max-w-[calc(100vw-32px)] flex-col gap-5 overflow-y-auto bg-surface p-6 shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
+              className="fixed right-0 top-0 z-20 flex h-full w-full flex-col sm:w-[380px] sm:max-w-[calc(100vw-32px)] gap-5 overflow-y-auto bg-surface p-6 shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -431,7 +432,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }}
               transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }}
-              className="fixed left-1/2 top-1/2 z-20 w-[480px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-surface p-7 shadow-[0_24px_64px_rgba(0,16,55,0.35)]"
+              className="fixed left-1/2 top-1/2 z-20 max-h-[calc(100dvh-32px)] w-[480px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[18px] bg-surface p-5 lg:p-7 shadow-[0_24px_64px_rgba(0,16,55,0.35)]"
             >
               <form action={handleSaveLead} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
@@ -516,7 +517,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
 
 function StatPill({ value, label }: { value: string; label: string }) {
   return (
-    <div className="min-w-[96px] rounded-[10px] bg-surface-2 px-3.5 py-[7px] text-center">
+    <div className="rounded-[10px] bg-surface-2 px-2 py-[7px] text-center lg:min-w-[96px] lg:px-3.5">
       <div className="font-heading text-base font-bold text-ink">{value}</div>
       <div className="text-[11px] text-ink-muted">{label}</div>
     </div>

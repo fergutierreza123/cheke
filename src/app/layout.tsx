@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Work_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -17,6 +17,15 @@ const workSans = Work_Sans({
 export const metadata: Metadata = {
   title: "cheke.io",
   description: "CRM omnicanal para negocios que venden por WhatsApp, Instagram y Facebook.",
+};
+
+// viewportFit "cover" lets the app draw under the iPhone notch/home bar so
+// the safe-area insets (used by the bottom tab bar) actually apply.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#001037",
 };
 
 export default function RootLayout({

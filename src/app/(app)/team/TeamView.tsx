@@ -43,26 +43,26 @@ export function TeamView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-8 py-[18px]">
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3.5 lg:px-8 lg:py-[18px]">
         <div>
           <h1 className="font-heading text-xl font-semibold text-ink">Equipo</h1>
           <p className="text-[13.5px] text-ink-muted">Quién tiene acceso a {business.name} y qué rol tiene</p>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-brand-dark px-6 py-5 text-white">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
+        <div className="flex flex-col gap-4 lg:gap-5">
+          <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-brand-dark px-5 py-4.5 text-white lg:px-6 lg:py-5">
             <div className="min-w-0 flex-1">
               <div className="text-[11.5px] uppercase tracking-wide text-[#A9B1CC]">Código de invitación</div>
-              <div className="font-heading text-2xl font-bold tracking-wide">{business.inviteCode}</div>
+              <div className="break-all font-heading text-2xl font-bold tracking-wide">{business.inviteCode}</div>
               <p className="mt-1 text-[13px] text-[#A9B1CC]">
                 Comparte este código — en la pantalla de inicio pueden unirse a {business.name} con él.
               </p>
             </div>
             <button
               onClick={handleCopyInvite}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white/10 px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20"
+              className="flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white/10 px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/20 lg:min-h-0 lg:w-auto lg:justify-start"
             >
               <CopyIcon className="h-3.5 w-3.5" />
               {copied ? "¡Copiado!" : "Copiar código"}
@@ -80,7 +80,7 @@ export function TeamView({
               return (
                 <div
                   key={m.user_id}
-                  className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-5 py-3.5 last:border-b-0"
+                  className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 lg:flex-wrap lg:gap-x-4 lg:gap-y-2 lg:px-5 lg:py-3.5"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-bold text-white">
@@ -94,12 +94,12 @@ export function TeamView({
                       </div>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1 lg:gap-2">
                     {isOwner && !isMe ? (
                       <select
                         value={m.role}
                         onChange={(e) => handleRoleChange(m.user_id, e.target.value as "owner" | "agent")}
-                        className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] text-ink outline-none focus:border-brand"
+                        className="h-10 rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12.5px] text-ink outline-none focus:border-brand lg:h-auto"
                       >
                         <option value="owner">Dueño</option>
                         <option value="agent">Agente</option>
@@ -117,7 +117,7 @@ export function TeamView({
                       <button
                         onClick={() => handleRemove(m.user_id, m.email)}
                         aria-label="Quitar del negocio"
-                        className="rounded-lg p-1.5 text-ink-soft hover:bg-danger-tint hover:text-danger"
+                        className="flex h-10 w-10 items-center justify-center rounded-lg text-ink-soft hover:bg-danger-tint hover:text-danger lg:block lg:h-auto lg:w-auto lg:p-1.5"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>
@@ -131,13 +131,15 @@ export function TeamView({
       </div>
 
       <AnimatePresence>
+        {/* Phones: sits above the bottom tab bar, and w-max + a viewport cap
+            stops left-1/2 from squeezing it to half the screen width. */}
         {toast && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-            className="fixed bottom-6 left-1/2 z-30 flex max-w-[460px] -translate-x-1/2 items-center gap-2.5 rounded-xl bg-brand-dark px-4.5 py-3 text-white shadow-[0_12px_32px_rgba(0,16,55,0.3)]"
+            className="fixed bottom-24 left-1/2 z-30 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 lg:bottom-6 lg:w-auto lg:max-w-[460px] items-center gap-2.5 rounded-xl bg-brand-dark px-4.5 py-3 text-white shadow-[0_12px_32px_rgba(0,16,55,0.3)]"
           >
             <div className="text-[13px] leading-relaxed">{toast}</div>
             <button onClick={() => setToast(null)} aria-label="Cerrar" className="ml-1 shrink-0 text-[#A9B1CC]">

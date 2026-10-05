@@ -477,7 +477,7 @@ export function ChatView({
       >
         {selected ? (
           <>
-            <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border bg-surface px-6">
+            <div className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-border bg-surface px-3 py-2.5 lg:h-16 lg:flex-nowrap lg:px-6 lg:py-0">
               <button
                 onClick={() => setMobileView("list")}
                 aria-label="Volver a la lista de chats"
@@ -485,7 +485,7 @@ export function ChatView({
               >
                 <BackIcon className="h-4.5 w-4.5" />
               </button>
-              <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-brand text-[13.5px] font-bold text-white">
+              <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-brand text-[13.5px] font-bold text-white">
                 {initialsFor(selected.contact.name)}
               </div>
               <div className="min-w-0 flex-1">
@@ -503,12 +503,15 @@ export function ChatView({
                 </div>
               </div>
 
+              {/* On phones the controls drop to their own row under the name; on
+                  desktop they sit inline at the right. */}
+              <div className="flex w-full items-center gap-2 lg:ml-auto lg:w-auto">
               {/* Chekelin on/off — the AI only replies here while this is on;
                   sending a manual message below turns it off automatically. */}
               <button
                 onClick={handleToggleBot}
                 title={selected.bot_enabled ? "chekelin está respondiendo automáticamente" : "chekelin está pausado"}
-                className={`ml-auto flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
                   selected.bot_enabled
                     ? "border-accent bg-accent-tint text-brand-dark"
                     : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -541,15 +544,16 @@ export function ChatView({
                   caption makes both facts (what it is, that it's
                   editable) obvious at a glance. Changes the stage
                   directly, no need to open the side panel for this. */}
-              <label className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface-2 py-1.5 pl-2.5 pr-1.5 text-[12.5px] font-semibold text-ink">
-                <span className="hidden text-[10.5px] font-medium uppercase tracking-wide text-ink-soft sm:inline">
-                  Estado de venta
+              <label className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-border bg-surface-2 py-1.5 pl-2.5 pr-1.5 text-[12.5px] font-semibold text-ink lg:flex-none">
+                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-ink-soft sm:text-[10.5px]">
+                  <span className="sm:hidden">Estado</span>
+                  <span className="hidden sm:inline">Estado de venta</span>
                 </span>
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STAGE_META[selectedStage].color }} />
                 <select
                   value={selectedStage}
                   onChange={(e) => handleSetStage(e.target.value as ConversationStage)}
-                  className="bg-transparent text-[12.5px] font-semibold text-ink outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-[12.5px] font-semibold text-ink outline-none"
                 >
                   {STAGE_ORDER.map((s) => (
                     <option key={s} value={s}>
@@ -570,9 +574,10 @@ export function ChatView({
               >
                 <InfoIcon className="h-3.5 w-3.5" />
               </button>
+              </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto bg-bg px-6 py-5">
+            <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto bg-bg px-3 py-4 lg:px-6 lg:py-5">
               {messages.map((m) => (
                 <div key={m.id} className={`flex flex-col ${m.direction === "out" ? "items-end" : "items-start"}`}>
                   {m.is_bot && (
@@ -583,7 +588,7 @@ export function ChatView({
                     </div>
                   )}
                   <div
-                    className={`max-w-[60%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
+                    className={`max-w-[82%] rounded-2xl lg:max-w-[60%] px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
                       m.direction === "out"
                         ? m.is_bot
                           ? "rounded-br-sm bg-accent text-brand-dark"
@@ -633,12 +638,12 @@ export function ChatView({
             </div>
 
             {sendError && (
-              <div className="shrink-0 border-t border-danger-border bg-danger-tint px-6 py-2 text-[12.5px] text-danger">
+              <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 lg:px-6 text-[12.5px] text-danger">
                 {sendError}
               </div>
             )}
             {simulateMode && !pendingProduct && (
-              <div className="shrink-0 border-t border-accent bg-accent-tint px-6 py-1.5 text-[12px] font-semibold text-brand-dark">
+              <div className="shrink-0 border-t border-accent bg-accent-tint px-4 py-1.5 lg:px-6 text-[12px] font-semibold text-brand-dark">
                 Modo prueba: estás escribiendo como si fueras el cliente, para ver cómo responde chekelin.
               </div>
             )}
@@ -647,7 +652,7 @@ export function ChatView({
                 to go out (photo included) and can still cancel or add a
                 caption before confirming with Send. */}
             {pendingProduct && (
-              <div className="flex shrink-0 items-center gap-3 border-t border-accent bg-accent-tint px-6 py-2.5">
+              <div className="flex shrink-0 items-center gap-3 border-t border-accent bg-accent-tint px-4 py-2.5 lg:px-6">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface">
                   {pendingProduct.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage thumbnail
@@ -669,7 +674,7 @@ export function ChatView({
                 </button>
               </div>
             )}
-            <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface px-6 py-3.5">
+            <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface px-3 py-2.5 lg:px-6 lg:py-3.5">
               <div className="relative">
                 <button
                   onClick={() => setShowProductPicker((v) => !v)}
@@ -808,7 +813,7 @@ export function ChatView({
                       ? "Escribe como si fueras el cliente…"
                       : "Escribe una respuesta…"
                 }
-                className="flex-1 rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+                className="min-w-0 flex-1 rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
               />
               <button
                 onClick={handleSend}

@@ -52,26 +52,26 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-8 py-[18px]">
+      <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
           <h1 className="font-heading text-xl font-semibold text-ink">Plantillas</h1>
-          <p className="text-[13.5px] text-ink-muted">
+          <p className="hidden text-[13.5px] text-ink-muted sm:block">
             Respuestas listas para las preguntas que se repiten todos los días
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <div className="relative">
+          <div className="relative min-w-0 flex-1 lg:flex-none">
             <SearchIcon className="pointer-events-none absolute left-[11px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar plantilla"
-              className="w-56 rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+              className="w-full rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint lg:w-56"
             />
           </div>
           <button
             onClick={() => setDraft(EMPTY_DRAFT)}
-            className="flex items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:h-auto"
           >
             <PlusIcon className="h-3.5 w-3.5" />
             Nueva plantilla
@@ -79,8 +79,10 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-4 px-8 pb-1 pt-3.5">
-        <div className="flex flex-wrap gap-1.5">
+      <div className="flex shrink-0 flex-col items-stretch gap-2.5 px-4 pb-1 pt-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-4 lg:px-8 lg:pt-3.5">
+        {/* Phones: one horizontally scrolling chip row that bleeds to the
+            screen edges instead of wrapping onto several lines. */}
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
           <CategoryChip active={categoryFilter === "todas"} onClick={() => setCategoryFilter("todas")}>
             Todas
           </CategoryChip>
@@ -90,15 +92,16 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
             </CategoryChip>
           ))}
         </div>
-        <div className="ml-auto flex items-center gap-1.5 text-[11.5px] text-ink-soft">
-          Variables disponibles:
+        <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-ink-soft lg:ml-auto lg:flex-nowrap">
+          <span className="sm:hidden">Variables:</span>
+          <span className="hidden sm:inline">Variables disponibles:</span>
           <VarTag>{"{{producto}}"}</VarTag>
           <VarTag>{"{{precio}}"}</VarTag>
           <VarTag>{"{{ciudad}}"}</VarTag>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-6 pt-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8 lg:pt-4">
         {templates.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
             <p className="text-[13.5px] text-ink-muted">Todavía no tienes plantillas guardadas.</p>
@@ -110,13 +113,13 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
             </button>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-3.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:gap-3.5">
             {filtered.map((t) => {
               const meta = TEMPLATE_CATEGORY_META[t.category];
               return (
-                <div key={t.id} className="flex w-[328px] flex-col gap-2.5 rounded-[14px] border border-border bg-surface p-4">
+                <div key={t.id} className="flex min-w-0 flex-col gap-2.5 rounded-[14px] border border-border bg-surface p-4 lg:w-[328px]">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-sm font-bold text-ink">{t.name}</div>
                       <div className="mt-1 inline-block rounded-md bg-brand-tint px-2 py-0.5 text-[10.5px] font-bold text-brand-dark">
                         {meta.label}
@@ -125,17 +128,17 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
                     <button
                       onClick={() => setDraft({ id: t.id, name: t.name, category: t.category, body: t.body })}
                       aria-label="Editar plantilla"
-                      className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] bg-surface-2 text-brand-dark"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-surface-2 text-brand-dark lg:h-[26px] lg:w-[26px] lg:rounded-[7px]"
                     >
-                      <EditIcon className="h-3 w-3" />
+                      <EditIcon className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
                     </button>
                   </div>
-                  <div className="flex-1 rounded-[10px] bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-muted">
+                  <div className="flex-1 break-words rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink-muted lg:text-[12.5px]">
                     {t.body}
                   </div>
                   <button
                     onClick={() => handleCopy(t)}
-                    className="flex items-center justify-center gap-1.5 rounded-lg bg-brand-dark px-2 py-2 text-xs font-semibold text-white"
+                    className="flex items-center justify-center gap-1.5 rounded-lg bg-brand-dark px-2 py-2.5 text-[13px] font-semibold text-white lg:py-2 lg:text-xs"
                   >
                     <CopyIcon className="h-3 w-3" />
                     Copiar plantilla
@@ -169,7 +172,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }}
               transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }}
-              className="fixed left-1/2 top-1/2 z-20 w-[560px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-surface p-7 shadow-[0_24px_64px_rgba(0,16,55,0.35)]"
+              className="fixed left-1/2 top-1/2 z-20 max-h-[calc(100dvh-32px)] w-[560px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[18px] bg-surface p-5 shadow-[0_24px_64px_rgba(0,16,55,0.35)] lg:p-7"
             >
               <form action={handleSave} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
@@ -240,7 +243,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
             animate={{ opacity: 1, y: 0 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
             transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-            className="fixed bottom-6 left-1/2 z-30 flex max-w-[460px] -translate-x-1/2 items-center gap-2.5 rounded-xl bg-brand-dark px-4.5 py-3 text-white shadow-[0_12px_32px_rgba(0,16,55,0.3)]"
+            className="fixed bottom-24 left-1/2 z-30 flex w-max max-w-[calc(100vw-32px)] -translate-x-1/2 lg:bottom-6 lg:w-auto lg:max-w-[460px] items-center gap-2.5 rounded-xl bg-brand-dark px-4.5 py-3 text-white shadow-[0_12px_32px_rgba(0,16,55,0.3)]"
           >
             <CheckIcon className="h-4 w-4 shrink-0 text-accent" />
             <div className="text-[12.5px] leading-relaxed">{toast}</div>
@@ -257,7 +260,9 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
 function CategoryPicker({ name, defaultValue }: { name: string; defaultValue: TemplateCategory }) {
   const [value, setValue] = useState(defaultValue);
   return (
-    <div className="flex gap-1.5">
+    // Five equal buttons don't fit one row on a phone ("Seguimiento" gets
+    // clipped), so they wrap into a 3-column grid there.
+    <div className="grid grid-cols-3 gap-1.5 sm:flex">
       <input type="hidden" name={name} value={value} />
       {TEMPLATE_CATEGORY_ORDER.map((cat) => {
         const active = value === cat;
@@ -267,7 +272,7 @@ function CategoryPicker({ name, defaultValue }: { name: string; defaultValue: Te
             key={cat}
             type="button"
             onClick={() => setValue(cat)}
-            className={`flex-1 rounded-lg border px-1 py-2 text-[11.5px] font-semibold transition-colors ${
+            className={`flex-1 rounded-lg border px-1 py-2.5 text-[13px] font-semibold transition-colors sm:py-2 sm:text-[11.5px] ${
               active ? "border-brand bg-brand-tint text-brand-dark" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
             }`}
           >
@@ -291,7 +296,7 @@ function CategoryChip({
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg border px-2.5 py-[5px] text-xs font-semibold transition-colors ${
+      className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-1.5 text-[13px] font-semibold transition-colors lg:px-2.5 lg:py-[5px] lg:text-xs ${
         active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
       }`}
     >

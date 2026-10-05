@@ -113,3 +113,13 @@ a.pressable:active {
     transform: none;
   }
 }
+
+/* iOS Safari zooms the whole page when a focused input's text is under
+   16px, which is jarring in an app. Keep form fields at 16px on phones. */
+@media (max-width: 1023px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

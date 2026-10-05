@@ -3,7 +3,7 @@ import { getCurrentBusiness } from "@/lib/business";
 import { getConversations } from "@/lib/conversations";
 import { getProducts } from "@/lib/products";
 import { getNotifications } from "@/lib/notifications";
-import { Sidebar } from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
 
 export default async function AppLayout({
   children,
@@ -23,9 +23,8 @@ export default async function AppLayout({
   const notifications = await getNotifications(business.id, conversations, products);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-bg">
-      <Sidebar businessName={business.name} notificationCount={notifications.length} />
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
-    </div>
+    <AppShell businessName={business.name} notificationCount={notifications.length}>
+      {children}
+    </AppShell>
   );
 }

@@ -74,34 +74,35 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-8 py-[18px]">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
           <h1 className="font-heading text-xl font-semibold text-ink">Contactos</h1>
-          <p className="text-[13.5px] text-ink-muted">
+          <p className="hidden text-[13.5px] text-ink-muted sm:block">
             Registro de datos de todos tus clientes, sin importar el canal por el que llegaron
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <div className="relative">
+          <div className="relative min-w-0 flex-1 lg:flex-none">
             <SearchIcon className="pointer-events-none absolute left-[11px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por nombre, teléfono o usuario"
-              className="w-64 rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+              className="w-full rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-[13.5px] lg:w-64 text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
             />
           </div>
           <button
             onClick={() => openDraft(EMPTY_DRAFT)}
-            className="flex items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:py-2"
           >
             <PlusIcon className="h-3.5 w-3.5" />
-            Nuevo contacto
+            <span className="hidden sm:inline">Nuevo contacto</span>
+            <span className="sm:hidden">Nuevo</span>
           </button>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-4 px-8 pt-3.5 pb-1">
+      <div className="flex shrink-0 items-center gap-4 px-4 pt-3.5 pb-1 lg:px-8">
         <div className="rounded-xl border border-border bg-surface px-4 py-3">
           <div className="font-heading text-lg font-bold text-ink">{contacts.length}</div>
           <div className="text-xs text-ink-muted">contactos registrados</div>
@@ -109,7 +110,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
         <div className="ml-auto text-xs text-ink-soft">{filtered.length} resultado(s)</div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-6 pt-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8">
         {contacts.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-16 text-center">
             <p className="text-[13.5px] text-ink-muted">
@@ -125,7 +126,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
           </div>
         ) : (
           <>
-            <div className="flex items-center px-3.5 pb-2 text-[11.5px] uppercase tracking-wide text-ink-soft">
+            <div className="hidden items-center px-3.5 pb-2 text-[11.5px] uppercase tracking-wide text-ink-soft lg:flex">
               <div className="w-[220px]">Cliente</div>
               <div className="w-[160px]">Contacto</div>
               <div className="flex-1">Notas</div>
@@ -141,7 +142,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                     onClick={() => setSelectedId(c.id)}
                     className="flex items-center rounded-xl border border-border bg-surface px-3.5 py-[11px] text-left transition-colors hover:bg-surface-2"
                   >
-                    <div className="flex w-[220px] min-w-0 items-center gap-2.5">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5 lg:w-[220px] lg:flex-none">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-bold text-white">
                         {initialsFor(c.name)}
                       </div>
@@ -150,16 +151,19 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                         {meta && channel && (
                           <div className="flex items-center gap-1.5">
                             <ChannelIcon type={channel} className="h-3 w-3 shrink-0 rounded-full" />
-                            <span className="text-[11.5px] text-ink-muted">{meta.label}</span>
+                            <span className="truncate text-[11.5px] text-ink-muted">
+                              {meta.label}
+                              <span className="lg:hidden"> · {c.phone || c.ig_handle || c.fb_id || "—"}</span>
+                            </span>
                           </div>
                         )}
                       </div>
                     </div>
-                    <div className="w-40 truncate text-[13px] text-ink-muted">
+                    <div className="hidden w-40 truncate text-[13px] text-ink-muted lg:block">
                       {c.phone || c.ig_handle || c.fb_id || "—"}
                     </div>
-                    <div className="flex-1 truncate text-[13px] text-ink-soft">{c.notes || ""}</div>
-                    <div className="w-28 shrink-0 text-right text-xs text-ink-soft">
+                    <div className="hidden flex-1 truncate text-[13px] text-ink-soft lg:block">{c.notes || ""}</div>
+                    <div className="shrink-0 pl-2 text-right text-xs text-ink-soft lg:w-28">
                       {relativeTime(c.created_at)}
                     </div>
                   </button>
@@ -194,7 +198,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
               transition={
                 prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }
               }
-              className="fixed right-0 top-0 z-20 flex h-full w-[380px] flex-col gap-5 overflow-y-auto bg-surface p-6 shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
+              className="fixed right-0 top-0 z-20 flex h-full w-full flex-col sm:w-[380px] gap-5 overflow-y-auto bg-surface p-6 shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -272,7 +276,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
               transition={
                 prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }
               }
-              className="fixed left-1/2 top-1/2 z-20 w-[520px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-surface p-7 shadow-[0_24px_64px_rgba(0,16,55,0.35)]"
+              className="fixed left-1/2 top-1/2 z-20 max-h-[calc(100dvh-32px)] w-[520px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[18px] bg-surface p-5 lg:p-7 shadow-[0_24px_64px_rgba(0,16,55,0.35)]"
             >
               <form action={handleSave} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">

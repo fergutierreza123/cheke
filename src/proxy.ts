@@ -7,7 +7,7 @@ import { type NextRequest, NextResponse } from "next/server";
 // session cookie. The real security boundary is Postgres Row Level Security
 // (supabase/migrations/0001_init.sql), not this file.
 
-const PUBLIC_PATHS = ["/login", "/auth/callback"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/demo"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

@@ -85,7 +85,8 @@ export function InventoryView({
     );
   }, [products, query]);
 
-  const totalValue = products.reduce((sum, p) => sum + p.price_hnl * p.stock, 0);
+  const sendMenuProduct = sendMenuId ? products.find((p) => p.id === sendMenuId) : undefined;
+  const totalValue =products.reduce((sum, p) => sum + p.price_hnl * p.stock, 0);
   const lowStockCount = products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD).length;
 
   async function handleSave(formData: FormData) {
@@ -138,26 +139,26 @@ export function InventoryView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-8 py-[18px]">
+      <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
           <h1 className="font-heading text-xl font-semibold text-ink">Catálogo</h1>
-          <p className="text-[13.5px] text-ink-muted">
+          <p className="hidden text-[13.5px] text-ink-muted sm:block">
             Productos, fotos y precios, listos para enviar directo al chat cuando pregunten
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <div className="relative">
+          <div className="relative min-w-0 flex-1 lg:flex-none">
             <SearchIcon className="pointer-events-none absolute left-[11px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar producto"
-              className="w-56 rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+              className="w-full rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint lg:w-56"
             />
           </div>
           <button
             onClick={() => openDraft(EMPTY_DRAFT)}
-            className="flex items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:h-auto"
           >
             <PlusIcon className="h-3.5 w-3.5" />
             Nuevo producto
@@ -165,13 +166,13 @@ export function InventoryView({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 px-8 pb-1 pt-3.5">
+      <div className="flex shrink-0 items-stretch gap-2 px-4 pb-1 pt-3 lg:items-center lg:gap-3 lg:px-8 lg:pt-3.5">
         <StatCard value={String(products.length)} label="productos en catálogo" />
         <StatCard value={formatLempiras(totalValue)} label="valor total en existencia" />
         <StatCard value={String(lowStockCount)} label="con poco inventario" danger={lowStockCount > 0} />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-6 pt-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8 lg:pt-4">
         {products.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
             <p className="text-[13.5px] text-ink-muted">Todavía no tienes productos en tu catálogo.</p>
@@ -183,12 +184,12 @@ export function InventoryView({
             </button>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-3.5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:flex lg:flex-wrap lg:gap-3.5">
             {filtered.map((p, idx) => {
               const tile = TILE_PALETTE[idx % TILE_PALETTE.length];
               const lowStock = p.stock <= LOW_STOCK_THRESHOLD;
               return (
-                <div key={p.id} className="flex w-[236px] flex-col overflow-hidden rounded-[14px] border border-border bg-surface">
+                <div key={p.id} className="flex min-w-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface lg:w-[236px]">
                   <div
                     style={p.image_url ? undefined : { background: tile.bg }}
                     className="relative flex h-[120px] items-center justify-center overflow-hidden"
@@ -233,18 +234,20 @@ export function InventoryView({
                         });
                       }}
                       aria-label="Editar producto"
-                      className="absolute bottom-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-[7px] bg-white/85 text-brand-dark"
+                      className="absolute bottom-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-[9px] bg-white/85 text-brand-dark lg:h-6 lg:w-6 lg:rounded-[7px]"
                     >
-                      <EditIcon className="h-3 w-3" />
+                      <EditIcon className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
                     </button>
                   </div>
-                  <div className="flex flex-1 flex-col gap-1.5 p-3.5">
+                  <div className="flex flex-1 flex-col gap-1.5 p-3 lg:p-3.5">
                     {p.category && (
-                      <div className="text-[11px] uppercase tracking-wide text-ink-soft">{p.category}</div>
+                      <div className="truncate text-[11px] uppercase tracking-wide text-ink-soft">{p.category}</div>
                     )}
                     <div className="text-[13.5px] font-semibold leading-tight text-ink">{p.name}</div>
-                    <div className="mt-0.5 flex items-baseline justify-between">
-                      <div className="font-heading text-[17px] font-bold text-brand-dark">
+                    {/* Narrow 2-column phone cards: stock wraps under the price
+                        instead of squeezing it. */}
+                    <div className="mt-auto flex flex-wrap items-baseline justify-between gap-x-2 pt-0.5 lg:mt-0.5 lg:flex-nowrap lg:gap-x-0 lg:pt-0">
+                      <div className="font-heading text-[16px] font-bold text-brand-dark lg:text-[17px]">
                         {formatLempiras(p.price_hnl)}
                       </div>
                       <div className="text-[11.5px] text-ink-muted">{p.stock} en stock</div>
@@ -252,11 +255,14 @@ export function InventoryView({
                     <div className="relative mt-1.5">
                       <button
                         onClick={() => setSendMenuId(sendMenuId === p.id ? null : p.id)}
-                        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-dark px-2 py-2 text-[12.5px] font-semibold text-white"
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-dark px-2 py-2.5 text-[12.5px] font-semibold text-white lg:py-2"
                       >
                         <SendIcon className="h-3 w-3" />
                         Enviar por chat
                       </button>
+                      {/* Desktop-only dropdown; phones get the bottom sheet
+                          rendered at the end of this view instead, since a
+                          narrow card would clip this menu. */}
                       <AnimatePresence>
                         {sendMenuId === p.id && (
                           <motion.div
@@ -264,7 +270,7 @@ export function InventoryView({
                             animate={{ opacity: 1, y: 0 }}
                             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
                             transition={{ type: "spring", bounce: 0, duration: 0.25 }}
-                            className="absolute bottom-[42px] left-0 right-0 z-10 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                            className="absolute bottom-[42px] left-0 right-0 z-10 hidden rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)] lg:block"
                           >
                             <div className="px-2 py-1 text-[11px] text-ink-soft">Enviar a…</div>
                             <div className="max-h-40 overflow-y-auto">
@@ -322,7 +328,7 @@ export function InventoryView({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }}
               transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }}
-              className="fixed left-1/2 top-1/2 z-20 w-[560px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-[18px] bg-surface p-7 shadow-[0_24px_64px_rgba(0,16,55,0.35)]"
+              className="fixed left-1/2 top-1/2 z-20 max-h-[calc(100dvh-32px)] w-[560px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[18px] bg-surface p-5 shadow-[0_24px_64px_rgba(0,16,55,0.35)] lg:p-7"
             >
               <form action={handleSave} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
@@ -399,8 +405,10 @@ export function InventoryView({
                   </div>
                 </Field>
 
+                {/* On narrow phones name/category take a full row each;
+                    price and stock stay side by side. */}
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Nombre">
+                  <Field label="Nombre" className="col-span-2 sm:col-span-1">
                     <input
                       name="name"
                       defaultValue={draft.name}
@@ -408,7 +416,7 @@ export function InventoryView({
                       className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
                     />
                   </Field>
-                  <Field label="Categoría">
+                  <Field label="Categoría" className="col-span-2 sm:col-span-1">
                     <input
                       name="category"
                       defaultValue={draft.category}
@@ -481,10 +489,80 @@ export function InventoryView({
                     disabled={saving || deleting}
                     className="flex-1 rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
-                    {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Guardar producto"}
+                    {saving ? (
+                      "Guardando…"
+                    ) : draft.id ? (
+                      // Three buttons share a phone-width row; the long label
+                      // would wrap and make the whole row double height.
+                      <>
+                        <span className="sm:hidden">Guardar</span>
+                        <span className="hidden sm:inline">Guardar cambios</span>
+                      </>
+                    ) : (
+                      "Guardar producto"
+                    )}
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Phone-only "Enviar por chat" bottom sheet (same pattern as the
+          tab bar's "Más" sheet); desktop keeps the in-card dropdown. */}
+      <AnimatePresence>
+        {sendMenuProduct && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setSendMenuId(null)}
+              className="fixed inset-0 z-40 bg-black/45 backdrop-blur-sm lg:hidden"
+            />
+            <motion.div
+              initial={prefersReducedMotion ? { opacity: 0 } : { y: "100%" }}
+              animate={prefersReducedMotion ? { opacity: 1 } : { y: 0 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { y: "100%" }}
+              transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.4 }}
+              className="fixed inset-x-0 bottom-0 z-50 flex max-h-[75dvh] flex-col rounded-t-[20px] bg-surface px-2 pt-3 shadow-[0_-12px_32px_rgba(0,16,55,0.18)] lg:hidden"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+            >
+              <div className="mx-auto mb-2 h-1 w-9 shrink-0 rounded-full bg-surface-3" />
+              <div className="flex shrink-0 items-center justify-between gap-3 px-3 pb-2 pt-1">
+                <div className="min-w-0">
+                  <div className="text-xs text-ink-soft">Enviar a…</div>
+                  <div className="truncate text-[15px] font-semibold text-ink">{sendMenuProduct.name}</div>
+                </div>
+                <button
+                  onClick={() => setSendMenuId(null)}
+                  aria-label="Cerrar"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-muted"
+                >
+                  <CloseIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="min-h-0 overflow-y-auto">
+                {conversations.length === 0 && (
+                  <div className="px-3 py-3 text-[14px] text-ink-soft">No hay conversaciones todavía.</div>
+                )}
+                {conversations.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleSend(sendMenuProduct, c)}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left active:bg-surface-2"
+                  >
+                    {c.channel ? (
+                      <ChannelIcon type={c.channel.type} className="h-5 w-5 shrink-0 rounded-full" />
+                    ) : (
+                      <span className="h-5 w-5 shrink-0" />
+                    )}
+                    <span className="truncate text-[15px] text-ink">{c.contact.name}</span>
+                  </button>
+                ))}
+              </div>
             </motion.div>
           </>
         )}
@@ -498,7 +576,7 @@ export function InventoryView({
             animate={{ opacity: 1, y: 0 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
             transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-            className="fixed bottom-6 left-1/2 z-30 flex max-w-[460px] -translate-x-1/2 items-center gap-2.5 rounded-xl bg-brand-dark px-4.5 py-3 text-white shadow-[0_12px_32px_rgba(0,16,55,0.3)]"
+            className="fixed bottom-24 left-1/2 z-30 flex w-max max-w-[calc(100vw-32px)] -translate-x-1/2 lg:bottom-6 lg:w-auto lg:max-w-[460px] items-center gap-2.5 rounded-xl bg-brand-dark px-4.5 py-3 text-white shadow-[0_12px_32px_rgba(0,16,55,0.3)]"
           >
             <CheckIcon className="h-4 w-4 shrink-0 text-accent" />
             <div className="text-[13px] leading-relaxed">{toast}</div>
@@ -518,7 +596,7 @@ export function InventoryView({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={() => setLightboxUrl(null)}
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-8"
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 lg:p-8"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL */}
             <img
@@ -542,16 +620,16 @@ export function InventoryView({
 
 function StatCard({ value, label, danger }: { value: string; label: string; danger?: boolean }) {
   return (
-    <div className="flex-1 rounded-xl border border-border bg-surface px-4 py-3">
-      <div className={`font-heading text-lg font-bold ${danger ? "text-danger" : "text-ink"}`}>{value}</div>
-      <div className="text-xs text-ink-muted">{label}</div>
+    <div className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 lg:px-4 lg:py-3">
+      <div className={`truncate font-heading text-base font-bold lg:overflow-visible lg:whitespace-normal lg:text-lg ${danger ? "text-danger" : "text-ink"}`}>{value}</div>
+      <div className="text-[11px] text-ink-muted lg:text-xs">{label}</div>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className={className}>
       <div className="mb-1.5 text-[11.5px] uppercase tracking-wide text-ink-muted">{label}</div>
       {children}
     </div>

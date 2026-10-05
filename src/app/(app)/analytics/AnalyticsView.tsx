@@ -89,19 +89,20 @@ export function AnalyticsView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-8 py-[18px]">
+      <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
           <h1 className="font-heading text-xl font-semibold text-ink">Analítica de ventas</h1>
-          <p className="text-[13.5px] text-ink-muted">Cómo avanza tu Chekeo de ventas, canal por canal</p>
+          <p className="hidden text-[13.5px] text-ink-muted sm:block">Cómo avanza tu Chekeo de ventas, canal por canal</p>
         </div>
-        <div className="flex gap-1.5">
+        {/* Equal-width segmented row on phones, compact pills on desktop. */}
+        <div className="grid grid-cols-3 gap-1.5 lg:flex">
           {(["semana", "mes", "trimestre"] as Range[]).map((r) => {
             const active = range === r;
             return (
               <button
                 key={r}
                 onClick={() => setRange(r)}
-                className={`rounded-lg border px-3.5 py-2 text-[13.5px] font-semibold transition-colors ${
+                className={`min-h-10 rounded-lg border px-1 py-2 text-[13.5px] font-semibold transition-colors lg:min-h-0 lg:px-3.5 ${
                   active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
                 }`}
               >
@@ -112,14 +113,15 @@ export function AnalyticsView({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-wrap gap-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
+        <div className="flex flex-col gap-4 lg:gap-5">
+          {/* 2×2 grid on phones/tablets; the original wrapping flex row on desktop. */}
+          <div className="grid grid-cols-2 gap-3 lg:flex lg:flex-wrap lg:gap-4">
             {kpis.map((kpi) => (
-              <div key={kpi.label} className="flex-1 min-w-[200px] rounded-2xl border border-border bg-surface px-5 py-4.5">
-                <div className="text-[13.5px] text-ink-muted">{kpi.label}</div>
-                <div className="font-heading text-[26px] font-bold text-ink">{kpi.value}</div>
-                <div className="text-xs text-brand">{kpi.hint}</div>
+              <div key={kpi.label} className="min-w-0 rounded-2xl border border-border bg-surface px-4 py-3.5 lg:min-w-[200px] lg:flex-1 lg:px-5 lg:py-4.5">
+                <div className="text-[12.5px] leading-snug text-ink-muted lg:text-[13.5px] lg:leading-normal">{kpi.label}</div>
+                <div className="truncate font-heading text-[22px] font-bold text-ink lg:text-[26px]">{kpi.value}</div>
+                <div className="text-xs leading-snug text-brand lg:leading-normal">{kpi.hint}</div>
               </div>
             ))}
           </div>
@@ -129,14 +131,14 @@ export function AnalyticsView({
               own children's flex-basis/min-width, so the gap between left
               and right cards landed at a different x position per row
               instead of lining up into a clean 2-column grid. */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
-            <div className="rounded-2xl border border-border bg-surface p-5">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.3fr_1fr] lg:gap-4">
+            <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Embudo por etapa</div>
               <div className="mb-4 text-[13px] text-ink-muted">Cuántos contactos hay en cada etapa del Chekeo</div>
               <div className="flex flex-col gap-3">
                 {funnel.map((f) => (
                   <div key={f.stage} className="flex items-center gap-2.5">
-                    <div className="w-32 shrink-0 text-[13.5px] text-ink-muted">{f.label}</div>
+                    <div className="w-[92px] shrink-0 text-[12.5px] leading-tight text-ink-muted lg:w-32 lg:text-[13.5px] lg:leading-normal">{f.label}</div>
                     <div className="h-[18px] flex-1 overflow-hidden rounded-md bg-surface-2">
                       <div className="h-full rounded-md" style={{ width: `${f.pct}%`, background: f.color }} />
                     </div>
@@ -146,7 +148,7 @@ export function AnalyticsView({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border bg-surface p-5">
+            <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Conversaciones por canal</div>
               <div className="mb-4 text-[13px] text-ink-muted">De dónde llegan tus clientes</div>
               <div className="flex flex-col gap-3.5">
@@ -167,10 +169,10 @@ export function AnalyticsView({
               </div>
             </div>
 
-            <div className="flex flex-col rounded-2xl border border-border bg-surface p-5">
+            <div className="flex flex-col rounded-2xl border border-border bg-surface p-4 lg:p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Nuevas conversaciones — últimos 7 días</div>
               <div className="mb-4.5 text-[13px] text-ink-muted">Mensajes entrantes de los tres canales combinados</div>
-              <div className="flex h-[140px] items-end gap-4 px-1">
+              <div className="flex h-[140px] items-end gap-2 px-1 lg:gap-4">
                 {trend.map((t, i) => (
                   <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
                     <div className="text-[11.5px] text-ink-muted">{t.count}</div>
@@ -181,7 +183,7 @@ export function AnalyticsView({
               </div>
             </div>
 
-            <div className="flex flex-col rounded-2xl border border-border bg-surface p-5">
+            <div className="flex flex-col rounded-2xl border border-border bg-surface p-4 lg:p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Productos con más valor en existencia</div>
               <div className="mb-3.5 text-[13px] text-ink-muted">Precio × stock — para saber dónde está tu capital</div>
               {/* flex-1 + justify-center — this card is stretched to match

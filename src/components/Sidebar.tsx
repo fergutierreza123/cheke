@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, Reorder, useDragControls, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 
-const DEFAULT_NAV_ITEMS = [
+export const DEFAULT_NAV_ITEMS = [
   { href: "/chat", label: "Chat", icon: ChatIcon },
   { href: "/chekeo", label: "Chekeo", icon: KanbanIcon },
   { href: "/contacts", label: "Contactos", icon: UsersIcon },
