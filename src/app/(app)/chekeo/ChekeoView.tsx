@@ -40,6 +40,9 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
   // highlight fades.
   const [justMovedId, setJustMovedId] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
+  // Phones show one scrolling list instead of side-by-side columns: all
+  // stages stacked, or just the one picked in the chip bar.
+  const [mobileStage, setMobileStage] = useState<ConversationStage | "todos">("todos");
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
@@ -54,6 +57,11 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
       setJustMovedId((current) => (current === id ? null : current));
     }, 2000);
     await setConversationStage(id, stage);
+  }
+
+  function openNewLead() {
+    setLeadError(null);
+    setDraft(EMPTY_DRAFT);
   }
 
   async function handleSetValue(id: string, raw: string) {
@@ -110,25 +118,31 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col max-lg:overflow-y-auto">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
-        <div>
-          <h1 className="font-heading text-xl font-semibold text-ink">Chekeo de ventas</h1>
-          <p className="text-[13.5px] text-ink-muted">
-            <span className="lg:hidden">Usa las flechas para mover un contacto de etapa</span>
-            <span className="hidden lg:inline">Arrastra una tarjeta o usa las flechas para mover un contacto de etapa</span>
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="font-heading text-xl font-semibold text-ink">Chekeo de ventas</h1>
+            <p className="hidden text-[13.5px] text-ink-muted lg:block">
+              Arrastra una tarjeta o usa las flechas para mover un contacto de etapa
+            </p>
+          </div>
+          <button
+            onClick={openNewLead}
+            aria-label="Nuevo contacto"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-3.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:hidden"
+          >
+            <PlusIcon className="h-3.5 w-3.5" />
+            Nuevo
+          </button>
         </div>
         <div className="grid grid-cols-3 gap-2 lg:flex lg:items-center lg:gap-2.5">
           <StatPill value={String(activeConversations.length)} label="activas" />
           <StatPill value={formatLempiras(totalPipelineValue)} label="en negociación" />
           <StatPill value={`${winRate}%`} label="tasa de cierre" />
           <button
-            onClick={() => {
-              setLeadError(null);
-              setDraft(EMPTY_DRAFT);
-            }}
-            className="col-span-3 flex items-center justify-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:ml-1 lg:py-2"
+            onClick={openNewLead}
+            className="ml-1 hidden items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:flex"
           >
             <PlusIcon className="h-3.5 w-3.5" />
             Nuevo contacto
@@ -137,16 +151,83 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
       </div>
 
       {staleCount > 0 && (
-        <div className="mx-4 mt-4 flex items-center gap-2 rounded-[10px] border border-danger-border bg-danger-tint px-3.5 py-2.5 lg:mx-8">
+        <div className="mx-4 mt-3 flex items-center gap-2 rounded-[10px] border border-danger-border bg-danger-tint px-3 py-2 lg:mx-8 lg:mt-4 lg:px-3.5 lg:py-2.5">
           <WarningIcon className="h-4 w-4 shrink-0 text-danger" />
           <div className="text-[13.5px] text-danger">
             <strong>{staleCount} contacto{staleCount === 1 ? "" : "s"}</strong> lleva
-            {staleCount === 1 ? "" : "n"} más de un día sin respuesta — revísalos antes de que se enfríen.
+            {staleCount === 1 ? "" : "n"} más de un día sin respuesta<span className="hidden lg:inline"> — revísalos antes de que se enfríen</span>.
           </div>
         </div>
       )}
 
-      <div className="min-h-0 flex-1 snap-x snap-mandatory scroll-px-4 overflow-x-auto overflow-y-hidden px-4 py-4 lg:snap-none lg:px-8">
+            {/* Phones: a pipeline you scroll like a feed. A chip bar shows every stage
+          with its count (tap one to focus it), and cards sit in one vertical
+          list grouped by stage — no sideways paging through six columns. */}
+      <div className="flex shrink-0 flex-col lg:hidden">
+        <div className="sticky top-0 z-[5] flex h-[60px] shrink-0 items-center gap-2 overflow-x-auto bg-bg px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <StageChip active={mobileStage === "todos"} onClick={() => setMobileStage("todos")} label="Todos" count={conversations.length} />
+          {columns.map(({ stage, items }) => (
+            <StageChip
+              key={stage}
+              active={mobileStage === stage}
+              onClick={() => setMobileStage(stage)}
+              label={STAGE_META[stage].label}
+              count={items.length}
+              color={STAGE_META[stage].color}
+            />
+          ))}
+        </div>
+        <div className="px-4 pb-4">
+          {columns
+            .filter(({ stage }) => mobileStage === "todos" || mobileStage === stage)
+            .map(({ stage, items, total }) => {
+              const meta = STAGE_META[stage];
+              // Empty stages are skipped in the combined view (they'd just be
+              // noise) but still show their empty message when focused.
+              if (mobileStage === "todos" && items.length === 0) return null;
+              return (
+                <section key={stage} className="mb-4">
+                  <div className="sticky top-[60px] z-[4] -mx-4 flex items-center gap-2 bg-bg px-4 py-2">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color }} />
+                    <h2 className="flex-1 font-heading text-[14.5px] font-semibold text-ink">{meta.label}</h2>
+                    <span className="text-xs text-ink-muted">{total ? formatLempiras(total) : ""}</span>
+                    <span className="rounded-full bg-surface px-2 py-px text-[13px] font-semibold text-ink-muted">{items.length}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {items.map((c) => (
+                      <div
+                        key={c.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedId(c.id)}
+                        onKeyDown={(e) => e.key === "Enter" && setSelectedId(c.id)}
+                        style={{
+                          boxShadow:
+                            c.id === justMovedId
+                              ? `0 0 0 2px ${meta.color}, 0 2px 8px ${meta.color}55`
+                              : "0 1px 2px rgba(34,29,23,0.05)",
+                        }}
+                        className="flex flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-3 transition-shadow duration-300"
+                      >
+                        <LeadCardContent c={c} onMove={handleSetStage} compact />
+                      </div>
+                    ))}
+                    {items.length === 0 && (
+                      <div className="rounded-[10px] border border-dashed border-border py-8 text-center text-[12.5px] text-ink-soft">
+                        Sin contactos aquí
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          {conversations.length === 0 && (
+            <div className="py-10 text-center text-[13.5px] text-ink-soft">Todavía no hay contactos en el Chekeo.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-8 py-4 lg:block">
         <div className="flex h-full items-start gap-4">
           {columns.map(({ stage, items, total }) => {
             const meta = STAGE_META[stage];
@@ -173,7 +254,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                   // highlight look cut off instead of wrapping the shape.
                   boxShadow: isDropTarget ? `inset 0 0 0 2px ${meta.color}` : "inset 0 0 0 2px transparent",
                 }}
-                className="flex h-full w-[84vw] min-w-[84vw] max-w-[84vw] shrink-0 snap-start flex-col rounded-[14px] p-3 transition lg:w-[246px] lg:min-w-[246px] lg:max-w-[246px]-[background-color,box-shadow] duration-150"
+                className="flex h-full w-[246px] min-w-[246px] max-w-[246px] shrink-0 flex-col rounded-[14px] p-3 transition-[background-color,box-shadow] duration-150"
               >
                 <div className="flex items-center gap-2 px-1 pb-0.5">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color }} />
@@ -193,8 +274,6 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                     don't actually shift. */}
                 <div className="-m-2.5 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
                   {items.map((c) => {
-                    const channelMeta = c.channel ? CHANNEL_META[c.channel.type] : null;
-                    const stageIdx = STAGE_ORDER.indexOf(c.stage);
                     const justMoved = c.id === justMovedId;
                     return (
                       <motion.div
@@ -237,66 +316,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                         }}
                         className="flex cursor-grab flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-[11px] transition-[opacity,box-shadow] duration-300 active:cursor-grabbing"
                       >
-                        <div className="flex items-center gap-2">
-                          <div className="relative h-7 w-7 shrink-0 rounded-full bg-brand text-[12.5px] font-bold text-white">
-                            <span className="flex h-full w-full items-center justify-center">
-                              {initialsFor(c.contact.name)}
-                            </span>
-                            {c.channel && (
-                              <ChannelIcon
-                                type={c.channel.type}
-                                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-surface"
-                              />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[13.5px] font-semibold text-ink">{c.contact.name}</div>
-                            {channelMeta && <div className="truncate text-xs text-ink-muted">{channelMeta.label}</div>}
-                          </div>
-                        </div>
-                        <div className="truncate text-[13px] text-ink-muted">{c.last_message_body ?? ""}</div>
-                        <div className="flex items-center justify-between">
-                          {c.value_hnl ? (
-                            <div className="rounded-md bg-brand-tint px-1.5 py-0.5 text-xs font-bold text-brand-dark">
-                              {formatLempiras(c.value_hnl)}
-                            </div>
-                          ) : (
-                            <span />
-                          )}
-                          <div className="ml-auto text-[11px] text-ink-soft">{relativeTime(c.last_message_at)}</div>
-                        </div>
-                        {isStale(c) && (
-                          <div className="flex w-fit items-center gap-1 rounded-md bg-danger-tint px-1.5 py-1 text-[11.5px] font-semibold text-danger">
-                            <WarningIcon className="h-2.5 w-2.5" />
-                            Requiere seguimiento
-                          </div>
-                        )}
-                        <div className="flex justify-end gap-1">
-                          {stageIdx > 0 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSetStage(c.id, STAGE_ORDER[stageIdx - 1]);
-                              }}
-                              aria-label="Mover a etapa anterior"
-                              className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-surface text-ink-muted"
-                            >
-                              <ChevronLeftIcon className="h-3 w-3" />
-                            </button>
-                          )}
-                          {stageIdx < STAGE_ORDER.length - 1 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSetStage(c.id, STAGE_ORDER[stageIdx + 1]);
-                              }}
-                              aria-label="Mover a siguiente etapa"
-                              className="flex h-[22px] w-[22px] items-center justify-center rounded-md border border-border bg-surface text-ink-muted"
-                            >
-                              <ChevronRightIcon className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
+                        <LeadCardContent c={c} onMove={handleSetStage} />
                       </motion.div>
                     );
                   })}
@@ -457,7 +477,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
                   />
                 </Field>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Teléfono (WhatsApp)">
                     <input
                       name="phone"
@@ -515,9 +535,145 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
   );
 }
 
+// The inside of a lead card, shared by the desktop kanban card (draggable
+// wrapper) and the phone list card (tap-to-open wrapper). `compact` is the
+// phone layout: three tight rows instead of five.
+function LeadCardContent({
+  c,
+  onMove,
+  compact = false,
+}: {
+  c: ConversationWithContact;
+  onMove: (id: string, stage: ConversationStage) => void;
+  compact?: boolean;
+}) {
+  const channelMeta = c.channel ? CHANNEL_META[c.channel.type] : null;
+  const stageIdx = STAGE_ORDER.indexOf(c.stage);
+
+  const avatar = (
+    <div className="relative h-7 w-7 shrink-0 rounded-full bg-brand text-[12.5px] font-bold text-white">
+      <span className="flex h-full w-full items-center justify-center">{initialsFor(c.contact.name)}</span>
+      {c.channel && (
+        <ChannelIcon
+          type={c.channel.type}
+          className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-surface"
+        />
+      )}
+    </div>
+  );
+  const arrowClass =
+    "flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-ink-muted lg:h-[22px] lg:w-[22px] lg:rounded-md";
+  const arrows = (
+    <div className="flex justify-end gap-1">
+      {stageIdx > 0 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMove(c.id, STAGE_ORDER[stageIdx - 1]);
+          }}
+          aria-label="Mover a etapa anterior"
+          className={arrowClass}
+        >
+          <ChevronLeftIcon className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
+        </button>
+      )}
+      {stageIdx < STAGE_ORDER.length - 1 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMove(c.id, STAGE_ORDER[stageIdx + 1]);
+          }}
+          aria-label="Mover a siguiente etapa"
+          className={arrowClass}
+        >
+          <ChevronRightIcon className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
+        </button>
+      )}
+    </div>
+  );
+  const valueBadge = c.value_hnl ? (
+    <div className="rounded-md bg-brand-tint px-1.5 py-0.5 text-xs font-bold text-brand-dark">
+      {formatLempiras(c.value_hnl)}
+    </div>
+  ) : null;
+  const staleBadge = isStale(c) ? (
+    <div className="flex w-fit items-center gap-1 rounded-md bg-danger-tint px-1.5 py-1 text-[11.5px] font-semibold text-danger">
+      <WarningIcon className="h-2.5 w-2.5" />
+      Requiere seguimiento
+    </div>
+  ) : null;
+
+  if (compact) {
+    return (
+      <>
+        <div className="flex items-center gap-2.5">
+          {avatar}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[14px] font-semibold text-ink">{c.contact.name}</div>
+            {channelMeta && <div className="truncate text-xs text-ink-muted">{channelMeta.label}</div>}
+          </div>
+          <div className="shrink-0 self-start text-[11px] text-ink-soft">{relativeTime(c.last_message_at)}</div>
+        </div>
+        <div className="truncate text-[13px] text-ink-muted">{c.last_message_body ?? ""}</div>
+        <div className="flex items-center gap-2">
+          {valueBadge}
+          {staleBadge}
+          <div className="ml-auto">{arrows}</div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        {avatar}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13.5px] font-semibold text-ink">{c.contact.name}</div>
+          {channelMeta && <div className="truncate text-xs text-ink-muted">{channelMeta.label}</div>}
+        </div>
+      </div>
+      <div className="truncate text-[13px] text-ink-muted">{c.last_message_body ?? ""}</div>
+      <div className="flex items-center justify-between">
+        {valueBadge ?? <span />}
+        <div className="ml-auto text-[11px] text-ink-soft">{relativeTime(c.last_message_at)}</div>
+      </div>
+      {staleBadge}
+      {arrows}
+    </>
+  );
+}
+
+function StageChip({
+  active,
+  onClick,
+  label,
+  count,
+  color,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+  color?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors ${
+        active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface text-ink-muted"
+      }`}
+    >
+      {color && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />}
+      {label}
+      <span className={`text-xs ${active ? "text-white/70" : "text-ink-soft"}`}>{count}</span>
+    </button>
+  );
+}
+
 function StatPill({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-[10px] bg-surface-2 px-2 py-[7px] text-center lg:min-w-[96px] lg:px-3.5">
+    <div className="rounded-[10px] bg-surface-2 px-2 py-[5px] text-center lg:min-w-[96px] lg:px-3.5 lg:py-[7px]">
       <div className="font-heading text-base font-bold text-ink">{value}</div>
       <div className="text-[11px] text-ink-muted">{label}</div>
     </div>

@@ -486,7 +486,7 @@ export function ChatView({
               <button
                 onClick={() => setMobileView("list")}
                 aria-label="Volver a la lista de chats"
-                className="-ml-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-muted lg:hidden"
+                className="-ml-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-muted lg:hidden"
               >
                 <BackIcon className="h-4.5 w-4.5" />
               </button>
