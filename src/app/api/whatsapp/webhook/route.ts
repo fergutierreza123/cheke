@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/whatsapp";
 import { runChekelinReply } from "@/lib/bot";
+import { sendPushToBusiness } from "@/lib/push";
 
 // Meta calls this once, when you register the webhook URL in the Meta App
 // Dashboard, to prove you control this endpoint.
@@ -66,11 +67,16 @@ async function handlePayload(payload: WhatsAppWebhookPayload) {
       if (!channel) continue;
 
       for (const message of value.messages ?? []) {
-        const conversationId = await saveInboundMessage(supabase, channel, value, message);
-        // Best-effort: Chekelin's reply shouldn't block/break the webhook
-        // ack (checked inside — it already no-ops if bot_enabled is off).
-        if (conversationId) {
-          await runChekelinReply(supabase, conversationId).catch((error) =>
+        const saved = await saveInboundMessage(supabase, channel, value, message);
+        // Best-effort: neither the phone alert nor Chekelin's reply may
+        // block/break the webhook ack (each no-ops when not configured).
+        if (saved) {
+          await sendPushToBusiness(supabase, channel.business_id, {
+            title: saved.contactName,
+            body: saved.body ?? "Nuevo mensaje",
+            conversationId: saved.conversationId,
+          });
+          await runChekelinReply(supabase, saved.conversationId).catch((error) =>
             console.error("chekelin reply error", error),
           );
         }
@@ -87,7 +93,7 @@ async function saveInboundMessage(
   channel: { id: string; business_id: string },
   value: WhatsAppValue,
   message: WhatsAppMessage,
-): Promise<string | null> {
+): Promise<{ conversationId: string; contactName: string; body: string | null } | null> {
   const { data: existing } = await supabase
     .from("messages")
     .select("id")
@@ -158,7 +164,7 @@ async function saveInboundMessage(
     created_at: new Date(Number(message.timestamp) * 1000).toISOString(),
   });
 
-  return conversation.id;
+  return { conversationId: conversation.id, contactName: profileName, body: message.text?.body ?? null };
 }
 
 async function updateMessageStatus(supabase: ReturnType<typeof createAdminClient>, status: WhatsAppStatus) {

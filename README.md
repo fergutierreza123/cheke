@@ -328,3 +328,21 @@ propio WhatsApp existente desde un botón en la app, sin tocar SQL a mano.
 Después de eso: que chekelin, además de responder, también elija
 automáticamente la etapa del Chekeo según la conversación (hoy la etapa
 sigue siendo manual).
+
+## App móvil (iPhone / Android) y notificaciones push
+
+- **Pantallas para teléfono**: ya están (menú inferior, todo adaptado). Demo
+  para mostrar: `/demo` (iPhone con datos de ejemplo, no toca la base real).
+- **Cascarón nativo**: `capacitor.config.ts` (la app carga el sitio en vivo).
+  Para generar los proyectos nativos hace falta Xcode (iPhone) y/o Android
+  Studio instalados: `npx cap add ios && npx cap add android && npx cap sync`.
+- **Notificaciones push** (código listo, inactivo hasta configurar):
+  1. Correr `supabase/migrations/0010_device_tokens.sql` en el SQL Editor.
+  2. Crear el proyecto de Firebase y generar la llave privada de la cuenta
+     de servicio; guardarla en una sola línea como
+     `FIREBASE_SERVICE_ACCOUNT_JSON` en `.env.local` y en Vercel.
+  3. En Firebase añadir las apps de iOS/Android (`io.cheke.app`) y
+     entregar `GoogleService-Info.plist` / `google-services.json` a los
+     proyectos nativos; en Apple Developer subir la llave APNs a Firebase.
+  El envío ocurre en `src/lib/push.ts`, disparado por el webhook de WhatsApp
+  y por el modo prueba del Chat.

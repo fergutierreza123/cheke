@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { runChekelinReply } from "@/lib/bot";
+import { sendPushToBusiness } from "@/lib/push";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Message } from "@/lib/types";
 
 export async function sendChatMessage(
@@ -90,7 +92,7 @@ export async function simulateInboundMessage(
 
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
-    .select("id, business_id")
+    .select("id, business_id, contact:contacts(name)")
     .eq("id", conversationId)
     .single();
   if (convError || !conversation) return { error: "No se encontró la conversación." };
@@ -103,6 +105,18 @@ export async function simulateInboundMessage(
   if (insertError || !inbound) return { error: insertError?.message ?? "No se pudo guardar el mensaje." };
 
   await supabase.from("conversations").update({ last_message_at: inbound.created_at }).eq("id", conversationId);
+
+  // Same phone alert a real WhatsApp message would trigger, so test mode can
+  // demo notifications before WhatsApp is connected. Admin client because
+  // the push has to read every teammate's phone, not just the caller's; the
+  // caller was already confirmed to belong to this business by the RLS-
+  // scoped conversation lookup above.
+  const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
+  await sendPushToBusiness(createAdminClient(), conversation.business_id, {
+    title: contact?.name ?? "Nuevo mensaje",
+    body: text,
+    conversationId,
+  });
 
   const botResult = await runChekelinReply(supabase, conversationId);
   if (botResult.error) return { inbound, error: botResult.error };
