@@ -17,6 +17,11 @@ const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "facebook", label: "Facebook" },
 ];
 
+// WhatsApp uses each platform's own UI font; this stack resolves to the same
+// one on iPhone/Mac (San Francisco), Android (Roboto) and Windows (Segoe UI).
+const WHATSAPP_FONT =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif';
+
 const LIST_WIDTH_KEY = "cheke-chat-list-width";
 const LIST_WIDTH_MIN = 240;
 const LIST_WIDTH_MAX = 460;
@@ -511,7 +516,7 @@ export function ChatView({
               <button
                 onClick={handleToggleBot}
                 title={selected.bot_enabled ? "chekelin está respondiendo automáticamente" : "chekelin está pausado"}
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-semibold transition-colors lg:h-[30px] ${
                   selected.bot_enabled
                     ? "border-accent bg-accent-tint text-brand-dark"
                     : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -530,7 +535,7 @@ export function ChatView({
                 onClick={() => setSimulateMode((v) => !v)}
                 title="Modo prueba: simular mensaje de cliente (sin WhatsApp real)"
                 aria-pressed={simulateMode}
-                className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors lg:h-[30px] lg:w-[30px] ${
                   simulateMode
                     ? "border-accent bg-accent-tint text-brand-dark"
                     : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -544,16 +549,23 @@ export function ChatView({
                   caption makes both facts (what it is, that it's
                   editable) obvious at a glance. Changes the stage
                   directly, no need to open the side panel for this. */}
-              <label className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-border bg-surface-2 py-1.5 pl-2.5 pr-1.5 text-[12.5px] font-semibold text-ink lg:flex-none">
+              {/* The visible text is a plain span so it can be sized to match
+                  the other controls; the real <select> sits invisibly on top
+                  (16px, so iOS doesn't zoom the page on focus) and still opens
+                  the native picker — a wheel on iPhone. */}
+              <label className="relative flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-border bg-surface-2 pl-2.5 pr-2 text-[12.5px] font-semibold text-ink lg:h-[30px] lg:min-w-[250px] lg:flex-none">
                 <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-ink-soft sm:text-[10.5px]">
                   <span className="sm:hidden">Estado</span>
                   <span className="hidden sm:inline">Estado de venta</span>
                 </span>
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STAGE_META[selectedStage].color }} />
+                <span className="min-w-0 flex-1 truncate">{STAGE_META[selectedStage].label}</span>
+                <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
                 <select
                   value={selectedStage}
                   onChange={(e) => handleSetStage(e.target.value as ConversationStage)}
-                  className="min-w-0 flex-1 bg-transparent text-[12.5px] font-semibold text-ink outline-none"
+                  aria-label="Estado de venta"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 >
                   {STAGE_ORDER.map((s) => (
                     <option key={s} value={s}>
@@ -570,60 +582,80 @@ export function ChatView({
                 onClick={() => setShowDetail(true)}
                 title="Ver detalles del contacto"
                 aria-label="Ver detalles del contacto"
-                className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-ink-muted transition-colors hover:bg-surface-3"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-ink-muted transition-colors hover:bg-surface-3 lg:h-[30px] lg:w-[30px]"
               >
                 <InfoIcon className="h-3.5 w-3.5" />
               </button>
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto bg-bg px-3 py-4 lg:px-6 lg:py-5">
-              {messages.map((m) => (
-                <div key={m.id} className={`flex flex-col ${m.direction === "out" ? "items-end" : "items-start"}`}>
-                  {m.is_bot && (
-                    <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
-                      <img src="/logos/cheke-icon-blue.png" alt="" className="h-3 w-3 object-contain" />
-                      chekelin
-                    </div>
-                  )}
+            {/* Looks and reads like WhatsApp on purpose, so clients moving their
+                conversations here don't feel a change: beige wallpaper, white
+                / green bubbles, the time tucked into the last line of the
+                text instead of on its own row, and the phone's own system
+                font (SF on iPhone, Roboto on Android, Segoe UI on Windows —
+                the same family WhatsApp uses on each). */}
+            <div
+              className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#EFEAE2] px-3 py-3 lg:px-[6%] lg:py-4"
+              style={{ fontFamily: WHATSAPP_FONT }}
+            >
+              {messages.map((m, i) => {
+                const out = m.direction === "out";
+                const prev = messages[i - 1];
+                // Bubbles from the same side in a row are tight (2px) and only
+                // the first gets the pointed corner, like WhatsApp's tail.
+                const firstInRun = !prev || prev.direction !== m.direction;
+                return (
                   <div
-                    className={`max-w-[82%] rounded-2xl lg:max-w-[60%] px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
-                      m.direction === "out"
-                        ? m.is_bot
-                          ? "rounded-br-sm bg-accent text-brand-dark"
-                          : "rounded-br-sm bg-brand text-white"
-                        : "rounded-bl-sm bg-surface-2 text-ink"
-                    }`}
+                    key={m.id}
+                    className={`flex flex-col ${out ? "items-end" : "items-start"} ${i === 0 ? "" : firstInRun ? "mt-2" : "mt-[2px]"}`}
                   >
-                    {m.media_url && (
-                      // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL sent as part of a product message
-                      <img
-                        src={m.media_url}
-                        alt=""
-                        className="mb-2 max-h-48 w-full rounded-lg object-cover"
-                      />
+                    {m.is_bot && !(prev && prev.is_bot) && (
+                      <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
+                        <img src="/logos/cheke-icon-blue.png" alt="" className="h-3 w-3 object-contain" />
+                        chekelin
+                      </div>
                     )}
-                    <div className="whitespace-pre-line">{m.body}</div>
-                    <div className="mt-1 flex items-center justify-end gap-1 text-[11px] opacity-65">
-                      {formatMessageTime(m.created_at)}
-                      {m.direction === "out" && <MessageStatusIcon status={effectiveStatus(m)} />}
+                    <div
+                      className={`relative max-w-[82%] rounded-[7.5px] px-[9px] pb-[7px] pt-[6px] text-[14.2px] leading-[19px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] lg:max-w-[65%] ${
+                        out ? "bg-[#D9FDD3]" : "bg-white"
+                      } ${firstInRun ? (out ? "rounded-tr-none" : "rounded-tl-none") : ""}`}
+                    >
+                      {m.media_url && (
+                        // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL sent as part of a product message
+                        <img
+                          src={m.media_url}
+                          alt=""
+                          className="-mx-1 mb-1 mt-0.5 max-h-48 w-[calc(100%+8px)] rounded-md object-cover"
+                        />
+                      )}
+                      <div className="flow-root whitespace-pre-line break-words">
+                        {m.body}
+                        {/* Floats into the end of the last line; if there's no
+                            room it drops below — that's what keeps short
+                            messages in a short bubble. */}
+                        <span className="float-right -mb-[3px] ml-2 mt-[5px] inline-flex select-none items-center gap-[3px] text-[11px] leading-[15px] text-[#667781]">
+                          {formatMessageTime(m.created_at)}
+                          {out && <MessageStatusIcon status={effectiveStatus(m)} />}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {botTyping && (
-                <div className="flex flex-col items-end">
+                <div className="mt-2 flex flex-col items-end">
                   <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
                     {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
                     <img src="/logos/cheke-icon-blue.png" alt="" className="h-3 w-3 object-contain" />
                     chekelin
                   </div>
-                  <div className="flex items-center gap-1 rounded-2xl rounded-br-sm bg-accent px-4 py-3">
+                  <div className="flex items-center gap-1 rounded-[7.5px] rounded-tr-none bg-[#D9FDD3] px-3 py-[11px] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
                     {[0, 1, 2].map((i) => (
                       <motion.span
                         key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-brand-dark/60"
+                        className="h-1.5 w-1.5 rounded-full bg-[#8696A0]"
                         animate={prefersReducedMotion ? undefined : { y: [0, -4, 0] }}
                         transition={{ repeat: Infinity, duration: 0.9, delay: i * 0.15, ease: "easeInOut" }}
                       />
@@ -811,7 +843,7 @@ export function ChatView({
                     ? "Agrega un mensaje (opcional)…"
                     : simulateMode
                       ? "Escribe como si fueras el cliente…"
-                      : "Escribe una respuesta…"
+                      : "Escribe un mensaje"
                 }
                 className="min-w-0 flex-1 rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
               />
@@ -911,6 +943,13 @@ function CloseIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
       <path d="M18 6L6 18" />
       <path d="M6 6l12 12" />
+    </svg>
+  );
+}
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6 6 6-6" />
     </svg>
   );
 }
