@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { saveTemplate } from "./actions";
 import { TEMPLATE_CATEGORY_META, TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
@@ -15,6 +15,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const prefersReducedMotion = useReducedMotion();
 
   const filtered = useMemo(() => {
@@ -39,6 +40,15 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  // Drops a {{variable}} into the message at the cursor (or replaces the
+  // selected text). The field is uncontrolled, so edit it in place.
+  function insertVariable(tag: string) {
+    const el = bodyRef.current;
+    if (!el) return;
+    el.focus();
+    el.setRangeText(tag, el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length, "end");
   }
 
   async function handleCopy(t: Template) {
@@ -94,7 +104,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-ink-soft lg:ml-auto lg:flex-nowrap">
           <span className="sm:hidden">Variables:</span>
-          <span className="hidden sm:inline">Variables disponibles:</span>
+          <span className="hidden sm:inline">Variables (se rellenan al usar la plantilla en el Chat):</span>
           <VarTag>{"{{producto}}"}</VarTag>
           <VarTag>{"{{precio}}"}</VarTag>
           <VarTag>{"{{ciudad}}"}</VarTag>
@@ -204,13 +214,33 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
                   <CategoryPicker name="category" defaultValue={draft.category} />
                 </Field>
 
-                <Field label="Mensaje — usa {{producto}}, {{precio}} o {{ciudad}} para que las rellenes al copiar">
+                <Field label="Mensaje">
                   <textarea
+                    ref={bodyRef}
                     name="body"
                     defaultValue={draft.body}
                     placeholder="Escribe el mensaje que quieres reutilizar…"
                     className="min-h-[130px] w-full resize-y rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
                   />
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11.5px] text-ink-soft">Toca para insertar:</span>
+                    {["{{producto}}", "{{precio}}", "{{ciudad}}"].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        // keep the cursor in the message instead of stealing focus
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => insertVariable(tag)}
+                        className="rounded-md border border-border bg-surface px-2 py-1 font-heading text-[12px] text-brand-dark transition-colors hover:bg-surface-2"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11.5px] leading-snug text-ink-soft">
+                    En el Chat, {"{{producto}}"} y {"{{precio}}"} se rellenan solos si eliges un producto antes; lo que
+                    quede sin rellenar queda resaltado para que lo escribas encima.
+                  </p>
                 </Field>
 
                 <div className="mt-1 flex gap-2.5">

@@ -186,8 +186,15 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
               // noise) but still show their empty message when focused.
               if (mobileStage === "todos" && items.length === 0) return null;
               return (
-                <section key={stage} className="mb-4">
-                  <div className="sticky top-[60px] z-[4] -mx-4 flex items-center gap-2 bg-bg px-4 py-2">
+                <section key={stage} className="mb-4 rounded-[14px] px-3 pb-3" style={{ background: `${meta.color}26` }}>
+                  {/* Each stage sits in its own tinted block (same idea as the
+                      desktop columns) so you can tell at a glance which stage
+                      a card is in while scrolling. The header is opaque when
+                      it sticks, so it layers the tint over the page color. */}
+                  <div
+                    className="sticky top-[60px] z-[4] -mx-3 flex items-center gap-2 rounded-t-[14px] px-3 py-2.5"
+                    style={{ backgroundColor: "var(--color-bg)", backgroundImage: `linear-gradient(${meta.color}26, ${meta.color}26)` }}
+                  >
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.color }} />
                     <h2 className="flex-1 font-heading text-[14.5px] font-semibold text-ink">{meta.label}</h2>
                     <span className="text-xs text-ink-muted">{total ? formatLempiras(total) : ""}</span>

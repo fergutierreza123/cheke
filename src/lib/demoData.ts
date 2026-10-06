@@ -102,6 +102,7 @@ export function buildDemoData(now: number) {
   const templates: Template[] = [
     { id: "t1", business_id: "demo", name: "Bienvenida", category: "bienvenida", body: "¡Hola! Gracias por escribirnos a Tienda Luna 🎸 ¿En qué te podemos ayudar?", created_at: iso(H) },
     { id: "t2", business_id: "demo", name: "Datos de pago", category: "pagos", body: "Puedes depositar a Banco Atlántida, cuenta 1234-5678. Envíanos la foto del comprobante.", created_at: iso(H) },
+    { id: "t4", business_id: "demo", name: "Precio con envío", category: "precios", body: "¡Hola! La {{producto}} cuesta {{precio}}. ¿Te la enviamos a {{ciudad}}?", created_at: iso(H) },
     { id: "t3", business_id: "demo", name: "Envíos", category: "envios", body: "Hacemos envíos a todo el país. Tegucigalpa y San Pedro Sula: 1 día. Resto: 2-3 días.", created_at: iso(H) },
   ];
 

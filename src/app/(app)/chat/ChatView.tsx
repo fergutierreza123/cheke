@@ -337,8 +337,23 @@ export function ChatView({
 
   function handlePickTemplate(template: Template) {
     setShowTemplatePicker(false);
-    setDraft(template.body);
-    draftInputRef.current?.focus();
+    // Fill the variables we actually know (the product loaded in the compose
+    // area, if any); anything left over is highlighted below so the agent can
+    // just type over it.
+    let text = template.body;
+    if (pendingProduct) {
+      text = text
+        .replaceAll("{{producto}}", pendingProduct.name)
+        .replaceAll("{{precio}}", formatLempiras(pendingProduct.price_hnl));
+    }
+    setDraft(text);
+    const input = draftInputRef.current;
+    input?.focus();
+    const blank = /\{\{[^}]+\}\}/.exec(text);
+    if (input && blank) {
+      // after React has committed the new value to the input
+      window.setTimeout(() => input.setSelectionRange(blank.index, blank.index + blank[0].length), 30);
+    }
   }
 
   function handlePickEmoji(emoji: string) {
