@@ -147,10 +147,8 @@ export function DemoPhone() {
                   onClick={() => openScreen("chat")}
                   className="absolute left-2 right-2 top-[50px] z-10 flex gap-3 rounded-[24px] bg-white/90 p-3 text-left shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-xl"
                 >
-                  <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[9px] bg-brand p-1.5">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
-                    <img src="/logos/cheke-icon.png" alt="" className="h-full w-full object-contain" />
-                  </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
+                  <img src="/app-icon.png" alt="" className="h-[38px] w-[38px] shrink-0 rounded-[9px]" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between text-[13px]">
                       <span className="font-semibold text-black">Juan Pérez · WhatsApp</span>
