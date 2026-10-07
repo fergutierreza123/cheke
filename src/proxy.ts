@@ -7,7 +7,10 @@ import { type NextRequest, NextResponse } from "next/server";
 // session cookie. The real security boundary is Postgres Row Level Security
 // (supabase/migrations/0001_init.sql), not this file.
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/demo"];
+// Public = reachable without signing in. "/" is matched exactly (the home page
+// decides for itself whether to show the landing or send you into the app);
+// the rest match by prefix.
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/demo", "/privacidad", "/terminos", "/eliminar-datos"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -36,7 +39,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isPublic = pathname === "/" || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

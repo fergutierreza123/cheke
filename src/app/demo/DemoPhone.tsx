@@ -12,6 +12,7 @@ const SCREENS = [
   { id: "templates", label: "Plantillas" },
   { id: "notifications", label: "Notificaciones" },
   { id: "analytics", label: "Analítica" },
+  { id: "channels", label: "Canales" },
   { id: "team", label: "Equipo" },
 ];
 

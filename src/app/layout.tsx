@@ -17,6 +17,11 @@ const workSans = Work_Sans({
 export const metadata: Metadata = {
   title: "cheke.io",
   description: "CRM omnicanal para negocios que venden por WhatsApp, Instagram y Facebook.",
+  // Meta's "verify your domain" step gives a code to publish here; set it as
+  // NEXT_PUBLIC_META_DOMAIN_VERIFICATION and redeploy.
+  other: process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION
+    ? { "facebook-domain-verification": process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION }
+    : undefined,
 };
 
 // viewportFit "cover" lets the app draw under the iPhone notch/home bar so

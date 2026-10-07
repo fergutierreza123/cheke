@@ -10,6 +10,7 @@ import type {
 } from "@/lib/types";
 import type { NotificationItem } from "@/lib/notifications";
 import type { CurrentBusiness } from "@/lib/business";
+import type { ChannelItem } from "@/app/(app)/channels/ChannelsView";
 
 // Sample data for the /demo showcase (an iPhone-framed walkthrough of the
 // app). Entirely fictional — never read from or written to the database.
@@ -119,5 +120,9 @@ export function buildDemoData(now: number) {
     { id: "n4", kind: "success", title: "Venta cerrada: Ana Mejía", description: "L 3,200 ganados.", time: iso(26 * H), link: `${DEMO_BASE}/chekeo` },
   ];
 
-  return { conversations, messages, products, contacts, templates, business, members, notifications };
+  const channels: ChannelItem[] = [
+    { id: "ch1", type: "whatsapp", status: "connected", external_id: "demo", display_phone: "+504 9100-1214", verified_name: "Tienda Luna", connected_at: iso(3 * 24 * H) },
+  ];
+
+  return { conversations, messages, products, contacts, templates, business, members, notifications, channels };
 }

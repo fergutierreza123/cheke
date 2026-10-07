@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { credentialsForChannel, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { isWhatsAppWindowClosed, WINDOW_CLOSED_MESSAGE } from "@/lib/whatsappWindow";
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,7 +20,7 @@ export async function sendChatMessage(
 
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
-    .select("id, business_id, bot_enabled, contact:contacts(phone), channel:channels(type)")
+    .select("id, business_id, bot_enabled, window_expires_at, contact:contacts(phone), channel:channels(type, external_id, access_token_encrypted)")
     .eq("id", conversationId)
     .single();
 
@@ -27,6 +28,12 @@ export async function sendChatMessage(
 
   const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
   const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
+
+  // Refuse up front (before saving anything) once WhatsApp's 24h reply window
+  // has closed, instead of saving a message that Meta will reject.
+  if (channel?.type === "whatsapp" && isWhatsAppWindowClosed(conversation.window_expires_at, Date.now())) {
+    return { error: WINDOW_CLOSED_MESSAGE };
+  }
 
   const { data: message, error: insertError } = await supabase
     .from("messages")
@@ -61,7 +68,7 @@ export async function sendChatMessage(
   // messaging is Phase 7. Everything still saves to the conversation either
   // way, same as the demo-seeded conversations.
   if (channel?.type === "whatsapp" && contact?.phone) {
-    const result = await sendWhatsAppMessage(contact.phone, text);
+    const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl);
 
     if (result.error) {
       await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);

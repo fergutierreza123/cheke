@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/whatsapp";
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
+import { describeMessage, type WhatsAppMessage } from "@/lib/whatsappMessages";
 
 // Meta calls this once, when you register the webhook URL in the Meta App
 // Dashboard, to prove you control this endpoint.
@@ -94,6 +95,10 @@ async function saveInboundMessage(
   value: WhatsAppValue,
   message: WhatsAppMessage,
 ): Promise<{ conversationId: string; contactName: string; body: string | null } | null> {
+  // Reactions (a 👍 on one of our messages) aren't conversation messages.
+  const body = describeMessage(message);
+  if (body === null) return null;
+
   const { data: existing } = await supabase
     .from("messages")
     .select("id")
@@ -158,13 +163,13 @@ async function saveInboundMessage(
     conversation_id: conversation.id,
     business_id: channel.business_id,
     direction: "in",
-    body: message.text?.body ?? null,
+    body,
     external_message_id: message.id,
     status: "sent",
     created_at: new Date(Number(message.timestamp) * 1000).toISOString(),
   });
 
-  return { conversationId: conversation.id, contactName: profileName, body: message.text?.body ?? null };
+  return { conversationId: conversation.id, contactName: profileName, body };
 }
 
 async function updateMessageStatus(supabase: ReturnType<typeof createAdminClient>, status: WhatsAppStatus) {
@@ -183,13 +188,6 @@ type WhatsAppValue = {
   contacts?: Array<{ wa_id: string; profile?: { name?: string } }>;
   messages?: WhatsAppMessage[];
   statuses?: WhatsAppStatus[];
-};
-type WhatsAppMessage = {
-  id: string;
-  from: string;
-  timestamp: string;
-  type: string;
-  text?: { body: string };
 };
 type WhatsAppStatus = {
   id: string;

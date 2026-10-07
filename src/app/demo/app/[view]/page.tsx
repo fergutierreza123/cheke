@@ -8,6 +8,7 @@ import { InventoryView } from "@/app/(app)/inventory/InventoryView";
 import { TeamView } from "@/app/(app)/team/TeamView";
 import { NotificationsView } from "@/app/(app)/notifications/NotificationsView";
 import { AnalyticsView } from "@/app/(app)/analytics/AnalyticsView";
+import { ChannelsView } from "@/app/(app)/channels/ChannelsView";
 import { PageStub } from "@/components/PageStub";
 import { buildDemoData, DEMO_BASE } from "@/lib/demoData";
 
@@ -29,6 +30,13 @@ export default async function DemoScreen({ params }: { params: Promise<{ view: s
     inventory: <InventoryView products={d.products} conversations={d.conversations} />,
     team: <TeamView business={d.business} members={d.members} currentUserId="u1" />,
     notifications: <NotificationsView notifications={d.notifications} />,
+    channels: (
+      <ChannelsView
+        channels={d.channels}
+        isOwner={false}
+        meta={null}
+      />
+    ),
     analytics: <AnalyticsView conversations={d.conversations} products={d.products} />,
     comments: <PageStub title="Comentarios" subtitle="Comentarios en tus publicaciones de Instagram y Facebook" phase="Fase 7 — Comentarios (comentario a mensaje directo)" />,
   };

@@ -13,6 +13,7 @@ export const DEFAULT_NAV_ITEMS = [
   { href: "/comments", label: "Comentarios", icon: CommentIcon },
   { href: "/templates", label: "Plantillas", icon: TemplateIcon },
   { href: "/inventory", label: "Catálogo", icon: BoxIcon },
+  { href: "/channels", label: "Canales", icon: PlugIcon },
   { href: "/team", label: "Equipo", icon: TargetIcon },
   { href: "/notifications", label: "Notificaciones", icon: BellIcon },
   { href: "/analytics", label: "Analítica", icon: ChartIcon },
@@ -250,6 +251,16 @@ function ChartIcon({ className }: { className?: string }) {
       <path d="M4 19V10" />
       <path d="M12 19V5" />
       <path d="M20 19v-7" />
+    </svg>
+  );
+}
+function PlugIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps(className)}>
+      <path d="M9 2v6" />
+      <path d="M15 2v6" />
+      <path d="M6 8h12v3a6 6 0 0 1-12 0z" />
+      <path d="M12 17v5" />
     </svg>
   );
 }

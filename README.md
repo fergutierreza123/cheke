@@ -346,3 +346,31 @@ sigue siendo manual).
      proyectos nativos; en Apple Developer subir la llave APNs a Firebase.
   El envío ocurre en `src/lib/push.ts`, disparado por el webhook de WhatsApp
   y por el modo prueba del Chat.
+
+## Dejar todo listo para conectar WhatsApp (Meta)
+
+Todo el código está hecho; solo faltan las credenciales de Meta. Checklist:
+
+1. **Datos legales**: completar `src/lib/company.ts` (razón social, dirección,
+   teléfono, correo) *exactamente* como en los documentos de la empresa. Las
+   páginas públicas (`/`, `/privacidad`, `/terminos`, `/eliminar-datos`) los
+   leen de ahí y muestran un aviso de "borrador" mientras falten.
+2. **Migraciones**: correr `0010_device_tokens.sql` y
+   `0011_channel_connection.sql` en el SQL Editor de Supabase.
+3. **Llave de cifrado** (una sola vez, nunca cambiarla): crear
+   `CHANNEL_TOKEN_KEY` con `openssl rand -base64 32` en `.env.local` y en
+   Vercel. Cifra el token de WhatsApp de cada negocio en la base de datos.
+4. **Meta**: con el negocio verificado, en la app de Meta crear la
+   configuración de *Embedded Signup* y poner `NEXT_PUBLIC_META_APP_ID` y
+   `NEXT_PUBLIC_META_CONFIG_ID` (más los del webhook que ya existen). Registrar
+   el webhook `https://<dominio>/api/whatsapp/webhook` y suscribir el campo
+   `messages`. El código del dominio de Meta va en
+   `NEXT_PUBLIC_META_DOMAIN_VERIFICATION`.
+5. **Probar**: en *Canales* aparece el botón "Conectar WhatsApp"; después un
+   mensaje al número debe verse en el Chat, y la respuesta llegar al teléfono.
+
+Cómo funciona por dentro: cada negocio guarda su propio número y token
+(cifrado) en la tabla `channels`; el webhook enruta por `phone_number_id` y
+el envío usa las credenciales del canal de esa conversación. Pasadas 24 h
+desde el último mensaje del cliente, el Chat bloquea el texto libre (regla de
+WhatsApp; solo plantillas aprobadas de Meta, pendiente de construir).

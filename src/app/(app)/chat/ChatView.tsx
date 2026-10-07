@@ -7,6 +7,7 @@ import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProd
 import { sendChatMessage, simulateInboundMessage } from "./actions";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
+import { isWhatsAppWindowClosed, WINDOW_CLOSED_MESSAGE } from "@/lib/whatsappWindow";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
 
@@ -140,6 +141,11 @@ export function ChatView({
   // Falls back to "nuevo" if the `stage` migration hasn't run yet on this
   // database — avoids a hard crash on old rows missing the column.
   const selectedStage = selected?.stage ?? "nuevo";
+  // Past WhatsApp's 24h reply window: free-text sending is blocked (also
+  // enforced server-side) until the customer writes again.
+  const windowClosed = selected?.channel?.type === "whatsapp" && isWhatsAppWindowClosed(selected.window_expires_at, now);
+  // Test mode types as the customer, which is exactly what reopens the window.
+  const sendBlocked = windowClosed && !simulateMode;
   const messages = useMemo(
     () => (selectedId ? (messagesByConversation[selectedId] ?? []) : []),
     [selectedId, messagesByConversation],
@@ -689,6 +695,11 @@ export function ChatView({
                 {sendError}
               </div>
             )}
+            {sendBlocked && (
+              <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 text-[12.5px] text-danger lg:px-6">
+                {WINDOW_CLOSED_MESSAGE}
+              </div>
+            )}
             {simulateMode && !pendingProduct && (
               <div className="shrink-0 border-t border-accent bg-accent-tint px-4 py-1.5 lg:px-6 text-[12px] font-semibold text-brand-dark">
                 Modo prueba: estás escribiendo como si fueras el cliente, para ver cómo responde chekelin.
@@ -845,6 +856,7 @@ export function ChatView({
               </div>
               <input
                 ref={draftInputRef}
+                disabled={sendBlocked}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -854,7 +866,9 @@ export function ChatView({
                   }
                 }}
                 placeholder={
-                  pendingProduct
+                  sendBlocked
+                    ? "Ventana de 24 h cerrada"
+                    : pendingProduct
                     ? "Agrega un mensaje (opcional)…"
                     : simulateMode
                       ? "Escribe como si fueras el cliente…"
@@ -864,7 +878,7 @@ export function ChatView({
               />
               <button
                 onClick={handleSend}
-                disabled={botTyping || sendingProduct}
+                disabled={botTyping || sendingProduct || sendBlocked}
                 aria-label="Enviar"
                 className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-60"
               >

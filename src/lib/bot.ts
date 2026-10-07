@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateChekelinReply } from "@/lib/ai";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { credentialsForChannel, sendWhatsAppMessage } from "@/lib/whatsapp";
 import type { Message } from "@/lib/types";
 
 // Shared by the WhatsApp webhook (service-role client, no user session) and
@@ -13,7 +13,7 @@ export async function runChekelinReply(
 ): Promise<{ message?: Message; error?: string; skipped?: true }> {
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
-    .select("id, business_id, bot_enabled, contact:contacts(phone), channel:channels(type)")
+    .select("id, business_id, bot_enabled, contact:contacts(phone), channel:channels(type, external_id, access_token_encrypted)")
     .eq("id", conversationId)
     .single();
 
@@ -62,7 +62,7 @@ export async function runChekelinReply(
   await supabase.from("conversations").update({ last_message_at: message.created_at }).eq("id", conversationId);
 
   if (channel?.type === "whatsapp" && contact?.phone) {
-    const sendResult = await sendWhatsAppMessage(contact.phone, reply);
+    const sendResult = await sendWhatsAppMessage(contact.phone, reply, credentialsForChannel(channel));
     if (sendResult.error) {
       await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);
     } else if (sendResult.externalMessageId) {

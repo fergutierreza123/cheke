@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { decryptSecret } from "@/lib/crypto";
 
-const GRAPH_API_VERSION = "v21.0";
+export const GRAPH_API_VERSION = "v21.0";
 
 // Confirms a webhook request actually came from Meta: it signs the raw
 // request body with your app secret and sends the digest in this header.
@@ -26,29 +27,58 @@ export function toWhatsAppNumber(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
-// Sends a free-text WhatsApp message via the test number configured in env
-// vars. Only works inside the 24h customer-service window; outside it Meta
-// rejects free-text sends and only approved templates are allowed (Phase 6+).
-export async function sendWhatsAppMessage(toPhone: string, body: string) {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+export type WhatsAppCredentials = { phoneNumberId: string; accessToken: string };
 
-  if (!phoneNumberId || !accessToken) {
-    return { error: "WhatsApp no está configurado todavía (faltan variables de entorno)." };
+type ChannelRow = { external_id: string | null; access_token_encrypted: string | null } | null | undefined;
+
+// Which WhatsApp number + token a conversation's channel sends through.
+// A connected business has its own encrypted token (Embedded Signup). The
+// shared test number from env vars is only used for the one channel whose
+// number *is* that test number — never as a fallback for another business,
+// or one tenant's messages would go out from Cheke's own number.
+export function credentialsForChannel(channel: ChannelRow): WhatsAppCredentials | null {
+  if (!channel?.external_id) return null;
+
+  if (channel.access_token_encrypted) {
+    try {
+      return { phoneNumberId: channel.external_id, accessToken: decryptSecret(channel.access_token_encrypted) };
+    } catch (error) {
+      console.error("whatsapp: could not decrypt channel token", error);
+      return null;
+    }
   }
 
-  const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`, {
+  const testId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const testToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (testId && testToken && channel.external_id === testId) {
+    return { phoneNumberId: testId, accessToken: testToken };
+  }
+  return null;
+}
+
+// Sends a WhatsApp message (text, or an image with the text as its caption
+// when `mediaUrl` is given) through the given business's number.
+export async function sendWhatsAppMessage(
+  toPhone: string,
+  body: string,
+  credentials: WhatsAppCredentials | null,
+  mediaUrl?: string | null,
+) {
+  if (!credentials) {
+    return { error: "El canal de WhatsApp de este negocio no está conectado todavía." };
+  }
+
+  const payload = mediaUrl
+    ? { messaging_product: "whatsapp", to: toWhatsAppNumber(toPhone), type: "image", image: { link: mediaUrl, caption: body } }
+    : { messaging_product: "whatsapp", to: toWhatsAppNumber(toPhone), type: "text", text: { body } };
+
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${credentials.phoneNumberId}/messages`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${credentials.accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: toWhatsAppNumber(toPhone),
-      type: "text",
-      text: { body },
-    }),
+    body: JSON.stringify(payload),
   });
 
   const data = await res.json();
