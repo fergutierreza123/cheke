@@ -17,10 +17,10 @@ export function PageStub({
   return (
     <div className="flex h-full flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3.5 lg:h-[72px] lg:px-8 lg:py-0">
-        <div>
-          <div className="text-display flex items-center gap-2 font-heading text-xl font-semibold text-ink">
-            <BrandMark />
+        <div className="min-w-0 flex-1 lg:flex-none">
+          <div className="text-display flex items-center justify-between gap-2 font-heading text-xl font-semibold text-ink">
             {title}
+            <BrandMark />
           </div>
           <div className="text-sm text-ink-muted">{subtitle}</div>
         </div>

@@ -92,9 +92,9 @@ export function AnalyticsView({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
-          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
-            <BrandMark />
+          <h1 className="flex items-center justify-between gap-2 font-heading text-xl font-semibold text-ink">
             Analítica de ventas
+            <BrandMark />
           </h1>
           <p className="hidden text-[13.5px] text-ink-muted sm:block">Cómo avanza tu Chekeo de ventas, canal por canal</p>
         </div>

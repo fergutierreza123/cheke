@@ -45,10 +45,10 @@ export function TeamView({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3.5 lg:px-8 lg:py-[18px]">
-        <div>
-          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
-            <BrandMark />
+        <div className="min-w-0 flex-1 lg:flex-none">
+          <h1 className="flex items-center justify-between gap-2 font-heading text-xl font-semibold text-ink">
             Equipo
+            <BrandMark />
           </h1>
           <p className="text-[13.5px] text-ink-muted">Quién tiene acceso a {business.name} y qué rol tiene</p>
         </div>

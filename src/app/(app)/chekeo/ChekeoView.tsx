@@ -121,24 +121,14 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
   return (
     <div className="flex h-full min-h-0 flex-col max-lg:overflow-y-auto">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
-            <BrandMark />
+        <div>
+          <h1 className="flex items-center justify-between gap-2 font-heading text-xl font-semibold text-ink">
             Chekeo de ventas
+            <BrandMark />
           </h1>
-            <p className="hidden text-[13.5px] text-ink-muted lg:block">
-              Arrastra una tarjeta o usa las flechas para mover un contacto de etapa
-            </p>
-          </div>
-          <button
-            onClick={openNewLead}
-            aria-label="Nuevo contacto"
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-3.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:hidden"
-          >
-            <PlusIcon className="h-3.5 w-3.5" />
-            Nuevo
-          </button>
+          <p className="hidden text-[13.5px] text-ink-muted lg:block">
+            Arrastra una tarjeta o usa las flechas para mover un contacto de etapa
+          </p>
         </div>
         <div className="grid grid-cols-3 gap-2 lg:flex lg:items-center lg:gap-2.5">
           <StatPill value={String(activeConversations.length)} label="activas" />
@@ -153,6 +143,17 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
           </button>
         </div>
       </div>
+
+      {/* Phones: the primary action floats above the tab bar (the header's
+          right side belongs to the logo). */}
+      <button
+        onClick={openNewLead}
+        aria-label="Nuevo contacto"
+        className="fixed right-4 z-[6] flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-[0_6px_18px_rgba(0,67,248,0.4)] transition-transform active:scale-95 lg:hidden"
+        style={{ bottom: "calc(env(safe-area-inset-bottom) + 78px)" }}
+      >
+        <PlusIcon className="h-6 w-6" />
+      </button>
 
       {staleCount > 0 && (
         <div className="mx-4 mt-3 flex items-center gap-2 rounded-[10px] border border-danger-border bg-danger-tint px-3 py-2 lg:mx-8 lg:mt-4 lg:px-3.5 lg:py-2.5">
@@ -181,7 +182,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
             />
           ))}
         </div>
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-24">
           {columns
             .filter(({ stage }) => mobileStage === "todos" || mobileStage === stage)
             .map(({ stage, items, total }) => {

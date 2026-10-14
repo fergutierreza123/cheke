@@ -33,15 +33,13 @@ export function NotificationsView({ notifications }: { notifications: Notificati
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div className="flex items-center gap-2.5">
-          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
-            <BrandMark />
-            Notificaciones
-          </h1>
+          <h1 className="font-heading text-xl font-semibold text-ink">Notificaciones</h1>
           {unreadCount > 0 && (
             <span className="rounded-full bg-danger px-2.5 py-0.5 text-[11px] font-bold text-white">
               {unreadCount} nueva{unreadCount === 1 ? "" : "s"}
             </span>
           )}
+          <BrandMark className="ml-auto" />
         </div>
         <div className="grid grid-cols-2 gap-1.5 lg:flex">
           {(["todas", "no-leidas"] as const).map((f) => {
