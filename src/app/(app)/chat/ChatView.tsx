@@ -171,9 +171,11 @@ export function ChatView({
   useEffect(() => {
     if (!selectedId || businessId === "demo") return;
     let cancelled = false;
-    listOpenOrders(selectedId).then((orders) => {
-      if (!cancelled) setOrdersByConversation((prev) => ({ ...prev, [selectedId]: orders }));
-    });
+    listOpenOrders(selectedId)
+      .then((orders) => {
+        if (!cancelled) setOrdersByConversation((prev) => ({ ...prev, [selectedId]: orders }));
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -181,7 +183,11 @@ export function ChatView({
 
   function appendMessage(msg: Message) {
     setMessagesByConversation((prev) => {
-      const existing = prev[msg.conversation_id] ?? [];
+      // A conversation that was never opened has no history loaded; adding
+      // just this one message would make the "load on first open" step think
+      // it's already loaded and show only this message. Leave it to that load.
+      const existing = prev[msg.conversation_id];
+      if (!existing) return prev;
       if (existing.some((m) => m.id === msg.id)) return prev;
       return { ...prev, [msg.conversation_id]: [...existing, msg] };
     });
@@ -231,6 +237,15 @@ export function ChatView({
     );
   }
 
+  // Mirror of the conversation list's ids, readable from the Realtime handler
+  // below (which is set up once and would otherwise see a stale list).
+  const knownConversationIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const ids = knownConversationIds.current;
+    ids.clear();
+    conversations.forEach((c) => ids.add(c.id));
+  }, [conversations]);
+
   // Realtime: new inbound/outbound messages for this business appear live,
   // in whichever conversation is open or listed — no page reload needed.
   // Also listens for UPDATE: a WhatsApp delivery/read receipt (Meta's
@@ -246,7 +261,32 @@ export function ChatView({
         (payload) => {
           const msg = payload.new as Message;
           appendMessage(msg);
-          bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+          if (knownConversationIds.current.has(msg.conversation_id)) {
+            bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+          } else {
+            // First message from a brand-new customer: their conversation
+            // isn't in the list yet, so fetch it and add it to the top.
+            knownConversationIds.current.add(msg.conversation_id);
+            supabase
+              .from("conversations")
+              .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type)")
+              .eq("id", msg.conversation_id)
+              .single()
+              .then(({ data }) => {
+                if (!data) {
+                  knownConversationIds.current.delete(msg.conversation_id);
+                  return;
+                }
+                const contact = Array.isArray(data.contact) ? data.contact[0] : data.contact;
+                const chan = Array.isArray(data.channel) ? data.channel[0] : data.channel;
+                const conversation = { ...data, contact, channel: chan ?? null, last_message_body: msg.body } as ConversationWithContact;
+                setConversations((prev) =>
+                  prev.some((c) => c.id === conversation.id)
+                    ? prev
+                    : [conversation, ...prev].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? "")),
+                );
+              });
+          }
         },
       )
       .on(
@@ -262,6 +302,30 @@ export function ChatView({
       supabase.removeChannel(channel);
     };
   }, [businessId]);
+
+  // A phone that was in the background (or lost signal) misses live updates,
+  // so when the app comes back, reload the open conversation's messages.
+  useEffect(() => {
+    if (!selectedId || businessId === "demo") return;
+    const supabase = createClient();
+    function reload() {
+      if (document.visibilityState !== "visible") return;
+      supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", selectedId)
+        .order("created_at", { ascending: true })
+        .then(({ data }) => {
+          if (data) setMessagesByConversation((prev) => ({ ...prev, [selectedId as string]: data }));
+        });
+    }
+    document.addEventListener("visibilitychange", reload);
+    window.addEventListener("online", reload);
+    return () => {
+      document.removeEventListener("visibilitychange", reload);
+      window.removeEventListener("online", reload);
+    };
+  }, [selectedId, businessId]);
 
   // Load messages the first time a conversation is opened.
   useEffect(() => {

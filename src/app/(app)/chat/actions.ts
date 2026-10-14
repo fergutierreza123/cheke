@@ -9,6 +9,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPaymentMessage, normalizePaymentLink } from "@/lib/payments";
 import type { ConversationStage, Message } from "@/lib/types";
 
+// Images sent to customers must come from our own storage, not an arbitrary
+// address a client could supply.
+function isOwnStorageUrl(url: string): boolean {
+  try {
+    return new URL(url).origin === new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendChatMessage(
   conversationId: string,
   body: string,
@@ -16,6 +26,7 @@ export async function sendChatMessage(
 ): Promise<{ message?: Message; error?: string; sendError?: string; botDisabled?: boolean }> {
   const text = body.trim();
   if (!text) return { error: "Escribe un mensaje." };
+  if (mediaUrl && !isOwnStorageUrl(mediaUrl)) return { error: "La imagen no es válida." };
 
   const supabase = await createClient();
 
@@ -126,7 +137,7 @@ export async function simulateInboundMessage(
     conversationId,
   });
 
-  const botResult = await runChekelinReply(supabase, conversationId);
+  const botResult = await runChekelinReply(supabase, conversationId, { sendExternally: false });
   if (botResult.error) return { inbound, error: botResult.error };
   return { inbound, reply: botResult.message };
 }

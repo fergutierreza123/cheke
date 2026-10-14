@@ -23,6 +23,7 @@ export async function getCurrentBusiness(): Promise<CurrentBusiness | null> {
     .from("members")
     .select("role, businesses(id, name, plan, invite_code)")
     .eq("user_id", user.id)
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 

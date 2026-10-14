@@ -8,6 +8,12 @@ import { createClient } from "@/lib/supabase/server";
 // screen. Only this device is signed out, not their other devices.
 export async function signOut() {
   const supabase = await createClient();
+  // Stop customer-message alerts on the phone(s) this person signed in on;
+  // the app registers again the next time they open it signed in.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) await supabase.from("device_tokens").delete().eq("user_id", user.id);
   await supabase.auth.signOut();
   redirect("/login");
 }

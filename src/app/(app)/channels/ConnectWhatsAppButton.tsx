@@ -66,7 +66,7 @@ export function ConnectWhatsAppButton({ appId, configId }: { appId: string; conf
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
-      if (!event.origin.endsWith("facebook.com") || typeof event.data !== "string") return;
+      if (!["https://www.facebook.com", "https://web.facebook.com", "https://business.facebook.com"].includes(event.origin) || typeof event.data !== "string") return;
       try {
         const data = JSON.parse(event.data);
         if (data.type !== "WA_EMBEDDED_SIGNUP") return;

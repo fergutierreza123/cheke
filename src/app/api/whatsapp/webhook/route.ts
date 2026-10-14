@@ -1,9 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { samePhone, verifyWebhookSignature } from "@/lib/whatsapp";
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
 import { describeMessage, type WhatsAppMessage } from "@/lib/whatsappMessages";
+
+// Meta resends if we answer slowly, so the push alert and Chekelin's AI reply
+// (which can take several seconds) run *after* the response, with room to finish.
+export const maxDuration = 60;
 
 // Meta calls this once, when you register the webhook URL in the Meta App
 // Dashboard, to prove you control this endpoint.
@@ -37,19 +41,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  let saved: SavedMessage[] = [];
   try {
-    await handlePayload(payload);
+    saved = await handlePayload(payload);
   } catch (error) {
     // Log and still return 200 — Meta doesn't need to know we had a bug,
     // it just needs to stop retrying. We fix it from the logs, not retries.
     console.error("whatsapp webhook error", error);
   }
 
+  // Best-effort and off the critical path: neither the phone alert nor
+  // Chekelin's reply may delay or break the ack to Meta (each no-ops when not
+  // configured).
+  if (saved.length > 0) {
+    after(async () => {
+      const supabase = createAdminClient();
+      for (const item of saved) {
+        await sendPushToBusiness(supabase, item.businessId, {
+          title: item.contactName,
+          body: item.body ?? "Nuevo mensaje",
+          conversationId: item.conversationId,
+        }).catch((error) => console.error("push error", error));
+        await runChekelinReply(supabase, item.conversationId).catch((error) =>
+          console.error("chekelin reply error", error),
+        );
+      }
+    });
+  }
+
   return NextResponse.json({ ok: true });
 }
 
-async function handlePayload(payload: WhatsAppWebhookPayload) {
+type SavedMessage = { businessId: string; conversationId: string; contactName: string; body: string | null };
+
+async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMessage[]> {
   const supabase = createAdminClient();
+  const saved: SavedMessage[] = [];
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
@@ -62,31 +89,31 @@ async function handlePayload(payload: WhatsAppWebhookPayload) {
         .select("id, business_id")
         .eq("type", "whatsapp")
         .eq("external_id", phoneNumberId)
+        .limit(1)
         .maybeSingle();
 
       // No business has connected this test number yet — nothing to save to.
       if (!channel) continue;
 
+      // One bad message must not drop the rest of the batch.
       for (const message of value.messages ?? []) {
-        const saved = await saveInboundMessage(supabase, channel, value, message);
-        // Best-effort: neither the phone alert nor Chekelin's reply may
-        // block/break the webhook ack (each no-ops when not configured).
-        if (saved) {
-          await sendPushToBusiness(supabase, channel.business_id, {
-            title: saved.contactName,
-            body: saved.body ?? "Nuevo mensaje",
-            conversationId: saved.conversationId,
-          });
-          await runChekelinReply(supabase, saved.conversationId).catch((error) =>
-            console.error("chekelin reply error", error),
-          );
+        try {
+          const result = await saveInboundMessage(supabase, channel, value, message);
+          if (result) saved.push({ businessId: channel.business_id, ...result });
+        } catch (error) {
+          console.error("whatsapp inbound message error", message?.id, error);
         }
       }
       for (const status of value.statuses ?? []) {
-        await updateMessageStatus(supabase, status);
+        try {
+          await updateMessageStatus(supabase, status);
+        } catch (error) {
+          console.error("whatsapp status error", status?.id, error);
+        }
       }
     }
   }
+  return saved;
 }
 
 async function saveInboundMessage(
@@ -168,7 +195,7 @@ async function saveInboundMessage(
       .eq("id", conversation.id);
   }
 
-  await supabase.from("messages").insert({
+  const { error: insertError } = await supabase.from("messages").insert({
     conversation_id: conversation.id,
     business_id: channel.business_id,
     direction: "in",
@@ -177,6 +204,11 @@ async function saveInboundMessage(
     status: "sent",
     created_at: messageTime(message.timestamp, now),
   });
+  if (insertError) {
+    // 23505 = the same message arrived twice at once; the other copy won.
+    if (insertError.code === "23505") return null;
+    throw new Error(insertError.message);
+  }
 
   return { conversationId: conversation.id, contactName: profileName, body };
 }

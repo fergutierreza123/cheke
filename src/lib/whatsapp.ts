@@ -7,9 +7,9 @@ export const GRAPH_API_VERSION = "v21.0";
 // request body with your app secret and sends the digest in this header.
 // Must run against the *raw* body text, before any JSON.parse.
 export function verifyWebhookSignature(rawBody: string, signatureHeader: string | null): boolean {
-  if (!signatureHeader?.startsWith("sha256=")) return false;
+  if (!signatureHeader?.startsWith("sha256=") || !process.env.WHATSAPP_APP_SECRET) return false;
 
-  const expected = createHmac("sha256", process.env.WHATSAPP_APP_SECRET!)
+  const expected = createHmac("sha256", process.env.WHATSAPP_APP_SECRET)
     .update(rawBody, "utf8")
     .digest("hex");
   const provided = signatureHeader.slice("sha256=".length);

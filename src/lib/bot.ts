@@ -10,6 +10,9 @@ import type { Message } from "@/lib/types";
 export async function runChekelinReply(
   supabase: SupabaseClient,
   conversationId: string,
+  // false for the Chat "modo prueba": the reply is saved in cheke only, never
+  // sent to the real customer's WhatsApp.
+  { sendExternally = true }: { sendExternally?: boolean } = {},
 ): Promise<{ message?: Message; error?: string; skipped?: true }> {
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
@@ -31,7 +34,9 @@ export async function runChekelinReply(
       .from("messages")
       .select("direction, body")
       .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true })
+      // newest 20 (reversed below) — the oldest 20 would miss the message
+      // the customer just sent once a conversation gets long
+      .order("created_at", { ascending: false })
       .limit(20),
   ]);
 
@@ -39,7 +44,7 @@ export async function runChekelinReply(
     businessName: business?.name ?? "el negocio",
     products: products ?? [],
     templates: templates ?? [],
-    history: history ?? [],
+    history: (history ?? []).reverse(),
   });
 
   if (!reply) return { error };
@@ -61,7 +66,7 @@ export async function runChekelinReply(
 
   await supabase.from("conversations").update({ last_message_at: message.created_at }).eq("id", conversationId);
 
-  if (channel?.type === "whatsapp" && contact?.phone) {
+  if (sendExternally && channel?.type === "whatsapp" && contact?.phone) {
     const sendResult = await sendWhatsAppMessage(contact.phone, reply, credentialsForChannel(channel));
     if (sendResult.error) {
       await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);

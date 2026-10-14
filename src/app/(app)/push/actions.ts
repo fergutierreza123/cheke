@@ -17,13 +17,12 @@ export async function registerDeviceToken(token: string, platform: "ios" | "andr
   } = await supabase.auth.getUser();
   if (!user) return { error: "No has iniciado sesión." };
 
-  // One row per phone token; if the same phone is now used by someone else
-  // (or another business), the row simply moves to them.
-  const { error } = await supabase
-    .from("device_tokens")
-    .upsert(
-      { user_id: user.id, business_id: business.id, token, platform, last_seen_at: new Date().toISOString() },
-      { onConflict: "token" },
-    );
+  // The database function moves the phone's token to whoever is signed in
+  // now (even if the phone was last used by another person or business).
+  const { error } = await supabase.rpc("register_device_token", {
+    p_token: token,
+    p_platform: platform,
+    p_business_id: business.id,
+  });
   return error ? { error: error.message } : {};
 }
