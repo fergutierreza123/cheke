@@ -18,7 +18,7 @@ from PIL import Image
 
 NAVY, BLUE, MINT, WHITE = (0, 16, 55), (0, 67, 248), (82, 235, 187), (255, 255, 255)
 
-MAIN = (NAVY, BLUE)        # background, mark
+MAIN = (BLUE, NAVY)        # background, mark
 ALT = (NAVY, MINT)
 
 src = Image.open("public/logos/cheke-icon.png").convert("RGBA")
