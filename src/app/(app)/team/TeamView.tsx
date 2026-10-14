@@ -6,6 +6,7 @@ import { updateMemberRole, removeMember } from "./actions";
 import { initialsFromEmail, relativeTime } from "@/lib/format";
 import type { CurrentBusiness } from "@/lib/business";
 import type { TeamMember } from "@/lib/types";
+import { BrandMark } from "@/components/BrandMark";
 
 export function TeamView({
   business,
@@ -45,7 +46,10 @@ export function TeamView({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3.5 lg:px-8 lg:py-[18px]">
         <div>
-          <h1 className="font-heading text-xl font-semibold text-ink">Equipo</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
+            <BrandMark />
+            Equipo
+          </h1>
           <p className="text-[13.5px] text-ink-muted">Quién tiene acceso a {business.name} y qué rol tiene</p>
         </div>
       </div>

@@ -91,7 +91,7 @@ export function DemoPhone() {
               key={s.id}
               onClick={() => openScreen(s.id)}
               className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-                screen === s.id
+                screen.split("?")[0] === s.id
                   ? "border-accent bg-accent text-brand-dark"
                   : "border-white/20 text-white/80 hover:bg-white/10"
               }`}
@@ -148,7 +148,7 @@ export function DemoPhone() {
                   animate={{ y: 0, opacity: 1 }}
                   exit={prefersReducedMotion ? { opacity: 0 } : { y: -120, opacity: 0 }}
                   transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0.18, duration: 0.55 }}
-                  onClick={() => openScreen("chat")}
+                  onClick={() => openScreen("chat?c=conv-1")}
                   style={{ fontFamily: IOS_FONT }}
                   className="absolute left-2 right-2 top-[50px] z-10 flex gap-3 rounded-[24px] bg-white/90 p-3 text-left shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-xl"
                 >

@@ -31,6 +31,7 @@ export default async function ChatPage({
       templates={templates}
       initialSelectedId={firstId}
       initialMessages={initialMessages}
+      startInThread={requested !== null}
     />
   );
 }

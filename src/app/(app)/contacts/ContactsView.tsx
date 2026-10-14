@@ -7,6 +7,7 @@ import { seedDemoData } from "../actions";
 import { initialsFor, relativeTime, primaryChannel, CHANNEL_META } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import type { Contact } from "@/lib/types";
+import { BrandMark } from "@/components/BrandMark";
 
 type Draft = {
   id: string | null;
@@ -76,7 +77,10 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
-          <h1 className="font-heading text-xl font-semibold text-ink">Contactos</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
+            <BrandMark />
+            Contactos
+          </h1>
           <p className="hidden text-[13.5px] text-ink-muted sm:block">
             Registro de datos de todos tus clientes, sin importar el canal por el que llegaron
           </p>

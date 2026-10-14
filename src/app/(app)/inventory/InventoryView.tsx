@@ -7,6 +7,7 @@ import { sendProductToConversation } from "../actions";
 import { initialsFor, formatLempiras } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ConversationWithContact, Product } from "@/lib/types";
+import { BrandMark } from "@/components/BrandMark";
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -141,7 +142,10 @@ export function InventoryView({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
-          <h1 className="font-heading text-xl font-semibold text-ink">Catálogo</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
+            <BrandMark />
+            Catálogo
+          </h1>
           <p className="hidden text-[13.5px] text-ink-muted sm:block">
             Productos, fotos y precios, listos para enviar directo al chat cuando pregunten
           </p>

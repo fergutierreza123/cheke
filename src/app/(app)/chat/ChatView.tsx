@@ -7,6 +7,7 @@ import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProd
 import { sendChatMessage, simulateInboundMessage } from "./actions";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
+import { BrandMark } from "@/components/BrandMark";
 import { isWhatsAppWindowClosed, WINDOW_CLOSED_MESSAGE } from "@/lib/whatsappWindow";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
@@ -36,6 +37,7 @@ export function ChatView({
   templates,
   initialSelectedId,
   initialMessages,
+  startInThread = false,
 }: {
   businessId: string;
   conversations: ConversationWithContact[];
@@ -43,6 +45,9 @@ export function ChatView({
   templates: Template[];
   initialSelectedId: string | null;
   initialMessages: Message[];
+  // Phones: open straight into the conversation (a tapped notification)
+  // instead of the chat list.
+  startInThread?: boolean;
 }) {
   const [conversations, setConversations] = useState(initialConversations);
   const [selectedId, setSelectedId] = useState(initialSelectedId);
@@ -86,9 +91,9 @@ export function ChatView({
     return () => clearInterval(interval);
   }, []);
   // Below the `lg` breakpoint there isn't room for list + thread side by
-  // side, so only one shows at a time. Default to the thread so the already
-  // selected conversation is visible immediately, with no tap required.
-  const [mobileView, setMobileView] = useState<"list" | "thread">("thread");
+  // side, so only one shows at a time. Like WhatsApp, a phone opens on the
+  // list — unless it was opened for one conversation (a tapped notification).
+  const [mobileView, setMobileView] = useState<"list" | "thread">(startInThread ? "thread" : "list");
   const [showDetail, setShowDetail] = useState(false);
   const prefersReducedMotion = useReducedMotion();
 
@@ -406,7 +411,10 @@ export function ChatView({
         className={`${mobileView === "thread" ? "hidden lg:flex" : "flex"} w-full shrink-0 flex-col border-r border-border bg-surface lg:w-[var(--list-w)]`}
       >
         <div className="shrink-0 px-4.5 pb-3 pt-5">
-          <div className="mb-3 font-heading text-[19px] font-semibold text-ink">Chat</div>
+          <div className="mb-3 flex items-center gap-2 font-heading text-[19px] font-semibold text-ink">
+            <BrandMark />
+            Chat
+          </div>
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             <input

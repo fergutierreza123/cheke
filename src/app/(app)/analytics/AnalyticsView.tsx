@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { STAGE_META, STAGE_ORDER, CHANNEL_META, formatLempiras } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ChannelType, ConversationWithContact, Product } from "@/lib/types";
+import { BrandMark } from "@/components/BrandMark";
 
 type Range = "semana" | "mes" | "trimestre";
 const RANGE_DAYS: Record<Range, number> = { semana: 7, mes: 30, trimestre: 90 };
@@ -91,7 +92,10 @@ export function AnalyticsView({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
-          <h1 className="font-heading text-xl font-semibold text-ink">Analítica de ventas</h1>
+          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
+            <BrandMark />
+            Analítica de ventas
+          </h1>
           <p className="hidden text-[13.5px] text-ink-muted sm:block">Cómo avanza tu Chekeo de ventas, canal por canal</p>
         </div>
         {/* Equal-width segmented row on phones, compact pills on desktop. */}

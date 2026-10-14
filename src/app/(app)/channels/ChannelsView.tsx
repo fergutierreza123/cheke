@@ -7,6 +7,7 @@ import { relativeTime } from "@/lib/format";
 import type { ChannelType } from "@/lib/types";
 import { ConnectWhatsAppButton } from "./ConnectWhatsAppButton";
 import { disconnectChannel } from "./actions";
+import { BrandMark } from "@/components/BrandMark";
 
 export type ChannelItem = {
   id: string;
@@ -48,7 +49,10 @@ export function ChannelsView({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col gap-1 border-b border-border bg-surface px-4 py-3.5 lg:px-8 lg:py-[18px]">
-        <h1 className="font-heading text-xl font-semibold text-ink">Canales</h1>
+        <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
+            <BrandMark />
+            Canales
+          </h1>
         <p className="hidden text-[13.5px] text-ink-muted sm:block">
           Conecta tus redes para recibir todos los mensajes en un solo buzón
         </p>

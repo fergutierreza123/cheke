@@ -17,13 +17,20 @@ export const metadata: Metadata = { title: "cheke.io — demo", robots: { index:
 // The real app screens, fed fictional data and living inside the real shell,
 // so the /demo phone frame shows exactly what a client would see. Saving or
 // sending does nothing here (server actions need a signed-in business).
-export default async function DemoScreen({ params }: { params: Promise<{ view: string }> }) {
+export default async function DemoScreen({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ view: string }>;
+  searchParams: Promise<{ c?: string }>;
+}) {
   const { view } = await params;
+  const { c } = await searchParams;
   // eslint-disable-next-line react-hooks/purity -- request-time sample data so "hace 12 min" etc. are relative to now
   const d = buildDemoData(Date.now());
 
   const views: Record<string, React.ReactNode> = {
-    chat: <ChatView businessId="demo" conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} />,
+    chat: <ChatView businessId="demo" conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} startInThread={Boolean(c)} />,
     chekeo: <ChekeoView conversations={d.conversations} />,
     contacts: <ContactsView contacts={d.contacts} />,
     templates: <TemplatesView templates={d.templates} />,

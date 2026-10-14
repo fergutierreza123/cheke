@@ -14,6 +14,7 @@ import {
   formatLempiras,
 } from "@/lib/format";
 import type { ConversationStage, ConversationWithContact } from "@/lib/types";
+import { BrandMark } from "@/components/BrandMark";
 
 const STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -122,7 +123,10 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
       <div className="flex shrink-0 flex-col gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="font-heading text-xl font-semibold text-ink">Chekeo de ventas</h1>
+            <h1 className="flex items-center gap-2 font-heading text-xl font-semibold text-ink">
+            <BrandMark />
+            Chekeo de ventas
+          </h1>
             <p className="hidden text-[13.5px] text-ink-muted lg:block">
               Arrastra una tarjeta o usa las flechas para mover un contacto de etapa
             </p>

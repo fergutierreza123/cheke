@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
+import { BrandMark } from "@/components/BrandMark";
 
 export function PageStub({
   title,
@@ -17,7 +18,10 @@ export function PageStub({
     <div className="flex h-full flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3.5 lg:h-[72px] lg:px-8 lg:py-0">
         <div>
-          <div className="text-display font-heading text-xl font-semibold text-ink">{title}</div>
+          <div className="text-display flex items-center gap-2 font-heading text-xl font-semibold text-ink">
+            <BrandMark />
+            {title}
+          </div>
           <div className="text-sm text-ink-muted">{subtitle}</div>
         </div>
       </div>
