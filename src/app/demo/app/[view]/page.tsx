@@ -10,6 +10,7 @@ import { NotificationsView } from "@/app/(app)/notifications/NotificationsView";
 import { AnalyticsView } from "@/app/(app)/analytics/AnalyticsView";
 import { ChannelsView } from "@/app/(app)/channels/ChannelsView";
 import { PageStub } from "@/components/PageStub";
+import { WelcomeSplash } from "@/components/WelcomeSplash";
 import { buildDemoData, DEMO_BASE } from "@/lib/demoData";
 
 export const metadata: Metadata = { title: "cheke.io — demo", robots: { index: false, follow: false } };
@@ -22,10 +23,10 @@ export default async function DemoScreen({
   searchParams,
 }: {
   params: Promise<{ view: string }>;
-  searchParams: Promise<{ c?: string }>;
+  searchParams: Promise<{ c?: string; welcome?: string }>;
 }) {
   const { view } = await params;
-  const { c } = await searchParams;
+  const { c, welcome } = await searchParams;
   // eslint-disable-next-line react-hooks/purity -- request-time sample data so "hace 12 min" etc. are relative to now
   const d = buildDemoData(Date.now());
 
@@ -50,6 +51,7 @@ export default async function DemoScreen({
 
   return (
     <AppShell businessName={d.business.name} notificationCount={d.notifications.length} basePath={DEMO_BASE}>
+      {welcome && <WelcomeSplash firstName="Fernando" businessName={d.business.name} />}
       {views[view] ?? <div className="p-8 text-ink-muted">Pantalla no encontrada.</div>}
     </AppShell>
   );

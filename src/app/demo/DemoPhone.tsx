@@ -29,7 +29,8 @@ const HOME_H = 22;
 const BEZEL = 12;
 
 export function DemoPhone() {
-  const [screen, setScreen] = useState("chat");
+  // Opens with the welcome animation, like right after signing in.
+  const [screen, setScreen] = useState("chat?welcome=1");
   const [reloadKey, setReloadKey] = useState(0);
   const [banner, setBanner] = useState(false);
   const [scale, setScale] = useState(1);
@@ -101,8 +102,14 @@ export function DemoPhone() {
           ))}
         </div>
         <button
+          onClick={() => openScreen("chat?welcome=1")}
+          className="mt-6 flex items-center gap-2 rounded-xl border border-white/25 px-4 py-2.5 text-[13.5px] font-semibold text-white transition-colors hover:bg-white/10"
+        >
+          <span aria-hidden>▶</span> Ver animación de entrada
+        </button>
+        <button
           onClick={showBanner}
-          className="mt-6 flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+          className="mt-3 flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
         >
           <span aria-hidden>🔔</span> Simular mensaje nuevo
         </button>

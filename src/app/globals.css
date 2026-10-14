@@ -123,3 +123,41 @@ a.pressable:active {
     font-size: 16px;
   }
 }
+
+/* ---- Welcome screen after login (src/components/WelcomeSplash.tsx) ----
+   Pure CSS so it plays from the very first paint, before any JavaScript has
+   loaded — on a slow phone the screen would otherwise sit empty until the
+   page hydrates. Timeline (2.8s): logo pops in, eyes blink at ~0.65s and
+   ~1.95s (they flatten toward their base line for 0.18s), greeting rises,
+   then the whole screen fades out. */
+@keyframes welcome-pop {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes welcome-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes welcome-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes welcome-blink {
+  0%, 22.14% { transform: scaleY(1); }
+  25.36% { transform: scaleY(0.08); }
+  28.57%, 68.57% { transform: scaleY(1); }
+  71.79% { transform: scaleY(0.08); }
+  75%, 100% { transform: scaleY(1); }
+}
+@keyframes welcome-out {
+  to { opacity: 0; visibility: hidden; }
+}
+.welcome-screen { animation: welcome-out 0.45s ease-out 2.8s forwards; }
+.welcome-icon { animation: welcome-pop 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.welcome-eyes { transform-origin: 50% 56.5%; animation: welcome-blink 2.8s ease-in-out both; }
+.welcome-title { animation: welcome-rise 0.5s ease-out 0.25s both; }
+.welcome-sub { animation: welcome-fade 0.5s ease-out 0.45s both; }
+@media (prefers-reduced-motion: reduce) {
+  .welcome-screen { animation: welcome-out 0.3s linear 1.2s forwards; }
+  .welcome-icon, .welcome-eyes, .welcome-title, .welcome-sub { animation: none; }
+}
