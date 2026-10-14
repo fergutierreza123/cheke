@@ -395,7 +395,10 @@ export function ChatView({
   }
 
   return (
-    <div className="flex h-full min-h-0">
+    // The whole Chat screen (list, header, messages, compose bar) uses the
+    // phone's system font, like WhatsApp itself, so nothing in a conversation
+    // changes typeface mid-screen. Titles with font-heading keep the brand font.
+    <div className="flex h-full min-h-0" style={{ fontFamily: WHATSAPP_FONT }}>
       {/* Conversation list — full width on its own below `lg`, a fixed
           resizable column beside the thread at `lg` and up. */}
       <div

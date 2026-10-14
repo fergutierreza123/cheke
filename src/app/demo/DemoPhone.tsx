@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 const BASE = "/demo/app";
+// A real iOS notification is drawn by the OS in San Francisco, not by the
+// app, so the simulated banner uses the system font too.
+const IOS_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const SCREENS = [
   { id: "chat", label: "Chat" },
   { id: "chekeo", label: "Chekeo" },
@@ -146,6 +149,7 @@ export function DemoPhone() {
                   exit={prefersReducedMotion ? { opacity: 0 } : { y: -120, opacity: 0 }}
                   transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0.18, duration: 0.55 }}
                   onClick={() => openScreen("chat")}
+                  style={{ fontFamily: IOS_FONT }}
                   className="absolute left-2 right-2 top-[50px] z-10 flex gap-3 rounded-[24px] bg-white/90 p-3 text-left shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-xl"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
