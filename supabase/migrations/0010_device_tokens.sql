@@ -5,8 +5,9 @@
 --
 -- A token belongs to the person signed in on that phone, so it's scoped by
 -- user_id as well as business_id: people only ever see/touch their own.
+-- Safe to run more than once.
 
-create table device_tokens (
+create table if not exists device_tokens (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   business_id uuid not null references businesses(id) on delete cascade,
@@ -16,15 +17,22 @@ create table device_tokens (
   last_seen_at timestamptz not null default now()
 );
 
-create index device_tokens_business_idx on device_tokens (business_id);
+create index if not exists device_tokens_business_idx on device_tokens (business_id);
 
 alter table device_tokens enable row level security;
 
+drop policy if exists "own tokens read" on device_tokens;
 create policy "own tokens read" on device_tokens for select
   using (user_id = auth.uid() and is_member_of(business_id));
+
+drop policy if exists "own tokens insert" on device_tokens;
 create policy "own tokens insert" on device_tokens for insert
   with check (user_id = auth.uid() and is_member_of(business_id));
+
+drop policy if exists "own tokens update" on device_tokens;
 create policy "own tokens update" on device_tokens for update
   using (user_id = auth.uid());
+
+drop policy if exists "own tokens delete" on device_tokens;
 create policy "own tokens delete" on device_tokens for delete
   using (user_id = auth.uid());
