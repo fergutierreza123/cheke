@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyWebhookSignature } from "@/lib/whatsapp";
+import { samePhone, verifyWebhookSignature } from "@/lib/whatsapp";
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
 import { describeMessage, type WhatsAppMessage } from "@/lib/whatsappMessages";
@@ -109,12 +109,16 @@ async function saveInboundMessage(
   const waId = message.from;
   const profileName = value.contacts?.find((c) => c.wa_id === waId)?.profile?.name ?? waId;
 
-  let { data: contact } = await supabase
+  // The customer may already be in Contactos with their number typed any
+  // way ("+504 9922-3843"), so compare digits rather than the raw string —
+  // otherwise every such customer would get a second, duplicate contact.
+  const { data: candidates } = await supabase
     .from("contacts")
-    .select("id")
+    .select("id, phone")
     .eq("business_id", channel.business_id)
-    .eq("phone", waId)
-    .maybeSingle();
+    .not("phone", "is", null)
+    .limit(5000);
+  let contact: { id: string } | null = candidates?.find((c) => samePhone(c.phone, waId)) ?? null;
 
   if (!contact) {
     const { data: newContact, error } = await supabase
@@ -126,13 +130,17 @@ async function saveInboundMessage(
     contact = newContact;
   }
 
-  let { data: conversation } = await supabase
+  // limit(1) instead of maybeSingle(): if a race ever created two rows,
+  // maybeSingle() would error out and we'd create a third.
+  const { data: existingConversations } = await supabase
     .from("conversations")
     .select("id")
     .eq("business_id", channel.business_id)
     .eq("contact_id", contact.id)
     .eq("channel_id", channel.id)
-    .maybeSingle();
+    .order("created_at", { ascending: true })
+    .limit(1);
+  let conversation = existingConversations?.[0] ?? null;
 
   const now = new Date();
   const windowExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
@@ -155,7 +163,8 @@ async function saveInboundMessage(
   } else {
     await supabase
       .from("conversations")
-      .update({ last_message_at: now.toISOString(), window_expires_at: windowExpiresAt })
+      // A customer writing again reopens a conversation that had been closed.
+      .update({ last_message_at: now.toISOString(), window_expires_at: windowExpiresAt, status: "open" })
       .eq("id", conversation.id);
   }
 
@@ -166,15 +175,37 @@ async function saveInboundMessage(
     body,
     external_message_id: message.id,
     status: "sent",
-    created_at: new Date(Number(message.timestamp) * 1000).toISOString(),
+    created_at: messageTime(message.timestamp, now),
   });
 
   return { conversationId: conversation.id, contactName: profileName, body };
 }
 
+// Meta can deliver "delivered" before "sent" (or retry an old one), so a
+// status only ever moves forward — a late "sent" must not undo a "read".
+const STATUS_RANK = { sent: 1, delivered: 2, read: 3, failed: 4 } as const;
+
 async function updateMessageStatus(supabase: ReturnType<typeof createAdminClient>, status: WhatsAppStatus) {
-  if (!["sent", "delivered", "read", "failed"].includes(status.status)) return;
+  const next = STATUS_RANK[status.status as keyof typeof STATUS_RANK];
+  if (!next) return;
+
+  const { data: current } = await supabase
+    .from("messages")
+    .select("status")
+    .eq("external_message_id", status.id)
+    .maybeSingle();
+  if (!current) return;
+
+  const currentRank = STATUS_RANK[current.status as keyof typeof STATUS_RANK] ?? 0;
+  // "failed" always wins (nothing was delivered); otherwise only move forward.
+  if (status.status !== "failed" && (currentRank >= next || current.status === "failed")) return;
+
   await supabase.from("messages").update({ status: status.status }).eq("external_message_id", status.id);
+}
+
+function messageTime(timestamp: string | undefined, fallback: Date): string {
+  const ms = Number(timestamp) * 1000;
+  return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : fallback.toISOString();
 }
 
 // Minimal shape of what we actually read from Meta's payload — not exhaustive.

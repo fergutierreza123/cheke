@@ -11,6 +11,7 @@ import { AnalyticsView } from "@/app/(app)/analytics/AnalyticsView";
 import { ChannelsView } from "@/app/(app)/channels/ChannelsView";
 import { PageStub } from "@/components/PageStub";
 import { WelcomeSplash } from "@/components/WelcomeSplash";
+import { AccountView } from "@/app/(app)/account/AccountView";
 import { buildDemoData, DEMO_BASE } from "@/lib/demoData";
 
 export const metadata: Metadata = { title: "cheke.io — demo", robots: { index: false, follow: false } };
@@ -28,7 +29,8 @@ export default async function DemoScreen({
   const { view } = await params;
   const { c, welcome } = await searchParams;
   // eslint-disable-next-line react-hooks/purity -- request-time sample data so "hace 12 min" etc. are relative to now
-  const d = buildDemoData(Date.now());
+  const nowMs = Date.now();
+  const d = buildDemoData(nowMs);
 
   const views: Record<string, React.ReactNode> = {
     chat: <ChatView businessId="demo" conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} startInThread={Boolean(c)} />,
@@ -46,11 +48,25 @@ export default async function DemoScreen({
       />
     ),
     analytics: <AnalyticsView conversations={d.conversations} products={d.products} />,
+    account: (
+      <AccountView
+        user={{ name: "Fernando Gutiérrez", email: "fernando@cheke.io" }}
+        provider="google"
+        lastSignIn={new Date(nowMs - 3_600_000).toISOString()}
+        business={{ name: d.business.name, plan: "pro", role: "owner" }}
+        demo
+      />
+    ),
     comments: <PageStub title="Comentarios" subtitle="Comentarios en tus publicaciones de Instagram y Facebook" phase="Fase 7 — Comentarios (comentario a mensaje directo)" />,
   };
 
   return (
-    <AppShell businessName={d.business.name} notificationCount={d.notifications.length} basePath={DEMO_BASE}>
+    <AppShell
+      businessName={d.business.name}
+      notificationCount={d.notifications.length}
+      basePath={DEMO_BASE}
+      user={{ name: "Fernando Gutiérrez", email: "fernando@cheke.io" }}
+    >
       {welcome && <WelcomeSplash firstName="Fernando" businessName={d.business.name} />}
       {views[view] ?? <div className="p-8 text-ink-muted">Pantalla no encontrada.</div>}
     </AppShell>

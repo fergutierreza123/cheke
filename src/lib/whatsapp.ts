@@ -23,8 +23,21 @@ export function verifyWebhookSignature(rawBody: string, signatureHeader: string 
 
 // Strips everything but digits, since the Graph API wants the recipient
 // number as plain digits with country code (no "+", spaces or dashes).
+// Contacts are often typed the way people say them out loud — "9922-3843" —
+// so an 8-digit local Honduran number gets the 504 country code; anything
+// longer is assumed to already carry its own.
 export function toWhatsAppNumber(phone: string): string {
-  return phone.replace(/\D/g, "");
+  const digits = phone.replace(/\D/g, "");
+  return digits.length === 8 ? `504${digits}` : digits;
+}
+
+// Same customer? Compares two phone numbers however they were typed
+// ("+504 9922-3843", "99223843", "50499223843" are all the same person).
+export function samePhone(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const x = toWhatsAppNumber(a);
+  const y = toWhatsAppNumber(b);
+  return x.length > 0 && x === y;
 }
 
 export type WhatsAppCredentials = { phoneNumberId: string; accessToken: string };
@@ -72,16 +85,24 @@ export async function sendWhatsAppMessage(
     ? { messaging_product: "whatsapp", to: toWhatsAppNumber(toPhone), type: "image", image: { link: mediaUrl, caption: body } }
     : { messaging_product: "whatsapp", to: toWhatsAppNumber(toPhone), type: "text", text: { body } };
 
-  const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${credentials.phoneNumberId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${credentials.accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  // A dropped connection or a Meta outage must come back as a normal error
+  // the Chat screen can show, not an exception that breaks the server action.
+  let res: Response;
+  try {
+    res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${credentials.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${credentials.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    return { error: "No se pudo contactar a WhatsApp. Revisa tu conexión e inténtalo de nuevo." };
+  }
 
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
   if (!res.ok) {
     return { error: data?.error?.message ?? "No se pudo enviar el mensaje de WhatsApp." };
   }

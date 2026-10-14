@@ -6,7 +6,8 @@ import { isWhatsAppWindowClosed, WINDOW_CLOSED_MESSAGE } from "@/lib/whatsappWin
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Message } from "@/lib/types";
+import { buildPaymentMessage, normalizePaymentLink } from "@/lib/payments";
+import type { ConversationStage, Message } from "@/lib/types";
 
 export async function sendChatMessage(
   conversationId: string,
@@ -128,4 +129,123 @@ export async function simulateInboundMessage(
   const botResult = await runChekelinReply(supabase, conversationId);
   if (botResult.error) return { inbound, error: botResult.error };
   return { inbound, reply: botResult.message };
+}
+
+export type OpenOrder = {
+  id: string;
+  total_hnl: number;
+  concept: string;
+  payment_link: string | null;
+  created_at: string;
+};
+
+// Orders waiting on payment for one conversation (shown above the composer).
+export async function listOpenOrders(conversationId: string): Promise<OpenOrder[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("orders")
+    .select("id, total_hnl, items, payment_link, created_at")
+    .eq("conversation_id", conversationId)
+    .eq("status", "awaiting_payment")
+    .order("created_at", { ascending: false });
+
+  return (data ?? []).map((o) => ({
+    id: o.id,
+    total_hnl: Number(o.total_hnl),
+    concept: Array.isArray(o.items) ? (o.items[0]?.name ?? "") : "",
+    payment_link: o.payment_link,
+    created_at: o.created_at,
+  }));
+}
+
+// Sends the customer a payment request (link and/or transfer details) and
+// records it as an order awaiting payment. The order is only created once the
+// message actually went out, so a failed send never leaves a phantom charge.
+export async function sendPaymentRequest(
+  conversationId: string,
+  input: { concept: string; amountHnl: number; link?: string; instructions?: string },
+): Promise<{ order?: OpenOrder; message?: Message; error?: string }> {
+  const concept = input.concept.trim();
+  if (!concept) return { error: "Escribe el concepto del cobro." };
+  if (!Number.isFinite(input.amountHnl) || input.amountHnl <= 0) return { error: "Escribe un monto válido." };
+
+  const linkCheck = normalizePaymentLink(input.link ?? "");
+  if (linkCheck.error) return { error: linkCheck.error };
+  const instructions = input.instructions?.trim() || undefined;
+  if (!linkCheck.link && !instructions) {
+    return { error: "Agrega un link de pago o las instrucciones para pagar (cuenta, transferencia…)." };
+  }
+
+  const supabase = await createClient();
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, business_id, contact_id, stage")
+    .eq("id", conversationId)
+    .single();
+  if (!conversation) return { error: "No se encontró la conversación." };
+
+  const text = buildPaymentMessage({ concept, amountHnl: input.amountHnl, link: linkCheck.link, instructions });
+  const sent = await sendChatMessage(conversationId, text);
+  if (sent.error || sent.sendError) return { message: sent.message, error: sent.error ?? sent.sendError };
+
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .insert({
+      business_id: conversation.business_id,
+      conversation_id: conversationId,
+      contact_id: conversation.contact_id,
+      items: [{ name: concept, quantity: 1, price_hnl: input.amountHnl }],
+      total_hnl: input.amountHnl,
+      status: "awaiting_payment",
+      payment_link: linkCheck.link ?? null,
+    })
+    .select("id, total_hnl, items, payment_link, created_at")
+    .single();
+  // The customer already has the message, so don't fail the send — just say
+  // the tracking part didn't save so the agent can mark it manually.
+  if (orderError || !order) {
+    return { message: sent.message, error: "El mensaje se envió, pero no se pudo registrar el cobro en cheke." };
+  }
+
+  // A deal that's being charged is at least in negotiation, and its value is
+  // what's being charged. Never moves a won/lost deal backwards.
+  const earlyStages: ConversationStage[] = ["nuevo", "consulta", "cotizacion"];
+  await supabase
+    .from("conversations")
+    .update({
+      value_hnl: input.amountHnl,
+      ...(earlyStages.includes(conversation.stage as ConversationStage) ? { stage: "negociacion" } : {}),
+    })
+    .eq("id", conversationId);
+
+  return {
+    message: sent.message,
+    order: {
+      id: order.id,
+      total_hnl: Number(order.total_hnl),
+      concept,
+      payment_link: order.payment_link,
+      created_at: order.created_at,
+    },
+  };
+}
+
+// The agent confirms the customer paid (or the charge was dropped). Paid also
+// moves the deal to "ganado" so Chekeo and Analítica reflect the sale.
+export async function resolveOrder(orderId: string, outcome: "paid" | "cancelled"): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: order, error } = await supabase
+    .from("orders")
+    .update({ status: outcome })
+    .eq("id", orderId)
+    .eq("status", "awaiting_payment")
+    .select("conversation_id")
+    .maybeSingle();
+  if (error) return { error: error.message };
+  if (!order) return { error: "Este cobro ya fue actualizado." };
+
+  if (outcome === "paid" && order.conversation_id) {
+    await supabase.from("conversations").update({ stage: "ganado" }).eq("id", order.conversation_id);
+  }
+  return {};
 }

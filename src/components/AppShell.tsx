@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
 import { MobileNav } from "@/components/MobileNav";
+import type { UserInfo } from "@/lib/user";
 
 // One shell for every signed-in screen: side menu on desktop (lg+), bottom
 // tab bar on phones. h-dvh (not h-screen) so iOS Safari's collapsing
@@ -8,11 +9,13 @@ export function AppShell({
   businessName,
   notificationCount,
   basePath,
+  user,
   children,
 }: {
   businessName: string;
   notificationCount: number;
   basePath?: string;
+  user: UserInfo;
   children: React.ReactNode;
 }) {
   return (
@@ -21,10 +24,10 @@ export function AppShell({
           app. 0px in a normal browser, so nothing changes there. */}
       <div className="shrink-0 bg-surface lg:hidden" style={{ height: "env(safe-area-inset-top)" }} />
       <div className="hidden h-full lg:block">
-        <Sidebar businessName={businessName} notificationCount={notificationCount} />
+        <Sidebar businessName={businessName} notificationCount={notificationCount} user={user} />
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-      <MobileNav businessName={businessName} notificationCount={notificationCount} basePath={basePath} />
+      <MobileNav businessName={businessName} notificationCount={notificationCount} basePath={basePath} user={user} />
     </div>
   );
 }

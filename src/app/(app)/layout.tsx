@@ -8,6 +8,7 @@ import { AppShell } from "@/components/AppShell";
 import { PushRegistrar } from "@/components/PushRegistrar";
 import { WelcomeSplash } from "@/components/WelcomeSplash";
 import { createClient } from "@/lib/supabase/server";
+import { userInfoFrom } from "@/lib/user";
 
 export default async function AppLayout({
   children,
@@ -26,20 +27,21 @@ export default async function AppLayout({
   ]);
   const notifications = await getNotifications(business.id, conversations, products);
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   // Just signed in (flag set by /auth/callback)? Greet them by first name —
   // Google gives us one; email-only accounts just get the plain greeting.
   let welcome: { firstName: string | null } | null = null;
   if ((await cookies()).get("cheke_welcome")?.value === "1") {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     const fullName = (user?.user_metadata?.full_name ?? user?.user_metadata?.name) as string | undefined;
     welcome = { firstName: fullName?.trim().split(/\s+/)[0] || null };
   }
 
   return (
-    <AppShell businessName={business.name} notificationCount={notifications.length}>
+    <AppShell businessName={business.name} notificationCount={notifications.length} user={userInfoFrom(user)}>
       {welcome && <WelcomeSplash firstName={welcome.firstName} businessName={business.name} />}
       <PushRegistrar />
       {children}

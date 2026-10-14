@@ -5,6 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, Reorder, useDragControls, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
+import { initialsFor } from "@/lib/format";
+import { signOut } from "@/app/(app)/account/actions";
+import type { UserInfo } from "@/lib/user";
 
 export const DEFAULT_NAV_ITEMS = [
   { href: "/chat", label: "Chat", icon: ChatIcon },
@@ -23,12 +26,12 @@ const NAV_ORDER_KEY = "cheke-nav-order";
 
 export function Sidebar({
   businessName,
-  businessCity = "Honduras",
   notificationCount = 0,
+  user,
 }: {
   businessName: string;
-  businessCity?: string;
   notificationCount?: number;
+  user: UserInfo;
 }) {
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion();
@@ -85,14 +88,33 @@ export function Sidebar({
         ))}
       </Reorder.Group>
 
-      <div className="mt-auto flex items-center gap-2.5 border-t border-white/[0.08] px-6 pt-4">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand p-1.5 ring-2 ring-white/15">
-          <Image src="/logos/cheke-icon.png" alt="" width={20} height={20} />
-        </div>
-        <div>
-          <div className="text-[13.5px] font-semibold text-white">{businessName}</div>
-          <div className="text-xs text-[#9AA3C4]">{businessCity}</div>
-        </div>
+      {/* Who's signed in: opens Mi cuenta (details), with log out one click away. */}
+      <div className="mt-auto flex items-center gap-1 border-t border-white/[0.08] px-3 pt-3">
+        <Link
+          href="/account"
+          title="Mi cuenta"
+          className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-3 py-2 transition-colors hover:bg-white/[0.06] ${
+            pathname.startsWith("/account") ? "bg-white/[0.06]" : ""
+          }`}
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-[12px] font-bold text-white ring-2 ring-white/15">
+            {initialsFor(user.name)}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-[13.5px] font-semibold text-white">{user.name}</div>
+            <div className="truncate text-xs text-[#9AA3C4]">{businessName}</div>
+          </div>
+        </Link>
+        <form action={signOut}>
+          <button
+            type="submit"
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#9AA3C4] transition-colors hover:bg-white/[0.06] hover:text-white"
+          >
+            <LogoutIcon className="h-[18px] w-[18px]" />
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -273,6 +295,15 @@ function GripIcon({ className }: { className?: string }) {
       <circle cx="15" cy="12" r="1.4" />
       <circle cx="9" cy="18" r="1.4" />
       <circle cx="15" cy="18" r="1.4" />
+    </svg>
+  );
+}
+function LogoutIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps(className)}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
     </svg>
   );
 }

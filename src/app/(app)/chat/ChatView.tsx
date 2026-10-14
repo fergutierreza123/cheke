@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
 import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProductToConversation } from "../actions";
-import { sendChatMessage, simulateInboundMessage } from "./actions";
+import { sendChatMessage, simulateInboundMessage, sendPaymentRequest, listOpenOrders, resolveOrder, type OpenOrder } from "./actions";
+import { parseAmount, formatAmount } from "@/lib/payments";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { BrandMark } from "@/components/BrandMark";
@@ -76,6 +77,15 @@ export function ChatView({
   // the agent to fill in/edit, rather than sending it outright.
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // Payment request ("Cobrar"): the form's fields, and the orders still
+  // waiting on payment per conversation (shown above the composer).
+  const [showPayment, setShowPayment] = useState(false);
+  const [payConcept, setPayConcept] = useState("");
+  const [payAmount, setPayAmount] = useState("");
+  const [payLink, setPayLink] = useState("");
+  const [payInstructions, setPayInstructions] = useState("");
+  const [payBusy, setPayBusy] = useState(false);
+  const [ordersByConversation, setOrdersByConversation] = useState<Record<string, OpenOrder[]>>({});
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -155,6 +165,19 @@ export function ChatView({
     () => (selectedId ? (messagesByConversation[selectedId] ?? []) : []),
     [selectedId, messagesByConversation],
   );
+
+  // Pending charges for the open conversation (not in demo, which has no
+  // signed-in business behind it).
+  useEffect(() => {
+    if (!selectedId || businessId === "demo") return;
+    let cancelled = false;
+    listOpenOrders(selectedId).then((orders) => {
+      if (!cancelled) setOrdersByConversation((prev) => ({ ...prev, [selectedId]: orders }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, businessId]);
 
   function appendMessage(msg: Message) {
     setMessagesByConversation((prev) => {
@@ -364,6 +387,87 @@ export function ChatView({
     if (input && blank) {
       // after React has committed the new value to the input
       window.setTimeout(() => input.setSelectionRange(blank.index, blank.index + blank[0].length), 30);
+    }
+  }
+
+  function openPayment() {
+    setShowPayment((v) => !v);
+    setShowProductPicker(false);
+    setShowTemplatePicker(false);
+    setShowEmojiPicker(false);
+    if (!payInstructions) {
+      try {
+        setPayInstructions(localStorage.getItem("cheke-pay-instructions") ?? "");
+      } catch {
+        // storage blocked — start empty
+      }
+    }
+  }
+
+  async function handleSendPayment() {
+    if (!selected) return;
+    const amount = parseAmount(payAmount);
+    if (amount === null) {
+      setSendError("Escribe un monto válido, por ejemplo 1250 o 1,250.50");
+      return;
+    }
+    setSendError(null);
+    setPayBusy(true);
+    try {
+      const result = await sendPaymentRequest(selected.id, {
+        concept: payConcept,
+        amountHnl: amount,
+        link: payLink,
+        instructions: payInstructions,
+      });
+      if (result.message) {
+        appendMessage(result.message);
+        bumpConversation(selected.id, result.message.created_at, result.message.body);
+      }
+      if (result.order) {
+        const order = result.order;
+        setOrdersByConversation((prev) => ({ ...prev, [selected.id]: [order, ...(prev[selected.id] ?? [])] }));
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === selected.id
+              ? { ...c, value_hnl: amount, stage: ["nuevo", "consulta", "cotizacion"].includes(c.stage) ? "negociacion" : c.stage }
+              : c,
+          ),
+        );
+      }
+      if (result.error) {
+        setSendError(result.error);
+        return;
+      }
+      try {
+        localStorage.setItem("cheke-pay-instructions", payInstructions);
+      } catch {
+        // ignore
+      }
+      setShowPayment(false);
+      setPayConcept("");
+      setPayAmount("");
+      setPayLink("");
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
+  async function handleResolveOrder(order: OpenOrder, outcome: "paid" | "cancelled") {
+    if (!selected) return;
+    const label = outcome === "paid" ? "pagado" : "cancelado";
+    if (!confirm(`¿Marcar el cobro de ${formatAmount(order.total_hnl)} como ${label}?`)) return;
+    const result = await resolveOrder(order.id, outcome);
+    if (result.error) {
+      setSendError(result.error);
+      return;
+    }
+    setOrdersByConversation((prev) => ({
+      ...prev,
+      [selected.id]: (prev[selected.id] ?? []).filter((o) => o.id !== order.id),
+    }));
+    if (outcome === "paid") {
+      setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, stage: "ganado" } : c)));
     }
   }
 
@@ -743,6 +847,31 @@ export function ChatView({
                 </button>
               </div>
             )}
+            {(ordersByConversation[selected.id] ?? []).map((order) => (
+              <div
+                key={order.id}
+                className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-border bg-accent-tint px-4 py-2 lg:px-6"
+              >
+                <div className="min-w-0 flex-1 text-[12.5px] text-ink">
+                  <span className="font-semibold">Cobro pendiente · {formatAmount(order.total_hnl)}</span>
+                  {order.concept && <span className="text-ink-muted"> — {order.concept}</span>}
+                </div>
+                <div className="flex shrink-0 gap-1.5">
+                  <button
+                    onClick={() => handleResolveOrder(order, "paid")}
+                    className="min-h-8 rounded-lg bg-brand px-3 text-[12px] font-semibold text-white"
+                  >
+                    Marcar pagado
+                  </button>
+                  <button
+                    onClick={() => handleResolveOrder(order, "cancelled")}
+                    className="min-h-8 rounded-lg border border-border bg-surface px-3 text-[12px] text-ink-muted"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ))}
             <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface px-3 py-2.5 lg:px-6 lg:py-3.5">
               <div className="relative">
                 <button
@@ -827,6 +956,73 @@ export function ChatView({
                           </button>
                         ))}
                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={openPayment}
+                  disabled={sendBlocked || simulateMode || businessId === "demo"}
+                  title="Cobrar: enviar un link de pago o datos para pagar"
+                  aria-pressed={showPayment}
+                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
+                    showPayment
+                      ? "border-brand bg-brand-tint text-brand-dark"
+                      : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                  }`}
+                >
+                  <CardIcon className="h-4 w-4" />
+                </button>
+                <AnimatePresence>
+                  {showPayment && (
+                    <motion.div
+                      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      transition={{ type: "spring", bounce: 0, duration: 0.25 }}
+                      className="absolute bottom-[46px] left-0 z-10 flex w-[290px] max-w-[calc(100vw-24px)] flex-col gap-2 rounded-[10px] border border-border bg-surface p-3 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                    >
+                      <div className="text-[12.5px] font-semibold text-ink">Cobrar al cliente</div>
+                      <input
+                        value={payConcept}
+                        onChange={(e) => setPayConcept(e.target.value)}
+                        placeholder="Concepto (ej. Pedido de 2 camisas)"
+                        maxLength={120}
+                        className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-[13px] outline-none focus:border-brand"
+                      />
+                      <input
+                        value={payAmount}
+                        onChange={(e) => setPayAmount(e.target.value)}
+                        placeholder="Monto en Lempiras (ej. 1250)"
+                        inputMode="decimal"
+                        className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-[13px] outline-none focus:border-brand"
+                      />
+                      <input
+                        value={payLink}
+                        onChange={(e) => setPayLink(e.target.value)}
+                        placeholder="Link de pago (https://…)"
+                        inputMode="url"
+                        className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-[13px] outline-none focus:border-brand"
+                      />
+                      <textarea
+                        value={payInstructions}
+                        onChange={(e) => setPayInstructions(e.target.value)}
+                        placeholder="O datos para transferir (banco, cuenta, nombre)"
+                        rows={3}
+                        maxLength={500}
+                        className="resize-none rounded-lg border border-border bg-surface-2 px-3 py-2 text-[13px] outline-none focus:border-brand"
+                      />
+                      <p className="text-[11px] leading-snug text-ink-soft">
+                        Cheke no cobra por ti: el cliente paga en tu banco o plataforma. Aquí solo envías el link y llevas el control.
+                      </p>
+                      <button
+                        onClick={handleSendPayment}
+                        disabled={payBusy}
+                        className="min-h-10 rounded-lg bg-brand text-[13px] font-semibold text-white disabled:opacity-60"
+                      >
+                        {payBusy ? "Enviando…" : "Enviar cobro"}
+                      </button>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -1065,6 +1261,16 @@ function TemplateIcon({ className }: { className?: string }) {
       <path d="M14 2v6h6" />
       <path d="M9 13h6" />
       <path d="M9 17h6" />
+    </svg>
+  );
+}
+
+function CardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+      <path d="M6 15h4" />
     </svg>
   );
 }
