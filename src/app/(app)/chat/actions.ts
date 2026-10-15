@@ -19,6 +19,14 @@ function isOwnStorageUrl(url: string): boolean {
   }
 }
 
+// The app reviewers' demo Negocio (businesses.is_demo, migration 0015) runs
+// in modo prueba: replies are saved in cheKe but never sent to WhatsApp.
+// If the flag can't be read, treat it as a real Negocio (send as usual).
+async function isDemoBusiness(supabase: Awaited<ReturnType<typeof createClient>>, businessId: string): Promise<boolean> {
+  const { data, error } = await supabase.from("businesses").select("is_demo").eq("id", businessId).maybeSingle();
+  return !error && data?.is_demo === true;
+}
+
 export async function sendChatMessage(
   conversationId: string,
   body: string,
@@ -79,7 +87,7 @@ export async function sendChatMessage(
   // Only WhatsApp actually sends anywhere right now — Instagram/Facebook
   // messaging is Phase 7. Everything still saves to the conversation either
   // way, same as the demo-seeded conversations.
-  if (channel?.type === "whatsapp" && contact?.phone) {
+  if (channel?.type === "whatsapp" && contact?.phone && !(await isDemoBusiness(supabase, conversation.business_id))) {
     const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl);
 
     if (result.error) {

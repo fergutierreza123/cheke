@@ -13,9 +13,15 @@ const config: CapacitorConfig = {
   // Required by Capacitor even when `server.url` is set; nothing is served
   // from it.
   webDir: "public",
+  // Lets the server recognise the app (no marketing page, no pricing UI).
+  // Must match NATIVE_APP_UA_MARKER in src/lib/nativeApp.ts.
+  appendUserAgent: "cheKeApp",
   server: {
     url: "https://cheke-eight.vercel.app",
     cleartext: false,
+    // Bundled inside the app (from webDir) and shown when the site can't
+    // load, e.g. no internet, instead of a blank page or a browser error.
+    errorPath: "offline.html",
   },
   plugins: {
     PushNotifications: {

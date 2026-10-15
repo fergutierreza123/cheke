@@ -25,6 +25,10 @@ export default async function ChatPage({
 
   return (
     <ChatView
+      // A tapped phone notification navigates here with a new ?c= while Chat
+      // may already be open; a fresh key makes it open that conversation
+      // instead of keeping the one on screen.
+      key={requested ?? "inbox"}
       businessId={business.id}
       conversations={conversations}
       products={products}
