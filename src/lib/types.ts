@@ -50,6 +50,9 @@ export type Message = {
   // (WhatsApp Business app, coexistence), imported chat history, or in the
   // Instagram app / Meta Business Suite (meta_app).
   source?: "cheke" | "phone" | "history" | "meta_app";
+  // Failed sends only: Meta's error code and the Spanish reason shown in Chat.
+  error_code?: number | null;
+  error_reason?: string | null;
   created_at: string;
 };
 

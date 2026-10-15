@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateChekelinReply } from "@/lib/ai";
 import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS } from "@/lib/channelSend";
 import { replyWindow } from "@/lib/messagingWindow";
+import { markMessageFailed } from "@/lib/whatsappErrors";
 import type { Message } from "@/lib/types";
 
 // Shared by the WhatsApp and Instagram/Messenger webhooks (service-role
@@ -84,7 +85,7 @@ export async function runChekelinReply(
       author: "bot",
     });
     if (sendResult.error) {
-      await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);
+      await markMessageFailed(supabase, message.id, sendResult);
     } else if (!sendResult.notSent && sendResult.externalMessageId) {
       await supabase
         .from("messages")

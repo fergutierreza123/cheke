@@ -26,6 +26,9 @@ export type SendResult = {
   externalMessageId?: string;
   // Tried and failed, or not allowed right now: show it.
   error?: string;
+  // Meta's error code/text when it refused the send, so Chat can explain why.
+  errorCode?: number;
+  errorDetails?: string;
   // Nothing to send to (demo conversation, no channel, contact without an id
   // on that network): the message only lives in cheke, as before.
   notSent?: true;
@@ -53,7 +56,9 @@ export async function sendOnChannel(input: {
   if (channel.type === "whatsapp") {
     if (!contact.phone) return { notSent: true };
     const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl);
-    return result.error ? { error: result.error } : { externalMessageId: result.externalMessageId };
+    return result.error
+      ? { error: result.error, errorCode: result.errorCode, errorDetails: result.errorDetails }
+      : { externalMessageId: result.externalMessageId };
   }
 
   const recipientId = channel.type === "instagram" ? contact.ig_id : contact.fb_psid;

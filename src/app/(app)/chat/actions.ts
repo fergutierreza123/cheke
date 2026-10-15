@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS } from "@/lib/channelSend";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
+import { markMessageFailed } from "@/lib/whatsappErrors";
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -90,8 +91,8 @@ export async function sendChatMessage(
     author: "human",
   });
   if (result.error) {
-    await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);
-    return { message: { ...message, status: "failed" }, sendError: result.error, botDisabled };
+    const failed = await markMessageFailed(supabase, message.id, result);
+    return { message: { ...message, ...failed }, sendError: result.error, botDisabled };
   }
   if (!result.notSent && result.externalMessageId) {
     await supabase
