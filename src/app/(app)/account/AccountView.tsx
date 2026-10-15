@@ -7,6 +7,7 @@ import { initialsFor, relativeTime } from "@/lib/format";
 import { BrandMark } from "@/components/BrandMark";
 import type { UserInfo } from "@/lib/user";
 import { isPlanActive, planLabel, PLAN_LAPSED_MESSAGE } from "@/lib/plan";
+import { DeleteAccountButton, type DeletionSummary } from "./DeleteAccountDialog";
 
 const ROLE_LABEL = { owner: "Dueño", agent: "Agente" } as const;
 
@@ -15,12 +16,15 @@ export function AccountView({
   provider,
   lastSignIn,
   business,
+  deletion = [],
   demo = false,
 }: {
   user: UserInfo;
   provider: "google" | "email";
   lastSignIn: string | null;
   business: { name: string; plan: string; role: "owner" | "agent" };
+  // What "Eliminar mi cuenta" would do to each Negocio this person is in.
+  deletion?: DeletionSummary;
   // The /demo phone has no real session, so saving and logging out are
   // shown but do nothing there.
   demo?: boolean;
@@ -138,6 +142,8 @@ export function AccountView({
               </button>
             </form>
           )}
+
+          <DeleteAccountButton email={user.email} deletion={deletion} demo={demo} />
         </div>
       </div>
     </div>
