@@ -1,6 +1,6 @@
-# Cheke CRM
+# Cheke.io
 
-CRM omnicanal para negocios hondureños que venden por WhatsApp, Instagram y
+Omnicanal para negocios hondureños que venden por WhatsApp, Instagram y
 Facebook. Ver `CLAUDE.md` para el plan completo del proyecto y las reglas de
 interacción/animación.
 
