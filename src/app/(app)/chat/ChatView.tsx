@@ -10,6 +10,7 @@ import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_M
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { BrandMark } from "@/components/BrandMark";
 import { isWhatsAppWindowClosed, WINDOW_CLOSED_MESSAGE } from "@/lib/whatsappWindow";
+import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
 
@@ -105,6 +106,8 @@ export function ChatView({
   // list — unless it was opened for one conversation (a tapped notification).
   const [mobileView, setMobileView] = useState<"list" | "thread">(startInThread ? "thread" : "list");
   const [showDetail, setShowDetail] = useState(false);
+  // The failed message whose reason is expanded (tap "No entregado").
+  const [openFailureId, setOpenFailureId] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   // Restore the panel width the viewer left it at last time (per-browser
@@ -844,6 +847,14 @@ export function ChatView({
                         </span>
                       </div>
                     </div>
+                    {out && m.status === "failed" && (
+                      <FailedNotice
+                        message={m}
+                        open={openFailureId === m.id}
+                        onToggle={() => setOpenFailureId((id) => (id === m.id ? null : m.id))}
+                        reducedMotion={Boolean(prefersReducedMotion)}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -1292,11 +1303,73 @@ function EmojiIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+// Under a failed outgoing message: a red "No entregado" marker (like
+// WhatsApp's red triangle) that shows Meta's reason in plain Spanish on
+// hover (title) or tap. A billing problem also links to Meta's Billing Hub.
+function FailedNotice({
+  message,
+  open,
+  onToggle,
+  reducedMotion,
+}: {
+  message: Message;
+  open: boolean;
+  onToggle: () => void;
+  reducedMotion: boolean;
+}) {
+  const reason = message.error_reason ?? explainWhatsAppError(message.error_code);
+  const billing = isBillingError(message.error_code);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onToggle}
+        title={reason}
+        aria-expanded={open}
+        className="mt-0.5 flex items-center gap-1 rounded px-1 py-0.5 text-[11.5px] font-semibold text-danger hover:underline"
+      >
+        <AlertIcon className="h-3.5 w-3.5" />
+        No entregado · {open ? "Ocultar" : "Ver motivo"}
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+            transition={reducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.3 }}
+            className="mt-0.5 max-w-[82%] rounded-md border border-danger-border bg-danger-tint px-2.5 py-1.5 text-[12.5px] leading-snug text-danger lg:max-w-[65%]"
+            role="status"
+          >
+            {reason}
+            {billing && (
+              <>
+                {" "}
+                <a href={META_BILLING_HUB_URL} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+                  Abrir Billing Hub de Meta
+                </a>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+function AlertIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </svg>
+  );
+}
 // WhatsApp-style delivery ticks: one gray check (sent), two gray checks
-// (delivered), two blue checks (read) — nothing shown for a failed send
-// since that's already surfaced via the sendError banner above.
+// (delivered), two blue checks (read), a red alert for a failed send (the
+// reason shows under the bubble, see FailedNotice).
 function MessageStatusIcon({ status }: { status: Message["status"] }) {
-  if (status === "failed") return null;
+  if (status === "failed") return <AlertIcon className="h-3.5 w-3.5 text-danger" />;
   if (status === "sent") {
     return (
       <svg viewBox="0 0 16 11" className="h-3 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
