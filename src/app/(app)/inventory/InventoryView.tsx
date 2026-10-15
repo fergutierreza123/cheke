@@ -10,6 +10,7 @@ import { initialsFor, formatLempiras } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ConversationWithContact, Product } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
+import { shrinkPhotoForUpload } from "@/lib/shrinkPhoto";
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -100,6 +101,17 @@ export function InventoryView({
     setSaving(true);
     setSaveError(null);
     try {
+      // Full-size phone photos are bigger than Vercel's 4.5 MB request
+      // limit, so shrink the photo here before it goes to the server.
+      const image = formData.get("image");
+      if (image instanceof File && image.size > 0) {
+        const shrunk = await shrinkPhotoForUpload(image);
+        if (!shrunk.file) {
+          setSaveError(shrunk.error ?? "No se pudo leer la foto.");
+          return;
+        }
+        formData.set("image", shrunk.file);
+      }
       const result = await saveProduct(formData);
       if (result.error) {
         setSaveError(result.error);
