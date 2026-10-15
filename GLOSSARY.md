@@ -30,6 +30,14 @@ _Avoid_: Vendedor, empleado, user
 A customer of a Negocio, shared by all its Tiendas. Two contacts are the same person only when a phone number, Instagram account or Facebook account matches, or when merged by hand.
 _Avoid_: Cliente (ambiguous with cheKe's own customers), lead
 
+**Invitación**:
+A single-use link that lets a person join a Negocio with a given role in given Tiendas.
+_Avoid_: Código, invite code
+
+**Tienda archivada**:
+A closed Tienda: hidden from daily use, its history kept and reopenable.
+_Avoid_: Tienda eliminada, borrada
+
 ## Selling
 
 **Canal**:
