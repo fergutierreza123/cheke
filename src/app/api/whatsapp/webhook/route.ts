@@ -74,13 +74,28 @@ export async function POST(request: NextRequest) {
 
 type SavedMessage = { businessId: string; conversationId: string; contactName: string; body: string | null };
 
+type Admin = ReturnType<typeof createAdminClient>;
+type Channel = { id: string; business_id: string };
+
+// Each business's contacts, loaded once per webhook call: a history import
+// can bring hundreds of chats in one payload, and each needs its contact.
+type ContactBook = Map<string, Array<{ id: string; phone: string | null; name: string }>>;
+
 async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMessage[]> {
   const supabase = createAdminClient();
+  const book: ContactBook = new Map();
   const saved: SavedMessage[] = [];
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value;
+
+      // Account-level events carry the WhatsApp Business Account id, not a number.
+      if (change.field === "account_update") {
+        await handleAccountUpdate(supabase, entry.id, value);
+        continue;
+      }
+
       const phoneNumberId = value?.metadata?.phone_number_id;
       if (!phoneNumberId) continue;
 
@@ -95,13 +110,32 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
       // No business has connected this test number yet — nothing to save to.
       if (!channel) continue;
 
+      // Coexistence: the one-time import of the phone's chat history...
+      if (change.field === "history") {
+        await saveHistory(supabase, book, channel, value);
+        continue;
+      }
+      // ...and of the phone's contacts (plus later changes to them).
+      if (change.field === "smb_app_state_sync") {
+        await syncPhoneContacts(supabase, book, channel, value);
+        continue;
+      }
+
       // One bad message must not drop the rest of the batch.
       for (const message of value.messages ?? []) {
         try {
-          const result = await saveInboundMessage(supabase, channel, value, message);
+          const result = await saveInboundMessage(supabase, book, channel, value, message);
           if (result) saved.push({ businessId: channel.business_id, ...result });
         } catch (error) {
           console.error("whatsapp inbound message error", message?.id, error);
+        }
+      }
+      // Coexistence: what the business sent from the WhatsApp Business app.
+      for (const echo of value.message_echoes ?? []) {
+        try {
+          await saveEchoMessage(supabase, book, channel, echo);
+        } catch (error) {
+          console.error("whatsapp echo error", echo?.id, error);
         }
       }
       for (const status of value.statuses ?? []) {
@@ -117,83 +151,29 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
 }
 
 async function saveInboundMessage(
-  supabase: ReturnType<typeof createAdminClient>,
-  channel: { id: string; business_id: string },
+  supabase: Admin,
+  book: ContactBook,
+  channel: Channel,
   value: WhatsAppValue,
   message: WhatsAppMessage,
 ): Promise<{ conversationId: string; contactName: string; body: string | null } | null> {
   // Reactions (a 👍 on one of our messages) aren't conversation messages.
   const body = describeMessage(message);
   if (body === null) return null;
-
-  const { data: existing } = await supabase
-    .from("messages")
-    .select("id")
-    .eq("external_message_id", message.id)
-    .maybeSingle();
-  if (existing) return null; // already saved — Meta redelivered it
+  if (await alreadySaved(supabase, message.id)) return null; // Meta redelivered it
 
   const waId = message.from;
   const profileName = value.contacts?.find((c) => c.wa_id === waId)?.profile?.name ?? waId;
-
-  // The customer may already be in Contactos with their number typed any
-  // way ("+504 9922-3843"), so compare digits rather than the raw string —
-  // otherwise every such customer would get a second, duplicate contact.
-  const { data: candidates } = await supabase
-    .from("contacts")
-    .select("id, phone")
-    .eq("business_id", channel.business_id)
-    .not("phone", "is", null)
-    .limit(5000);
-  let contact: { id: string } | null = candidates?.find((c) => samePhone(c.phone, waId)) ?? null;
-
-  if (!contact) {
-    const { data: newContact, error } = await supabase
-      .from("contacts")
-      .insert({ business_id: channel.business_id, name: profileName, phone: waId })
-      .select("id")
-      .single();
-    if (error || !newContact) throw new Error(error?.message ?? "No se pudo crear el contacto.");
-    contact = newContact;
-  }
-
-  // limit(1) instead of maybeSingle(): if a race ever created two rows,
-  // maybeSingle() would error out and we'd create a third.
-  const { data: existingConversations } = await supabase
-    .from("conversations")
-    .select("id")
-    .eq("business_id", channel.business_id)
-    .eq("contact_id", contact.id)
-    .eq("channel_id", channel.id)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  let conversation = existingConversations?.[0] ?? null;
+  const contactId = await findOrCreateContact(supabase, book, channel.business_id, waId, profileName);
+  const conversation = await findOrCreateConversation(supabase, channel, contactId);
 
   const now = new Date();
   const windowExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-
-  if (!conversation) {
-    const { data: newConversation, error } = await supabase
-      .from("conversations")
-      .insert({
-        business_id: channel.business_id,
-        contact_id: contact.id,
-        channel_id: channel.id,
-        status: "open",
-        last_message_at: now.toISOString(),
-        window_expires_at: windowExpiresAt,
-      })
-      .select("id")
-      .single();
-    if (error || !newConversation) throw new Error(error?.message ?? "No se pudo crear la conversación.");
-    conversation = newConversation;
-  } else {
-    await supabase
-      .from("conversations")
-      // A customer writing again reopens a conversation that had been closed.
-      .update({ last_message_at: now.toISOString(), window_expires_at: windowExpiresAt, status: "open" })
-      .eq("id", conversation.id);
-  }
+  await supabase
+    .from("conversations")
+    // A customer writing again reopens a conversation that had been closed.
+    .update({ last_message_at: now.toISOString(), window_expires_at: windowExpiresAt, status: "open" })
+    .eq("id", conversation.id);
 
   const { error: insertError } = await supabase.from("messages").insert({
     conversation_id: conversation.id,
@@ -213,11 +193,233 @@ async function saveInboundMessage(
   return { conversationId: conversation.id, contactName: profileName, body };
 }
 
+// A message the business sent from the WhatsApp Business app on its phone
+// (coexistence). It shows in the chat like any reply, and — like a reply
+// typed in cheke — a person answering pauses chekelin for that chat. It
+// doesn't touch the 24-hour window: only the customer's messages open it.
+async function saveEchoMessage(supabase: Admin, book: ContactBook, channel: Channel, echo: WhatsAppEcho) {
+  const body = describeMessage(echo);
+  if (body === null || !echo.to) return;
+  if (await alreadySaved(supabase, echo.id)) return;
+
+  const contactId = await findOrCreateContact(supabase, book, channel.business_id, echo.to, echo.to);
+  const conversation = await findOrCreateConversation(supabase, channel, contactId);
+  const sentAt = messageTime(echo.timestamp, new Date());
+
+  const { error } = await supabase.from("messages").insert({
+    conversation_id: conversation.id,
+    business_id: channel.business_id,
+    direction: "out",
+    body,
+    external_message_id: echo.id,
+    status: "sent",
+    source: "phone",
+    created_at: sentAt,
+  });
+  if (error && error.code !== "23505") throw new Error(error.message);
+
+  await supabase
+    .from("conversations")
+    .update({ last_message_at: later(conversation.last_message_at, sentAt), bot_enabled: false })
+    .eq("id", conversation.id);
+}
+
+// Coexistence history import: Meta sends the phone's last 6 months of 1:1
+// chats in chunks (possibly out of order), one thread per customer. Saved
+// as past messages: they don't open the 24-hour window or trigger chekelin,
+// and a chat where the business already answered starts with chekelin paused.
+async function saveHistory(supabase: Admin, book: ContactBook, channel: Channel, value: WhatsAppValue) {
+  for (const chunk of value.history ?? []) {
+    if (chunk.errors?.length) {
+      // 2593109 = the business chose not to share its chat history.
+      const declined = chunk.errors.some((e) => e.code === 2593109);
+      await supabase
+        .from("channels")
+        .update({ history_sync_error: declined ? "declined" : (chunk.errors[0]?.message ?? "error") })
+        .eq("id", channel.id);
+      continue;
+    }
+
+    for (const thread of chunk.threads ?? []) {
+      try {
+        await saveHistoryThread(supabase, book, channel, thread);
+      } catch (error) {
+        console.error("whatsapp history thread error", error);
+      }
+    }
+
+    // Chunks can arrive out of order, so progress only moves forward.
+    const progress = Number(chunk.metadata?.progress);
+    if (Number.isFinite(progress)) {
+      await supabase
+        .from("channels")
+        .update({ history_sync_progress: progress })
+        .eq("id", channel.id)
+        .or(`history_sync_progress.is.null,history_sync_progress.lt.${progress}`);
+    }
+  }
+}
+
+async function saveHistoryThread(supabase: Admin, book: ContactBook, channel: Channel, thread: WhatsAppHistoryThread) {
+  const customer = thread.id;
+  if (!customer) return;
+
+  const rows = (thread.messages ?? []).flatMap((m) => {
+    const body = describeMessage(m);
+    if (body === null || !m.id) return [];
+    // Only the business's own messages carry `to`.
+    const out = Boolean(m.to) || !samePhone(m.from, customer);
+    return [{ m, body, out }];
+  });
+  if (rows.length === 0) return;
+
+  const contactId = await findOrCreateContact(supabase, book, channel.business_id, customer, customer);
+  const conversation = await findOrCreateConversation(supabase, channel, contactId);
+  const fallback = new Date();
+
+  const { error } = await supabase.from("messages").upsert(
+    rows.map(({ m, body, out }) => ({
+      conversation_id: conversation.id,
+      business_id: channel.business_id,
+      direction: out ? "out" : "in",
+      body,
+      external_message_id: m.id,
+      status: HISTORY_STATUS[m.history_context?.status?.toUpperCase() ?? ""] ?? "sent",
+      source: "history",
+      created_at: messageTime(m.timestamp, fallback),
+    })),
+    // Already in cheke (e.g. arrived live after connecting): keep that copy.
+    { onConflict: "external_message_id", ignoreDuplicates: true },
+  );
+  if (error) throw new Error(error.message);
+
+  const newest = rows.reduce((max, { m }) => later(max, messageTime(m.timestamp, fallback)), conversation.last_message_at);
+  await supabase
+    .from("conversations")
+    .update({ last_message_at: newest, ...(rows.some((r) => r.out) ? { bot_enabled: false } : {}) })
+    .eq("id", conversation.id);
+}
+
+const HISTORY_STATUS: Record<string, "sent" | "delivered" | "read" | "failed"> = {
+  SENT: "sent",
+  DELIVERED: "delivered",
+  READ: "read",
+  PLAYED: "read",
+  ERROR: "failed",
+};
+
+// Coexistence contacts: the names saved in the business's phone. A customer
+// already in Contactos keeps their cheke name unless it's still just their
+// number; removals on the phone never delete anything in cheke.
+async function syncPhoneContacts(supabase: Admin, book: ContactBook, channel: Channel, value: WhatsAppValue) {
+  for (const item of value.state_sync ?? []) {
+    if (item.type !== "contact" || item.action !== "add") continue;
+    const phone = item.contact?.phone_number;
+    const name = item.contact?.full_name || item.contact?.first_name;
+    if (!phone || !name) continue;
+
+    try {
+      const contacts = await loadContacts(supabase, book, channel.business_id);
+      const existing = contacts.find((c) => samePhone(c.phone, phone));
+      if (!existing) {
+        await findOrCreateContact(supabase, book, channel.business_id, phone, name);
+      } else if (!/\p{L}/u.test(existing.name)) {
+        await supabase.from("contacts").update({ name }).eq("id", existing.id);
+        existing.name = name;
+      }
+    } catch (error) {
+      console.error("whatsapp contact sync error", error);
+    }
+  }
+}
+
+// The business disconnected cheke from inside the WhatsApp Business app
+// (Settings → Account → Business Platform). Coexistence numbers can only be
+// disconnected there, so mirror it here.
+async function handleAccountUpdate(supabase: Admin, wabaId: string | undefined, value: WhatsAppValue) {
+  if (!wabaId || value?.event !== "PARTNER_REMOVED") return;
+  await supabase
+    .from("channels")
+    .update({ status: "disconnected", access_token_encrypted: null, registration_pin_encrypted: null })
+    .eq("type", "whatsapp")
+    .eq("waba_id", wabaId);
+}
+
+async function alreadySaved(supabase: Admin, externalMessageId: string): Promise<boolean> {
+  const { data } = await supabase.from("messages").select("id").eq("external_message_id", externalMessageId).maybeSingle();
+  return Boolean(data);
+}
+
+async function loadContacts(supabase: Admin, book: ContactBook, businessId: string) {
+  let contacts = book.get(businessId);
+  if (!contacts) {
+    const { data } = await supabase
+      .from("contacts")
+      .select("id, phone, name")
+      .eq("business_id", businessId)
+      .not("phone", "is", null)
+      .limit(5000);
+    contacts = data ?? [];
+    book.set(businessId, contacts);
+  }
+  return contacts;
+}
+
+// The customer may already be in Contactos with their number typed any
+// way ("+504 9922-3843"), so compare digits rather than the raw string —
+// otherwise every such customer would get a second, duplicate contact.
+async function findOrCreateContact(
+  supabase: Admin,
+  book: ContactBook,
+  businessId: string,
+  waId: string,
+  name: string,
+): Promise<string> {
+  const contacts = await loadContacts(supabase, book, businessId);
+  const found = contacts.find((c) => samePhone(c.phone, waId));
+  if (found) return found.id;
+
+  const { data: newContact, error } = await supabase
+    .from("contacts")
+    .insert({ business_id: businessId, name, phone: waId })
+    .select("id")
+    .single();
+  if (error || !newContact) throw new Error(error?.message ?? "No se pudo crear el contacto.");
+  contacts.push({ id: newContact.id, phone: waId, name });
+  return newContact.id;
+}
+
+async function findOrCreateConversation(
+  supabase: Admin,
+  channel: Channel,
+  contactId: string,
+): Promise<{ id: string; last_message_at: string | null }> {
+  // limit(1) instead of maybeSingle(): if a race ever created two rows,
+  // maybeSingle() would error out and we'd create a third.
+  const { data: existing } = await supabase
+    .from("conversations")
+    .select("id, last_message_at")
+    .eq("business_id", channel.business_id)
+    .eq("contact_id", contactId)
+    .eq("channel_id", channel.id)
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (existing?.[0]) return existing[0];
+
+  const { data: created, error } = await supabase
+    .from("conversations")
+    .insert({ business_id: channel.business_id, contact_id: contactId, channel_id: channel.id, status: "open" })
+    .select("id, last_message_at")
+    .single();
+  if (error || !created) throw new Error(error?.message ?? "No se pudo crear la conversación.");
+  return created;
+}
+
 // Meta can deliver "delivered" before "sent" (or retry an old one), so a
 // status only ever moves forward — a late "sent" must not undo a "read".
 const STATUS_RANK = { sent: 1, delivered: 2, read: 3, failed: 4 } as const;
 
-async function updateMessageStatus(supabase: ReturnType<typeof createAdminClient>, status: WhatsAppStatus) {
+async function updateMessageStatus(supabase: Admin, status: WhatsAppStatus) {
   const next = STATUS_RANK[status.status as keyof typeof STATUS_RANK];
   if (!next) return;
 
@@ -240,10 +442,16 @@ function messageTime(timestamp: string | undefined, fallback: Date): string {
   return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : fallback.toISOString();
 }
 
+// The later of two timestamps (ISO strings), treating null as "never".
+function later(a: string | null, b: string): string {
+  return a && new Date(a).getTime() > new Date(b).getTime() ? a : b;
+}
+
 // Minimal shape of what we actually read from Meta's payload — not exhaustive.
 type WhatsAppWebhookPayload = {
   entry?: Array<{
-    changes?: Array<{ value: WhatsAppValue }>;
+    id?: string; // the WhatsApp Business Account id
+    changes?: Array<{ field?: string; value: WhatsAppValue }>;
   }>;
 };
 type WhatsAppValue = {
@@ -251,6 +459,23 @@ type WhatsAppValue = {
   contacts?: Array<{ wa_id: string; profile?: { name?: string } }>;
   messages?: WhatsAppMessage[];
   statuses?: WhatsAppStatus[];
+  message_echoes?: WhatsAppEcho[];
+  history?: Array<{
+    metadata?: { phase?: number; chunk_order?: number; progress?: number };
+    threads?: WhatsAppHistoryThread[];
+    errors?: Array<{ code?: number; message?: string }>;
+  }>;
+  state_sync?: Array<{
+    type?: string;
+    action?: "add" | "remove";
+    contact?: { full_name?: string; first_name?: string; phone_number?: string };
+  }>;
+  event?: string; // account_update
+};
+type WhatsAppEcho = WhatsAppMessage & { to: string };
+type WhatsAppHistoryThread = {
+  id: string; // the customer's WhatsApp number
+  messages?: Array<WhatsAppMessage & { to?: string; history_context?: { status?: string } }>;
 };
 type WhatsAppStatus = {
   id: string;

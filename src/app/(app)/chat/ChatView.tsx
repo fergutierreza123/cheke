@@ -817,6 +817,9 @@ export function ChatView({
                         chekelin
                       </div>
                     )}
+                    {m.source === "phone" && !(prev && prev.source === "phone") && (
+                      <div className="mb-0.5 px-1 text-[11px] font-semibold text-ink-muted">Desde el teléfono</div>
+                    )}
                     <div
                       className={`relative max-w-[82%] rounded-[7.5px] px-[9px] pb-[7px] pt-[6px] text-[14.2px] leading-[19px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] lg:max-w-[65%] ${
                         out ? "bg-[#D9FDD3]" : "bg-white"

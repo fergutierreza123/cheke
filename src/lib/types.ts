@@ -46,6 +46,9 @@ export type Message = {
   media_url: string | null;
   status: "sent" | "delivered" | "read" | "failed";
   is_bot: boolean;
+  // Where an outgoing message was written: in cheke, on the business's phone
+  // (WhatsApp Business app, coexistence), or imported chat history.
+  source?: "cheke" | "phone" | "history";
   created_at: string;
 };
 

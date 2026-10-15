@@ -40,6 +40,9 @@ export function describeMessage(message: WhatsAppMessage): string | null {
       return message.button?.text ?? "";
     case "interactive":
       return message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title ?? "";
+    case "media_placeholder":
+      // Imported chat history: photos, audio and files come as placeholders.
+      return "📎 Archivo del historial";
     case "reaction":
       return null;
     default:

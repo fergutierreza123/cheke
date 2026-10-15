@@ -1,7 +1,8 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { decryptSecret } from "@/lib/crypto";
+import { GRAPH_API_VERSION } from "@/lib/meta";
 
-export const GRAPH_API_VERSION = "v21.0";
+export { GRAPH_API_VERSION };
 
 // Confirms a webhook request actually came from Meta: it signs the raw
 // request body with your app secret and sends the digest in this header.

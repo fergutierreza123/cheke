@@ -355,16 +355,21 @@ Todo el código está hecho; solo faltan las credenciales de Meta. Checklist:
    teléfono, correo) *exactamente* como en los documentos de la empresa. Las
    páginas públicas (`/`, `/privacidad`, `/terminos`, `/eliminar-datos`) los
    leen de ahí y muestran un aviso de "borrador" mientras falten.
-2. **Migraciones**: correr `0010_device_tokens.sql` y
-   `0011_channel_connection.sql` en el SQL Editor de Supabase.
+2. **Migraciones**: correr `0010_device_tokens.sql`,
+   `0011_channel_connection.sql` y `0013_coexistence.sql` en el SQL Editor de
+   Supabase. La `0013` tiene que correrse **antes** de publicar el código que
+   la usa (si no, la pantalla Canales falla).
 3. **Llave de cifrado** (una sola vez, nunca cambiarla): crear
    `CHANNEL_TOKEN_KEY` con `openssl rand -base64 32` en `.env.local` y en
    Vercel. Cifra el token de WhatsApp de cada negocio en la base de datos.
 4. **Meta**: con el negocio verificado, en la app de Meta crear la
-   configuración de *Embedded Signup* y poner `NEXT_PUBLIC_META_APP_ID` y
+   configuración de *Embedded Signup* **v4** (Facebook Login for Business →
+   Configuraciones), con la opción de conectar números de la app WhatsApp
+   Business (*coexistence*) activada, y poner `NEXT_PUBLIC_META_APP_ID` y
    `NEXT_PUBLIC_META_CONFIG_ID` (más los del webhook que ya existen). Registrar
-   el webhook `https://<dominio>/api/whatsapp/webhook` y suscribir el campo
-   `messages`. El código del dominio de Meta va en
+   el webhook `https://<dominio>/api/whatsapp/webhook` y suscribir los campos
+   `messages`, `history`, `smb_app_state_sync`, `smb_message_echoes` y
+   `account_update`. El código del dominio de Meta va en
    `NEXT_PUBLIC_META_DOMAIN_VERIFICATION`.
 5. **Probar**: en *Canales* aparece el botón "Conectar WhatsApp"; después un
    mensaje al número debe verse en el Chat, y la respuesta llegar al teléfono.

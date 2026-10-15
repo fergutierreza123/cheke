@@ -6,7 +6,8 @@ import { ChannelIcon } from "@/components/ChannelIcon";
 import { relativeTime } from "@/lib/format";
 import type { ChannelType } from "@/lib/types";
 import { ConnectWhatsAppButton } from "./ConnectWhatsAppButton";
-import { disconnectChannel } from "./actions";
+import { disconnectChannel, retryCoexistenceSync } from "./actions";
+import { COEXISTENCE_SYNC_WINDOW_MS } from "@/lib/coexistence";
 import { BrandMark } from "@/components/BrandMark";
 
 export type ChannelItem = {
@@ -17,6 +18,11 @@ export type ChannelItem = {
   display_phone: string | null;
   verified_name: string | null;
   connected_at: string | null;
+  coexistence: boolean;
+  contacts_sync_requested_at: string | null;
+  history_sync_requested_at: string | null;
+  history_sync_progress: number | null;
+  history_sync_error: string | null;
 };
 
 export function ChannelsView({
@@ -36,8 +42,20 @@ export function ChannelsView({
   const whatsapp = channels.find((c) => c.type === "whatsapp");
   const whatsappConnected = whatsapp?.status === "connected";
 
+  async function handleRetrySync(id: string) {
+    setBusy(true);
+    setError(null);
+    const result = await retryCoexistenceSync(id);
+    setBusy(false);
+    if (result.error) setError(result.error);
+    else router.refresh();
+  }
+
   async function handleDisconnect(id: string) {
-    if (!window.confirm("¿Desconectar WhatsApp? Dejarás de recibir y enviar mensajes por ese número desde cheke.")) return;
+    const message = whatsapp?.coexistence
+      ? "¿Desconectar WhatsApp de cheke? Tu número sigue funcionando en la app de WhatsApp Business. Para terminar de desconectarlo, en la app ve a Configuración → Cuenta → Plataforma empresarial."
+      : "¿Desconectar WhatsApp? Dejarás de recibir y enviar mensajes por ese número desde cheke.";
+    if (!window.confirm(message)) return;
     setBusy(true);
     setError(null);
     const result = await disconnectChannel(id);
@@ -88,6 +106,9 @@ export function ChannelsView({
                     la primera respuesta.
                   </p>
                 )}
+                {whatsappConnected && whatsapp?.coexistence && (
+                  <CoexistenceStatus channel={whatsapp} isOwner={isOwner} busy={busy} onRetry={handleRetrySync} />
+                )}
               </div>
             </div>
 
@@ -137,6 +158,54 @@ export function ChannelsView({
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Number shared with the WhatsApp Business app on the phone: shows how the
+// one-time import of the phone's chats is going, and lets the owner retry it
+// if Meta didn't accept it (only possible in the first 24 hours).
+function CoexistenceStatus({
+  channel,
+  isOwner,
+  busy,
+  onRetry,
+}: {
+  channel: ChannelItem;
+  isOwner: boolean;
+  busy: boolean;
+  onRetry: (id: string) => void;
+}) {
+  // Read the clock once per mount, not on every render.
+  const [now] = useState(() => Date.now());
+  const requested = Boolean(channel.contacts_sync_requested_at && channel.history_sync_requested_at);
+  const withinWindow =
+    !channel.connected_at || now - new Date(channel.connected_at).getTime() < COEXISTENCE_SYNC_WINDOW_MS;
+  const progress = channel.history_sync_progress;
+
+  let text: string;
+  if (channel.history_sync_error === "declined") text = "Elegiste no compartir tu historial de chats; los mensajes nuevos sí llegan a cheke.";
+  else if (channel.history_sync_error) text = `No se pudo importar tu historial: ${channel.history_sync_error}`;
+  else if (!requested) text = withinWindow ? "Tus chats todavía no se han importado." : "Ya no se pueden importar tus chats anteriores (pasaron 24 horas).";
+  else if (progress === null) text = "Importando tus chats de los últimos 6 meses… deja la app de WhatsApp Business abierta en tu teléfono.";
+  else if (progress < 100) text = `Importando tus chats… ${progress}%`;
+  else text = "Chats de los últimos 6 meses importados.";
+
+  return (
+    <div className="mt-2 flex flex-col gap-1.5 rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-muted">
+      <p>
+        <strong className="text-ink">También en tu teléfono:</strong> sigues usando WhatsApp Business en la app, y lo
+        que respondas ahí aparece aquí. {text}
+      </p>
+      {isOwner && !requested && withinWindow && !channel.history_sync_error && (
+        <button
+          onClick={() => onRetry(channel.id)}
+          disabled={busy}
+          className="h-8 self-start rounded-[8px] bg-brand px-3 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+        >
+          Importar chats
+        </button>
+      )}
     </div>
   );
 }

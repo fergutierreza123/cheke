@@ -41,3 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .npm-cache/
+
+# Claude Code agent worktrees (temporary copies of the repo)
+.claude/worktrees/

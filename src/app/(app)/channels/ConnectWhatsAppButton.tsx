@@ -2,13 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { GRAPH_API_VERSION } from "@/lib/meta";
 import { connectWhatsAppChannel } from "./actions";
 
-// Meta's "Embedded Signup": a Facebook popup where the business owner picks
-// or creates their WhatsApp Business Account and number. Meta answers in two
-// separate pieces — an authorization `code` (from FB.login's callback) and
-// the chosen WABA / phone number (a postMessage from the popup) — and they
-// can arrive in either order, so we wait for both before calling the server.
+// Meta's "Embedded Signup" (v4): a Facebook popup where the business owner
+// either connects the number they already use in the WhatsApp Business app
+// (coexistence — they keep using the app on their phone) or picks/creates a
+// new WhatsApp Business Account and number. Which options the popup offers
+// comes from the Facebook Login for Business configuration in Meta's App
+// Dashboard (NEXT_PUBLIC_META_CONFIG_ID), not from this code. Meta answers in
+// two separate pieces — an authorization `code` (from FB.login's callback)
+// and the chosen account (a postMessage from the popup) — and they can
+// arrive in either order, so we wait for both before calling the server.
 
 type FacebookSdk = {
   init: (options: { appId: string; autoLogAppEvents: boolean; xfbml: boolean; version: string }) => void;
@@ -28,7 +33,7 @@ function loadFacebookSdk(appId: string): Promise<FacebookSdk> {
   return new Promise((resolve) => {
     if (window.FB) return resolve(window.FB);
     window.fbAsyncInit = () => {
-      window.FB!.init({ appId, autoLogAppEvents: true, xfbml: false, version: "v21.0" });
+      window.FB!.init({ appId, autoLogAppEvents: true, xfbml: false, version: GRAPH_API_VERSION });
       resolve(window.FB!);
     };
     const script = document.createElement("script");
@@ -46,7 +51,7 @@ export function ConnectWhatsAppButton({ appId, configId }: { appId: string; conf
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const codeRef = useRef<string | null>(null);
-  const sessionRef = useRef<{ phoneNumberId: string; wabaId: string } | null>(null);
+  const sessionRef = useRef<{ wabaId: string; phoneNumberId: string | null; coexistence: boolean } | null>(null);
 
   async function maybeFinish() {
     if (!codeRef.current || !sessionRef.current) return;
@@ -66,15 +71,32 @@ export function ConnectWhatsAppButton({ appId, configId }: { appId: string; conf
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
-      if (!["https://www.facebook.com", "https://web.facebook.com", "https://business.facebook.com"].includes(event.origin) || typeof event.data !== "string") return;
+      let host: string;
+      try {
+        host = new URL(event.origin).hostname;
+      } catch {
+        return;
+      }
+      if (!(host === "facebook.com" || host.endsWith(".facebook.com")) || typeof event.data !== "string") return;
       try {
         const data = JSON.parse(event.data);
         if (data.type !== "WA_EMBEDDED_SIGNUP") return;
-        if (data.event === "FINISH") {
-          sessionRef.current = { phoneNumberId: data.data.phone_number_id, wabaId: data.data.waba_id };
+        if (data.event === "FINISH" || data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING") {
+          sessionRef.current = {
+            wabaId: data.data?.waba_id,
+            phoneNumberId: data.data?.phone_number_id ?? null,
+            coexistence: data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING",
+          };
           void maybeFinish();
-        } else if (data.event === "CANCEL") {
+        } else if (data.event === "FINISH_ONLY_WABA") {
+          // Finished without adding a number: nothing to receive messages on.
+          codeRef.current = null;
           setStatus("idle");
+          setError("Terminaste sin agregar un número. Vuelve a intentarlo y elige o agrega tu número de WhatsApp.");
+        } else if (data.event === "CANCEL" || data.event === "ERROR") {
+          codeRef.current = null;
+          setStatus("idle");
+          if (data.data?.error_message) setError(`Meta: ${data.data.error_message}`);
         }
       } catch {
         // not one of ours
@@ -108,7 +130,9 @@ export function ConnectWhatsAppButton({ appId, configId }: { appId: string; conf
           config_id: configId,
           response_type: "code",
           override_default_response_type: true,
-          extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+          // v4: everything (coexistence, products) comes from the login
+          // configuration in Meta's App Dashboard, so extras stays empty.
+          extras: { setup: {} },
         },
       );
     } catch {
@@ -126,6 +150,10 @@ export function ConnectWhatsAppButton({ appId, configId }: { appId: string; conf
       >
         {status === "opening" ? "Abriendo Meta…" : status === "saving" ? "Conectando…" : "Conectar WhatsApp"}
       </button>
+      <p className="text-[12.5px] leading-relaxed text-ink-muted">
+        ¿Ya usas WhatsApp Business en tu teléfono? Conecta ese mismo número: sigues usando la app y tus chats de
+        los últimos 6 meses llegan a cheke.
+      </p>
       {error && <p className="text-[12.5px] text-danger">{error}</p>}
       {warning && <p className="text-[12.5px] text-ink-muted">{warning}</p>}
     </div>

@@ -11,7 +11,9 @@ export default async function ChannelsPage() {
   // Never select the token columns here — this data goes to the browser.
   const { data } = await supabase
     .from("channels")
-    .select("id, type, status, external_id, display_phone, verified_name, connected_at")
+    .select(
+      "id, type, status, external_id, display_phone, verified_name, connected_at, coexistence, contacts_sync_requested_at, history_sync_requested_at, history_sync_progress, history_sync_error",
+    )
     .eq("business_id", business.id);
 
   const appId = process.env.NEXT_PUBLIC_META_APP_ID;
