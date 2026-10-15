@@ -17,7 +17,7 @@ export const COMPANY = {
   country: "Honduras",
   phone: "[Teléfono — completar]",
   email: "[correo@dominio — completar]",
-  website: "https://cheke-eight.vercel.app",
+  website: "https://cheke.io",
   lastUpdated: "octubre de 2026",
 };
 
