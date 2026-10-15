@@ -38,10 +38,13 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
     // the original photo rather than blocking the whole save over it.
     let uploadBody: Blob = file;
     let contentType = file.type;
+    let fileName = file.name;
     const bg = await removeBackgroundToWhite(file);
     if (bg.blob) {
       uploadBody = bg.blob;
-      contentType = bg.blob.type || "image/png";
+      contentType = bg.blob.type || "image/jpeg";
+      // The processed photo is always a JPEG, whatever the original was.
+      fileName = `${file.name.replace(/\.[^.]*$/, "")}.jpg`;
     } else if (bg.error) {
       photoWarning = `Se guardó la foto original: ${bg.error}`;
     }
@@ -53,7 +56,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
     // use the admin client for just this write — same pattern as the
     // WhatsApp webhook (src/app/api/whatsapp/webhook/route.ts).
     const adminSupabase = createAdminClient();
-    const path = `${business.id}/${randomUUID()}-${file.name}`;
+    const path = `${business.id}/${randomUUID()}-${fileName}`;
     const { error: uploadError } = await adminSupabase.storage
       .from("product-images")
       .upload(path, uploadBody, { contentType, upsert: true });
