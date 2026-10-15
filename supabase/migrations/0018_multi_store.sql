@@ -300,7 +300,9 @@ security definer
 set search_path = public
 as $$
 begin
-  select store_id into new.store_id from conversations where id = new.conversation_id;
+  -- Both the Tienda and the Negocio come from the conversation, so a message
+  -- can never carry another Negocio's business_id.
+  select store_id, business_id into new.store_id, new.business_id from conversations where id = new.conversation_id;
   return new;
 end;
 $$;
@@ -447,6 +449,13 @@ as $$
       )
   );
 $$;
+
+-- Internal helpers, only called from the SECURITY DEFINER fill triggers.
+-- Supabase grants new functions to anon/authenticated directly, so revoking
+-- from public alone isn't enough.
+revoke all on function only_store_of(uuid) from public, anon, authenticated;
+revoke all on function first_store_of(uuid) from public, anon, authenticated;
+revoke all on function check_store_business(uuid, uuid) from public, anon, authenticated;
 
 revoke all on function my_store_ids() from public;
 grant execute on function my_store_ids() to authenticated;
@@ -688,6 +697,7 @@ as $$
 declare
   inv invitations%rowtype;
   current_business uuid;
+  creator_role text;
 begin
   if auth.uid() is null then
     raise exception 'Inicia sesión para aceptar la invitación.';
@@ -702,6 +712,21 @@ begin
   end if;
   if inv.expires_at < now() then
     raise exception 'Esta invitación venció. Pide una nueva.';
+  end if;
+
+  -- The person who created the link must still be allowed to issue it: a
+  -- removed or demoted Dueño/Gerente's pending links stop working.
+  select role into creator_role from members where business_id = inv.business_id and user_id = inv.created_by;
+  if creator_role is null
+     or creator_role = 'agent'
+     or (inv.role in ('owner', 'manager') and creator_role <> 'owner')
+     or (creator_role = 'manager' and exists (
+           select 1 from unnest(inv.store_ids) as sid
+           where not exists (
+             select 1 from store_members sm where sm.store_id = sid and sm.user_id = inv.created_by
+           )
+         )) then
+    raise exception 'Esta invitación ya no es válida. Pide una nueva.';
   end if;
 
   select business_id into current_business from members where user_id = auth.uid() limit 1;

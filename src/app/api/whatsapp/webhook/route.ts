@@ -113,6 +113,9 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
         .select("id, business_id, store_id")
         .eq("type", "whatsapp")
         .eq("external_id", phoneNumberId)
+        // A disconnected channel (archived Tienda, or removed from the
+        // WhatsApp Business app) must not keep receiving customer messages.
+        .eq("status", "connected")
         .limit(1)
         .maybeSingle();
 
