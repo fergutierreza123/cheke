@@ -45,6 +45,7 @@ export default async function DemoScreen({
         channels={d.channels}
         isOwner={false}
         meta={null}
+        messaging={null}
       />
     ),
     analytics: <AnalyticsView conversations={d.conversations} products={d.products} />,

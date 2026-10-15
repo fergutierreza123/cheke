@@ -12,7 +12,7 @@ export default async function ChannelsPage() {
   const { data } = await supabase
     .from("channels")
     .select(
-      "id, type, status, external_id, display_phone, verified_name, connected_at, coexistence, contacts_sync_requested_at, history_sync_requested_at, history_sync_progress, history_sync_error",
+      "id, type, status, external_id, page_id, display_phone, verified_name, connected_at, coexistence, contacts_sync_requested_at, history_sync_requested_at, history_sync_progress, history_sync_error",
     )
     .eq("business_id", business.id);
 
@@ -21,12 +21,18 @@ export default async function ChannelsPage() {
   // The connect button only works once Meta's app, the Embedded Signup
   // configuration and the encryption key are all set.
   const metaReady = Boolean(appId && configId && process.env.WHATSAPP_APP_SECRET && process.env.CHANNEL_TOKEN_KEY);
+  // Instagram + Facebook use a second login configuration on the same app.
+  const messagingConfigId = process.env.NEXT_PUBLIC_META_MESSAGING_CONFIG_ID;
+  const messagingReady = Boolean(
+    appId && messagingConfigId && process.env.WHATSAPP_APP_SECRET && process.env.CHANNEL_TOKEN_KEY,
+  );
 
   return (
     <ChannelsView
       channels={(data ?? []) as ChannelItem[]}
       isOwner={business.role === "owner"}
       meta={metaReady ? { appId: appId!, configId: configId! } : null}
+      messaging={messagingReady ? { appId: appId!, configId: messagingConfigId! } : null}
     />
   );
 }

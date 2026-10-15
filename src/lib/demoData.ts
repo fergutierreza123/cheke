@@ -121,7 +121,7 @@ export function buildDemoData(now: number) {
   ];
 
   const channels: ChannelItem[] = [
-    { id: "ch1", type: "whatsapp", status: "connected", external_id: "demo", display_phone: "+504 9100-1214", verified_name: "Tienda Luna", connected_at: iso(3 * 24 * H),
+    { id: "ch1", type: "whatsapp", status: "connected", external_id: "demo", page_id: null, display_phone: "+504 9100-1214", verified_name: "Tienda Luna", connected_at: iso(3 * 24 * H),
       coexistence: true, contacts_sync_requested_at: iso(3 * 24 * H), history_sync_requested_at: iso(3 * 24 * H),
       history_sync_progress: 100, history_sync_error: null },
   ];
