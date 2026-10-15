@@ -49,6 +49,9 @@ export type Message = {
   // Where an outgoing message was written: in cheke, on the business's phone
   // (WhatsApp Business app, coexistence), or imported chat history.
   source?: "cheke" | "phone" | "history";
+  // Failed sends only: Meta's error code and the Spanish reason shown in Chat.
+  error_code?: number | null;
+  error_reason?: string | null;
   created_at: string;
 };
 

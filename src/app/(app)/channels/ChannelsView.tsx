@@ -9,6 +9,7 @@ import { ConnectWhatsAppButton } from "./ConnectWhatsAppButton";
 import { disconnectChannel, retryCoexistenceSync } from "./actions";
 import { COEXISTENCE_SYNC_WINDOW_MS } from "@/lib/coexistence";
 import { BrandMark } from "@/components/BrandMark";
+import { META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 
 export type ChannelItem = {
   id: string;
@@ -25,15 +26,20 @@ export type ChannelItem = {
   history_sync_error: string | null;
 };
 
+// Recent WhatsApp messages Meta refused because of the business's billing.
+export type BillingProblem = { count: number; lastAt: string };
+
 export function ChannelsView({
   channels,
   isOwner,
   meta,
+  billingProblem,
 }: {
   channels: ChannelItem[];
   isOwner: boolean;
   // null until Meta's app + Embedded Signup are configured on the server
   meta: { appId: string; configId: string } | null;
+  billingProblem?: BillingProblem | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -78,6 +84,8 @@ export function ChannelsView({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
         <div className="mx-auto grid max-w-3xl gap-3">
+          {billingProblem && <BillingBanner problem={billingProblem} isOwner={isOwner} />}
+
           {/* WhatsApp */}
           <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
             <div className="flex items-start gap-3">
@@ -158,6 +166,37 @@ export function ChannelsView({
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// WhatsApp stopped delivering replies because of the business's Meta
+// billing. Since Oct 1, 2026 Meta charges for replies and, without a card in
+// its Billing Hub, delivers only the first 1,000 of each month.
+function BillingBanner({ problem, isOwner }: { problem: BillingProblem; isOwner: boolean }) {
+  const messages = problem.count === 1 ? "1 mensaje" : `${problem.count} mensajes`;
+  return (
+    <div role="alert" className="rounded-2xl border border-danger-border bg-danger-tint p-4 lg:p-5">
+      <h2 className="font-heading text-[15px] font-semibold text-danger">
+        WhatsApp no está entregando tus respuestas por un problema de pago con Meta
+      </h2>
+      <p className="mt-1 text-[13.5px] leading-relaxed text-ink">
+        {messages} no se entregaron en los últimos días (el último {relativeTime(problem.lastAt)}). Meta cobra las
+        respuestas a tus clientes y, sin una tarjeta, solo entrega las primeras 1,000 del mes.
+      </p>
+      <p className="mt-1 text-[13.5px] leading-relaxed text-ink">
+        {isOwner
+          ? "Para arreglarlo: abre Billing Hub con la cuenta de Facebook que conectó WhatsApp, agrega una tarjeta en «Métodos de pago» y vuelve a enviar los mensajes que fallaron."
+          : "Avísale al dueño del negocio: debe agregar una tarjeta en Billing Hub de Meta."}
+      </p>
+      <a
+        href={META_BILLING_HUB_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 inline-flex h-10 items-center rounded-[10px] bg-danger px-4 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Abrir Billing Hub de Meta
+      </a>
     </div>
   );
 }

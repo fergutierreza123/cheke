@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateChekelinReply } from "@/lib/ai";
 import { credentialsForChannel, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { markMessageFailed } from "@/lib/whatsappErrors";
 import type { Message } from "@/lib/types";
 
 // Shared by the WhatsApp webhook (service-role client, no user session) and
@@ -69,7 +70,7 @@ export async function runChekelinReply(
   if (sendExternally && channel?.type === "whatsapp" && contact?.phone) {
     const sendResult = await sendWhatsAppMessage(contact.phone, reply, credentialsForChannel(channel));
     if (sendResult.error) {
-      await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);
+      await markMessageFailed(supabase, message.id, sendResult);
     } else if (sendResult.externalMessageId) {
       await supabase
         .from("messages")

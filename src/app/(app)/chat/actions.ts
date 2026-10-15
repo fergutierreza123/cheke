@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { credentialsForChannel, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { markMessageFailed } from "@/lib/whatsappErrors";
 import { isWhatsAppWindowClosed, WINDOW_CLOSED_MESSAGE } from "@/lib/whatsappWindow";
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
@@ -83,8 +84,8 @@ export async function sendChatMessage(
     const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl);
 
     if (result.error) {
-      await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);
-      return { message: { ...message, status: "failed" }, sendError: result.error, botDisabled };
+      const failed = await markMessageFailed(supabase, message.id, result);
+      return { message: { ...message, ...failed }, sendError: result.error, botDisabled };
     }
     if (result.externalMessageId) {
       await supabase
