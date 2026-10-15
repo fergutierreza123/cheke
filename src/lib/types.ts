@@ -47,8 +47,12 @@ export type Message = {
   status: "sent" | "delivered" | "read" | "failed";
   is_bot: boolean;
   // Where an outgoing message was written: in cheke, on the business's phone
-  // (WhatsApp Business app, coexistence), or imported chat history.
-  source?: "cheke" | "phone" | "history";
+  // (WhatsApp Business app, coexistence), imported chat history, or in the
+  // Instagram app / Meta Business Suite (meta_app).
+  source?: "cheke" | "phone" | "history" | "meta_app";
+  // Failed sends only: Meta's error code and the Spanish reason shown in Chat.
+  error_code?: number | null;
+  error_reason?: string | null;
   created_at: string;
 };
 

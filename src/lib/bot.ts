@@ -1,22 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateChekelinReply } from "@/lib/ai";
-import { credentialsForChannel, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS } from "@/lib/channelSend";
+import { replyWindow } from "@/lib/messagingWindow";
+import { markMessageFailed } from "@/lib/whatsappErrors";
 import type { Message } from "@/lib/types";
 
-// Shared by the WhatsApp webhook (service-role client, no user session) and
-// the Chat UI's "simular mensaje de cliente" demo action (regular
-// user-scoped client) — both just need a conversation that already has its
+// Shared by the WhatsApp and Instagram/Messenger webhooks (service-role
+// client, no user session) and the Chat UI's "simular mensaje de cliente"
+// demo action (regular user-scoped client) — both just need a conversation that already has its
 // new inbound message saved, and call this to let Chekelin answer it.
 export async function runChekelinReply(
   supabase: SupabaseClient,
   conversationId: string,
   // false for the Chat "modo prueba": the reply is saved in cheke only, never
-  // sent to the real customer's WhatsApp.
+  // sent to the real customer.
   { sendExternally = true }: { sendExternally?: boolean } = {},
 ): Promise<{ message?: Message; error?: string; skipped?: true }> {
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
-    .select("id, business_id, bot_enabled, contact:contacts(phone), channel:channels(type, external_id, access_token_encrypted)")
+    .select(
+      `id, business_id, bot_enabled, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`,
+    )
     .eq("id", conversationId)
     .single();
 
@@ -25,6 +29,12 @@ export async function runChekelinReply(
 
   const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
   const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
+
+  // chekelin only answers inside the 24 h window. Past it, Instagram and
+  // Facebook still let a *person* reply (HUMAN_AGENT), never an automation.
+  if (sendExternally && replyWindow(channel?.type, conversation.window_expires_at, Date.now()) !== "open") {
+    return { skipped: true };
+  }
 
   const [{ data: business }, { data: products }, { data: templates }, { data: history }] = await Promise.all([
     supabase.from("businesses").select("name").eq("id", conversation.business_id).single(),
@@ -66,11 +76,17 @@ export async function runChekelinReply(
 
   await supabase.from("conversations").update({ last_message_at: message.created_at }).eq("id", conversationId);
 
-  if (sendExternally && channel?.type === "whatsapp" && contact?.phone) {
-    const sendResult = await sendWhatsAppMessage(contact.phone, reply, credentialsForChannel(channel));
+  if (sendExternally) {
+    const sendResult = await sendOnChannel({
+      channel,
+      contact,
+      windowExpiresAt: conversation.window_expires_at,
+      text: reply,
+      author: "bot",
+    });
     if (sendResult.error) {
-      await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);
-    } else if (sendResult.externalMessageId) {
+      await markMessageFailed(supabase, message.id, sendResult);
+    } else if (!sendResult.notSent && sendResult.externalMessageId) {
       await supabase
         .from("messages")
         .update({ external_message_id: sendResult.externalMessageId })

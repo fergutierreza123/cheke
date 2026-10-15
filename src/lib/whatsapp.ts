@@ -105,7 +105,15 @@ export async function sendWhatsAppMessage(
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    return { error: data?.error?.message ?? "No se pudo enviar el mensaje de WhatsApp." };
+    // Meta's error code (e.g. 131042 = payment problem) lets callers save a
+    // plain-Spanish reason on the failed message (see whatsappErrors.ts).
+    const errorCode: number | undefined = typeof data?.error?.code === "number" ? data.error.code : undefined;
+    const details: string | undefined = data?.error?.error_data?.details;
+    return {
+      error: data?.error?.message ?? "No se pudo enviar el mensaje de WhatsApp.",
+      errorCode,
+      errorDetails: [data?.error?.message, details].filter(Boolean).join(" — ") || undefined,
+    };
   }
 
   const externalMessageId: string | undefined = data?.messages?.[0]?.id;

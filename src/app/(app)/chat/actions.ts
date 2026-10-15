@@ -1,8 +1,9 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { credentialsForChannel, sendWhatsAppMessage } from "@/lib/whatsapp";
-import { isWhatsAppWindowClosed, WINDOW_CLOSED_MESSAGE } from "@/lib/whatsappWindow";
+import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS, type SendResult } from "@/lib/channelSend";
+import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
+import { markMessageFailed } from "@/lib/whatsappErrors";
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -40,7 +41,9 @@ export async function sendChatMessage(
 
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
-    .select("id, business_id, bot_enabled, window_expires_at, contact:contacts(phone), channel:channels(type, external_id, access_token_encrypted)")
+    .select(
+      `id, business_id, bot_enabled, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`,
+    )
     .eq("id", conversationId)
     .single();
 
@@ -49,10 +52,11 @@ export async function sendChatMessage(
   const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
   const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
 
-  // Refuse up front (before saving anything) once WhatsApp's 24h reply window
-  // has closed, instead of saving a message that Meta will reject.
-  if (channel?.type === "whatsapp" && isWhatsAppWindowClosed(conversation.window_expires_at, Date.now())) {
-    return { error: WINDOW_CLOSED_MESSAGE };
+  // Refuse up front (before saving anything) once the reply window has
+  // closed (WhatsApp: 24 h; Instagram/Facebook: 7 days for a person),
+  // instead of saving a message that Meta will reject.
+  if (replyWindow(channel?.type, conversation.window_expires_at, Date.now()) === "closed") {
+    return { error: windowClosedMessage(channel?.type) };
   }
 
   const { data: message, error: insertError } = await supabase
@@ -84,22 +88,28 @@ export async function sendChatMessage(
     botDisabled = true;
   }
 
-  // Only WhatsApp actually sends anywhere right now — Instagram/Facebook
-  // messaging is Phase 7. Everything still saves to the conversation either
-  // way, same as the demo-seeded conversations.
-  if (channel?.type === "whatsapp" && contact?.phone && !(await isDemoBusiness(supabase, conversation.business_id))) {
-    const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl);
-
-    if (result.error) {
-      await supabase.from("messages").update({ status: "failed" }).eq("id", message.id);
-      return { message: { ...message, status: "failed" }, sendError: result.error, botDisabled };
-    }
-    if (result.externalMessageId) {
-      await supabase
-        .from("messages")
-        .update({ external_message_id: result.externalMessageId })
-        .eq("id", message.id);
-    }
+  // Goes out on the conversation's own channel. Conversations without one
+  // (demo/seeded) only save in cheke, as before — and so does everything in
+  // the app reviewers' demo Negocio, on every network.
+  const result: SendResult = (await isDemoBusiness(supabase, conversation.business_id))
+    ? { notSent: true }
+    : await sendOnChannel({
+    channel,
+    contact,
+    windowExpiresAt: conversation.window_expires_at,
+    text,
+    mediaUrl,
+    author: "human",
+  });
+  if (result.error) {
+    const failed = await markMessageFailed(supabase, message.id, result);
+    return { message: { ...message, ...failed }, sendError: result.error, botDisabled };
+  }
+  if (!result.notSent && result.externalMessageId) {
+    await supabase
+      .from("messages")
+      .update({ external_message_id: result.externalMessageId })
+      .eq("id", message.id);
   }
 
   return { message, botDisabled };

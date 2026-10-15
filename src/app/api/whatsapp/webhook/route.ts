@@ -4,6 +4,7 @@ import { samePhone, verifyWebhookSignature } from "@/lib/whatsapp";
 import { runChekelinReply } from "@/lib/bot";
 import { sendPushToBusiness } from "@/lib/push";
 import { describeMessage, type WhatsAppMessage } from "@/lib/whatsappMessages";
+import { explainWhatsAppError } from "@/lib/whatsappErrors";
 
 // Meta resends if we answer slowly, so the push alert and Chekelin's AI reply
 // (which can take several seconds) run *after* the response, with room to finish.
@@ -430,11 +431,39 @@ async function updateMessageStatus(supabase: Admin, status: WhatsAppStatus) {
     .maybeSingle();
   if (!current) return;
 
+  const update: Record<string, unknown> = {};
+
+  // What Meta charged (or didn't) for this message, for future cost
+  // analytics. Comes on "sent" and again on "delivered" or "read", so it's
+  // saved even when the status itself doesn't move.
+  if (status.pricing) {
+    update.pricing_billable = status.pricing.billable ?? null;
+    update.pricing_type = status.pricing.type ?? null;
+    update.pricing_category = status.pricing.category ?? null;
+  }
+
   const currentRank = STATUS_RANK[current.status as keyof typeof STATUS_RANK] ?? 0;
   // "failed" always wins (nothing was delivered); otherwise only move forward.
-  if (status.status !== "failed" && (currentRank >= next || current.status === "failed")) return;
+  if (status.status === "failed" || (currentRank < next && current.status !== "failed")) {
+    update.status = status.status;
+  }
 
-  await supabase.from("messages").update({ status: status.status }).eq("external_message_id", status.id);
+  // Why it failed, so Chat can tell the business in plain Spanish.
+  if (status.status === "failed") {
+    const error = status.errors?.[0];
+    const metaText =
+      [error?.title ?? error?.message, error?.error_data?.details].filter(Boolean).join(" — ") || null;
+    update.error_code = error?.code ?? null;
+    update.error_details = metaText;
+    update.error_reason = explainWhatsAppError(error?.code, metaText);
+  }
+
+  if (Object.keys(update).length === 0) return;
+  const { error } = await supabase.from("messages").update(update).eq("external_message_id", status.id);
+  // Migration 0017 not run yet (unknown column): still save the tick itself.
+  if (error && update.status) {
+    await supabase.from("messages").update({ status: update.status }).eq("external_message_id", status.id);
+  }
 }
 
 function messageTime(timestamp: string | undefined, fallback: Date): string {
@@ -480,4 +509,6 @@ type WhatsAppHistoryThread = {
 type WhatsAppStatus = {
   id: string;
   status: "sent" | "delivered" | "read" | "failed";
+  pricing?: { billable?: boolean; type?: string; category?: string };
+  errors?: Array<{ code?: number; title?: string; message?: string; error_data?: { details?: string } }>;
 };

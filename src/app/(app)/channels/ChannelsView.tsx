@@ -6,15 +6,19 @@ import { ChannelIcon } from "@/components/ChannelIcon";
 import { relativeTime } from "@/lib/format";
 import type { ChannelType } from "@/lib/types";
 import { ConnectWhatsAppButton } from "./ConnectWhatsAppButton";
+import { ConnectMetaButton } from "./ConnectMetaButton";
 import { disconnectChannel, retryCoexistenceSync } from "./actions";
+import { disconnectMetaPage } from "./metaActions";
 import { COEXISTENCE_SYNC_WINDOW_MS } from "@/lib/coexistence";
 import { BrandMark } from "@/components/BrandMark";
+import { META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 
 export type ChannelItem = {
   id: string;
   type: ChannelType;
   status: "disconnected" | "connected" | "error";
   external_id: string | null;
+  page_id: string | null;
   display_phone: string | null;
   verified_name: string | null;
   connected_at: string | null;
@@ -25,15 +29,23 @@ export type ChannelItem = {
   history_sync_error: string | null;
 };
 
+// Recent WhatsApp messages Meta refused because of the business's billing.
+export type BillingProblem = { count: number; lastAt: string };
+
 export function ChannelsView({
   channels,
   isOwner,
   meta,
+  messaging,
+  billingProblem,
 }: {
   channels: ChannelItem[];
   isOwner: boolean;
   // null until Meta's app + Embedded Signup are configured on the server
   meta: { appId: string; configId: string } | null;
+  // null until the Instagram + Facebook login configuration is set up
+  messaging: { appId: string; configId: string } | null;
+  billingProblem?: BillingProblem | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -78,6 +90,8 @@ export function ChannelsView({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
         <div className="mx-auto grid max-w-3xl gap-3">
+          {billingProblem && <BillingBanner problem={billingProblem} isOwner={isOwner} />}
+
           {/* WhatsApp */}
           <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
             <div className="flex items-start gap-3">
@@ -135,29 +149,158 @@ export function ChannelsView({
             </div>
           </div>
 
-          {/* Instagram + Facebook: Phase 7 */}
-          {(["instagram", "facebook"] as const).map((type) => (
-            <div key={type} className="rounded-2xl border border-border bg-surface p-4 opacity-80 lg:p-5">
-              <div className="flex items-center gap-3">
-                <ChannelIcon type={type} className="h-10 w-10 shrink-0 rounded-full" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-heading text-[15.5px] font-semibold text-ink">
-                      {type === "instagram" ? "Instagram" : "Facebook Messenger"}
-                    </h2>
-                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
-                      Próximamente
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[13.5px] text-ink-muted">
-                    Los mensajes directos llegarán al mismo buzón que WhatsApp.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
+          <MetaChannelsCard channels={channels} isOwner={isOwner} messaging={messaging} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// Instagram DMs + Facebook Messenger: one card, since both connect together
+// through a Facebook Page (and the Instagram account linked to it). A
+// business can connect more than one Page.
+function MetaChannelsCard({
+  channels,
+  isOwner,
+  messaging,
+}: {
+  channels: ChannelItem[];
+  isOwner: boolean;
+  messaging: { appId: string; configId: string } | null;
+}) {
+  const router = useRouter();
+  const [busyPage, setBusyPage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const connected = channels.filter(
+    (c) => (c.type === "facebook" || c.type === "instagram") && c.status === "connected" && c.page_id,
+  );
+  const pageIds = Array.from(new Set(connected.map((c) => c.page_id as string)));
+  const pages = pageIds.map((pageId) => ({
+    pageId,
+    facebook: connected.find((c) => c.page_id === pageId && c.type === "facebook"),
+    instagram: connected.find((c) => c.page_id === pageId && c.type === "instagram"),
+  }));
+
+  async function handleDisconnect(pageId: string) {
+    const ok = window.confirm(
+      "¿Desconectar esta página? Dejarás de recibir y enviar sus mensajes de Facebook e Instagram desde cheke.",
+    );
+    if (!ok) return;
+    setBusyPage(pageId);
+    setError(null);
+    const result = await disconnectMetaPage(pageId);
+    setBusyPage(null);
+    if (result.error) setError(result.error);
+    else router.refresh();
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
+      <div className="flex items-start gap-3">
+        <div className="flex shrink-0 -space-x-2">
+          <ChannelIcon type="instagram" className="h-10 w-10 rounded-full ring-2 ring-surface" />
+          <ChannelIcon type="facebook" className="h-10 w-10 rounded-full ring-2 ring-surface" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="font-heading text-[15.5px] font-semibold text-ink">Instagram y Facebook</h2>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                pages.length > 0 ? "bg-accent-tint text-brand-dark" : "bg-surface-2 text-ink-muted"
+              }`}
+            >
+              {pages.length > 0 ? "Conectado" : "Sin conectar"}
+            </span>
+          </div>
+          <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
+            Los mensajes directos de Instagram y de Messenger llegan al mismo buzón que WhatsApp. Necesitas una página
+            de Facebook; si tu Instagram profesional está vinculado a ella, se conecta junto.
+          </p>
+        </div>
+      </div>
+
+      {pages.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-2">
+          {pages.map((p) => (
+            <li key={p.pageId} className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-2 px-3 py-2.5">
+              <div className="min-w-0 flex-1 text-[13px] text-ink-muted">
+                <div className="flex items-center gap-1.5">
+                  <ChannelIcon type="facebook" className="h-4 w-4 shrink-0 rounded-full" />
+                  <strong className="truncate text-ink">{p.facebook?.verified_name ?? "Página de Facebook"}</strong>
+                </div>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <ChannelIcon type="instagram" className="h-4 w-4 shrink-0 rounded-full" />
+                  <span className="truncate">
+                    {p.instagram ? (p.instagram.verified_name ?? "Instagram") : "Sin Instagram vinculado"}
+                  </span>
+                </div>
+                {p.facebook?.connected_at && (
+                  <div className="mt-1 text-[12px] text-ink-soft">Conectado {relativeTime(p.facebook.connected_at)}</div>
+                )}
+              </div>
+              {isOwner && (
+                <button
+                  onClick={() => handleDisconnect(p.pageId)}
+                  disabled={busyPage !== null}
+                  className="h-9 rounded-[10px] border border-danger-border bg-danger-tint px-3 text-[13px] font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60"
+                >
+                  {busyPage === p.pageId ? "Desconectando…" : "Desconectar"}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-4">
+        {!isOwner ? (
+          <p className="text-[12.5px] text-ink-soft">Solo el dueño del negocio puede conectar o desconectar canales.</p>
+        ) : messaging ? (
+          <ConnectMetaButton
+            appId={messaging.appId}
+            configId={messaging.configId}
+            label={pages.length > 0 ? "Conectar otra página" : undefined}
+          />
+        ) : (
+          <div className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-muted">
+            La conexión con Instagram y Facebook se activa cuando Meta apruebe los permisos de cheke. Mientras tanto
+            puedes probar chekelin con el modo prueba del Chat.
+          </div>
+        )}
+        {error && <p className="mt-2 text-[12.5px] text-danger">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// WhatsApp stopped delivering replies because of the business's Meta
+// billing. Since Oct 1, 2026 Meta charges for replies and, without a card in
+// its Billing Hub, delivers only the first 1,000 of each month.
+function BillingBanner({ problem, isOwner }: { problem: BillingProblem; isOwner: boolean }) {
+  const messages = problem.count === 1 ? "1 mensaje" : `${problem.count} mensajes`;
+  return (
+    <div role="alert" className="rounded-2xl border border-danger-border bg-danger-tint p-4 lg:p-5">
+      <h2 className="font-heading text-[15px] font-semibold text-danger">
+        WhatsApp no está entregando tus respuestas por un problema de pago con Meta
+      </h2>
+      <p className="mt-1 text-[13.5px] leading-relaxed text-ink">
+        {messages} no se entregaron en los últimos días (el último {relativeTime(problem.lastAt)}). Meta cobra las
+        respuestas a tus clientes y, sin una tarjeta, solo entrega las primeras 1,000 del mes.
+      </p>
+      <p className="mt-1 text-[13.5px] leading-relaxed text-ink">
+        {isOwner
+          ? "Para arreglarlo: abre Billing Hub con la cuenta de Facebook que conectó WhatsApp, agrega una tarjeta en «Métodos de pago» y vuelve a enviar los mensajes que fallaron."
+          : "Avísale al dueño del negocio: debe agregar una tarjeta en Billing Hub de Meta."}
+      </p>
+      <a
+        href={META_BILLING_HUB_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 inline-flex h-10 items-center rounded-[10px] bg-danger px-4 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Abrir Billing Hub de Meta
+      </a>
     </div>
   );
 }
