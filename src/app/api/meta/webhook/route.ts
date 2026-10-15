@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/whatsapp";
 import { fetchMetaProfile, metaCredentialsForChannel } from "@/lib/metaMessaging";
 import { runChekelinReply } from "@/lib/bot";
-import { sendPushToBusiness } from "@/lib/push";
+import { sendPushToStore } from "@/lib/push";
 
 // Instagram DMs and Facebook Messenger webhook (Messenger Platform), one URL
 // for every business: Meta tells us which Page (object "page") or Instagram
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     after(async () => {
       const supabase = createAdminClient();
       for (const item of result.saved) {
-        await sendPushToBusiness(supabase, item.businessId, {
+        await sendPushToStore(supabase, item.businessId, item.storeId, {
           title: item.contactName,
           body: item.body ?? "Nuevo mensaje",
           conversationId: item.conversationId,
@@ -90,15 +90,24 @@ const ECHO_DELAY_MS = 4000;
 
 type Admin = ReturnType<typeof createAdminClient>;
 type NetworkType = "instagram" | "facebook";
+// A channel belongs to one Tienda: its conversations (and their messages)
+// go to that Tienda. Contacts are matched across the whole Negocio.
 type Channel = {
   id: string;
   business_id: string;
+  store_id: string;
   type: NetworkType;
   external_id: string;
   page_id: string | null;
   access_token_encrypted: string | null;
 };
-type SavedMessage = { businessId: string; conversationId: string; contactName: string; body: string | null };
+type SavedMessage = {
+  businessId: string;
+  storeId: string;
+  conversationId: string;
+  contactName: string;
+  body: string | null;
+};
 type PendingEcho = { channel: Channel; event: MessagingEvent };
 type HandleResult = { saved: SavedMessage[]; echoes: PendingEcho[] };
 
@@ -120,7 +129,7 @@ async function handlePayload(payload: MetaWebhookPayload): Promise<HandleResult>
 
     const { data: channel } = await supabase
       .from("channels")
-      .select("id, business_id, type, external_id, page_id, access_token_encrypted")
+      .select("id, business_id, store_id, type, external_id, page_id, access_token_encrypted")
       .eq("type", type)
       .eq("external_id", entry.id)
       .eq("status", "connected")
@@ -138,7 +147,7 @@ async function handlePayload(payload: MetaWebhookPayload): Promise<HandleResult>
           result.echoes.push({ channel, event });
         } else if (event.message || event.postback) {
           const saved = await saveInboundMessage(supabase, channel, event);
-          if (saved) result.saved.push({ businessId: channel.business_id, ...saved });
+          if (saved) result.saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...saved });
         } else if (event.delivery) {
           for (const mid of event.delivery.mids ?? []) await advanceStatus(supabase, mid, "delivered");
         } else if (event.read) {
@@ -339,7 +348,13 @@ async function findOrCreateConversation(
 
   const { data: created, error } = await supabase
     .from("conversations")
-    .insert({ business_id: channel.business_id, contact_id: contactId, channel_id: channel.id, status: "open" })
+    .insert({
+      business_id: channel.business_id,
+      store_id: channel.store_id,
+      contact_id: contactId,
+      channel_id: channel.id,
+      status: "open",
+    })
     .select("id, last_message_at")
     .single();
   if (error || !created) throw new Error(error?.message ?? "No se pudo crear la conversación.");

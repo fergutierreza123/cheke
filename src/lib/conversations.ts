@@ -1,12 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import type { ConversationWithContact, Message } from "@/lib/types";
 
-export async function getConversations(businessId: string): Promise<ConversationWithContact[]> {
+// The conversations of the given Tiendas (the ones on screen right now).
+export async function getConversations(businessId: string, storeIds: string[]): Promise<ConversationWithContact[]> {
+  if (storeIds.length === 0) return [];
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("conversations")
     .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type)")
     .eq("business_id", businessId)
+    .in("store_id", storeIds)
     .order("last_message_at", { ascending: false, nullsFirst: false });
 
   if (error) throw new Error(error.message);

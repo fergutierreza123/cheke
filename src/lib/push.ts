@@ -2,9 +2,9 @@ import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
-// Server-only. Sends a phone notification to every installed app belonging
-// to a business when something worth interrupting for happens (a customer
-// message). Firebase Cloud Messaging delivers to both Android and iPhone.
+// Server-only. Sends a phone notification to the installed apps of the
+// people who work in a Tienda when something worth interrupting for happens
+// (a customer message). Firebase Cloud Messaging delivers to both Android and iPhone.
 //
 // Needs FIREBASE_SERVICE_ACCOUNT_JSON (Firebase console → Project settings →
 // Service accounts → Generate new private key; paste the whole JSON file as
@@ -42,12 +42,12 @@ export function countAwaitingReply(
 
 async function awaitingReplyCount(
   supabase: ReturnType<typeof createAdminClient>,
-  businessId: string,
+  storeId: string,
 ): Promise<number> {
   const { data } = await supabase
     .from("messages")
     .select("conversation_id, direction")
-    .eq("business_id", businessId)
+    .eq("store_id", storeId)
     .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .order("created_at", { ascending: false })
     .limit(1000);
@@ -56,23 +56,44 @@ async function awaitingReplyCount(
   return Math.max(1, countAwaitingReply(data ?? []));
 }
 
-export async function sendPushToBusiness(
+// Who gets the alert for a message in this Tienda: its Dueños, and the
+// Gerentes and Agentes of the Tienda (until conversation routing exists).
+async function peopleOfStore(
   supabase: ReturnType<typeof createAdminClient>,
   businessId: string,
+  storeId: string,
+): Promise<string[]> {
+  const [{ data: owners }, { data: store }, { data: storeMembers }] = await Promise.all([
+    supabase.from("members").select("user_id").eq("business_id", businessId).eq("role", "owner"),
+    supabase.from("stores").select("archived_at").eq("id", storeId).eq("business_id", businessId).maybeSingle(),
+    supabase.from("store_members").select("user_id").eq("store_id", storeId),
+  ]);
+  const people = new Set((owners ?? []).map((o) => o.user_id as string));
+  if (store && !store.archived_at) for (const m of storeMembers ?? []) people.add(m.user_id as string);
+  return [...people];
+}
+
+export async function sendPushToStore(
+  supabase: ReturnType<typeof createAdminClient>,
+  businessId: string,
+  storeId: string,
   notification: { title: string; body: string; conversationId: string },
 ): Promise<void> {
   try {
     const app = getFirebaseApp();
     if (!app) return;
 
+    const people = await peopleOfStore(supabase, businessId, storeId);
+    if (people.length === 0) return;
     const { data: devices } = await supabase
       .from("device_tokens")
       .select("token")
-      .eq("business_id", businessId);
+      .eq("business_id", businessId)
+      .in("user_id", people);
     const tokens = (devices ?? []).map((d) => d.token);
     if (tokens.length === 0) return;
 
-    const badge = await awaitingReplyCount(supabase, businessId);
+    const badge = await awaitingReplyCount(supabase, storeId);
 
     const response = await getMessaging(app).sendEachForMulticast({
       tokens,

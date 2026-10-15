@@ -9,12 +9,13 @@ import type {
   TeamMember,
 } from "@/lib/types";
 import type { NotificationItem } from "@/lib/notifications";
-import type { CurrentBusiness } from "@/lib/business";
+import type { CurrentBusiness } from "@/lib/stores";
 import type { ChannelItem } from "@/app/(app)/channels/ChannelsView";
 
 // Sample data for the /demo showcase (an iPhone-framed walkthrough of the
 // app). Entirely fictional — never read from or written to the database.
 export const DEMO_BASE = "/demo/app";
+const DEMO_STORE = { id: "demo-store", name: "Tienda Luna", archived: false };
 const H = 3600000;
 
 export function buildDemoData(now: number) {
@@ -32,6 +33,7 @@ export function buildDemoData(now: number) {
   const conversations: ConversationWithContact[] = people.map(([name, ch, stage, last, ago, val], i) => ({
     id: `conv-${i}`,
     business_id: "demo",
+    store_id: DEMO_STORE.id,
     contact_id: `c-${i}`,
     channel_id: "ch1",
     status: "open",
@@ -76,6 +78,7 @@ export function buildDemoData(now: number) {
   ).map(([name, category, price, stock], i) => ({
     id: `p${i}`,
     business_id: "demo",
+    store_id: DEMO_STORE.id,
     retailer_id: `r${i}`,
     name,
     description: "Disponible en negro y café.",
@@ -107,7 +110,21 @@ export function buildDemoData(now: number) {
     { id: "t3", business_id: "demo", name: "Envíos", category: "envios", body: "Hacemos envíos a todo el país. Tegucigalpa y San Pedro Sula: 1 día. Resto: 2-3 días.", created_at: iso(H) },
   ];
 
-  const business: CurrentBusiness = { id: "demo", name: "Tienda Luna", plan: "pro", inviteCode: "LUNA-2026", role: "owner" };
+  // A single-Tienda Negocio, so the demo looks exactly like most customers.
+  const business: CurrentBusiness = {
+    id: "demo",
+    name: "Tienda Luna",
+    plan: "pro",
+    role: "owner",
+    userId: "u1",
+    allStores: [DEMO_STORE],
+    stores: [DEMO_STORE],
+    archivedStores: [],
+    multiStore: false,
+    selected: DEMO_STORE.id,
+    selectedStore: DEMO_STORE,
+    scopeStoreIds: [DEMO_STORE.id],
+  };
   const members: TeamMember[] = [
     { user_id: "u1", email: "fernando@tiendaluna.hn", role: "owner", joined_at: iso(90 * 24 * H) },
     { user_id: "u2", email: "sofia@tiendaluna.hn", role: "agent", joined_at: iso(20 * 24 * H) },
@@ -121,7 +138,7 @@ export function buildDemoData(now: number) {
   ];
 
   const channels: ChannelItem[] = [
-    { id: "ch1", type: "whatsapp", status: "connected", external_id: "demo", page_id: null, display_phone: "+504 9100-1214", verified_name: "Tienda Luna", connected_at: iso(3 * 24 * H),
+    { id: "ch1", store_id: "demo-store", type: "whatsapp", status: "connected", external_id: "demo", page_id: null, display_phone: "+504 9100-1214", verified_name: "Tienda Luna", connected_at: iso(3 * 24 * H),
       coexistence: true, contacts_sync_requested_at: iso(3 * 24 * H), history_sync_requested_at: iso(3 * 24 * H),
       history_sync_progress: 100, history_sync_error: null },
   ];

@@ -19,7 +19,7 @@ export async function runChekelinReply(
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
     .select(
-      `id, business_id, bot_enabled, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`,
+      `id, business_id, store_id, bot_enabled, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`,
     )
     .eq("id", conversationId)
     .single();
@@ -38,7 +38,8 @@ export async function runChekelinReply(
 
   const [{ data: business }, { data: products }, { data: templates }, { data: history }] = await Promise.all([
     supabase.from("businesses").select("name").eq("id", conversation.business_id).single(),
-    supabase.from("products").select("*").eq("business_id", conversation.business_id).eq("visible", true),
+    // The catalog of the conversation's own Tienda; templates are shared by the Negocio.
+    supabase.from("products").select("*").eq("store_id", conversation.store_id).eq("visible", true),
     supabase.from("templates").select("*").eq("business_id", conversation.business_id),
     supabase
       .from("messages")

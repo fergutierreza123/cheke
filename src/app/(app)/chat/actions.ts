@@ -5,7 +5,7 @@ import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS, type SendRes
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { markMessageFailed } from "@/lib/whatsappErrors";
 import { runChekelinReply } from "@/lib/bot";
-import { sendPushToBusiness } from "@/lib/push";
+import { sendPushToStore } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildPaymentMessage, normalizePaymentLink } from "@/lib/payments";
 import type { ConversationStage, Message } from "@/lib/types";
@@ -129,7 +129,7 @@ export async function simulateInboundMessage(
 
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
-    .select("id, business_id, contact:contacts(name)")
+    .select("id, business_id, store_id, contact:contacts(name)")
     .eq("id", conversationId)
     .single();
   if (convError || !conversation) return { error: "No se encontró la conversación." };
@@ -146,10 +146,10 @@ export async function simulateInboundMessage(
   // Same phone alert a real WhatsApp message would trigger, so test mode can
   // demo notifications before WhatsApp is connected. Admin client because
   // the push has to read every teammate's phone, not just the caller's; the
-  // caller was already confirmed to belong to this business by the RLS-
-  // scoped conversation lookup above.
+  // caller was already confirmed to work in this Tienda by the RLS-scoped
+  // conversation lookup above.
   const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
-  await sendPushToBusiness(createAdminClient(), conversation.business_id, {
+  await sendPushToStore(createAdminClient(), conversation.business_id, conversation.store_id, {
     title: contact?.name ?? "Nuevo mensaje",
     body: text,
     conversationId,

@@ -2,7 +2,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { samePhone, verifyWebhookSignature } from "@/lib/whatsapp";
 import { runChekelinReply } from "@/lib/bot";
-import { sendPushToBusiness } from "@/lib/push";
+import { sendPushToStore } from "@/lib/push";
 import { describeMessage, type WhatsAppMessage } from "@/lib/whatsappMessages";
 import { explainWhatsAppError } from "@/lib/whatsappErrors";
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     after(async () => {
       const supabase = createAdminClient();
       for (const item of saved) {
-        await sendPushToBusiness(supabase, item.businessId, {
+        await sendPushToStore(supabase, item.businessId, item.storeId, {
           title: item.contactName,
           body: item.body ?? "Nuevo mensaje",
           conversationId: item.conversationId,
@@ -73,10 +73,18 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-type SavedMessage = { businessId: string; conversationId: string; contactName: string; body: string | null };
+type SavedMessage = {
+  businessId: string;
+  storeId: string;
+  conversationId: string;
+  contactName: string;
+  body: string | null;
+};
 
 type Admin = ReturnType<typeof createAdminClient>;
-type Channel = { id: string; business_id: string };
+// A channel belongs to one Tienda: its conversations (and their messages)
+// go to that Tienda. Contacts are matched across the whole Negocio.
+type Channel = { id: string; business_id: string; store_id: string };
 
 // Each business's contacts, loaded once per webhook call: a history import
 // can bring hundreds of chats in one payload, and each needs its contact.
@@ -102,7 +110,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
 
       const { data: channel } = await supabase
         .from("channels")
-        .select("id, business_id")
+        .select("id, business_id, store_id")
         .eq("type", "whatsapp")
         .eq("external_id", phoneNumberId)
         .limit(1)
@@ -126,7 +134,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
       for (const message of value.messages ?? []) {
         try {
           const result = await saveInboundMessage(supabase, book, channel, value, message);
-          if (result) saved.push({ businessId: channel.business_id, ...result });
+          if (result) saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...result });
         } catch (error) {
           console.error("whatsapp inbound message error", message?.id, error);
         }
@@ -409,7 +417,13 @@ async function findOrCreateConversation(
 
   const { data: created, error } = await supabase
     .from("conversations")
-    .insert({ business_id: channel.business_id, contact_id: contactId, channel_id: channel.id, status: "open" })
+    .insert({
+      business_id: channel.business_id,
+      store_id: channel.store_id,
+      contact_id: contactId,
+      channel_id: channel.id,
+      status: "open",
+    })
     .select("id, last_message_at")
     .single();
   if (error || !created) throw new Error(error?.message ?? "No se pudo crear la conversación.");

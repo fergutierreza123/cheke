@@ -11,6 +11,8 @@ export type NotificationItem = {
   description: string;
   time: string; // ISO — sorted newest first, formatted client-side
   link: string;
+  // The Tienda it's about, for the store tag and filter in "Todas las tiendas".
+  storeId?: string;
 };
 
 const STALE_MS = 24 * 60 * 60 * 1000;
@@ -21,21 +23,27 @@ const LOW_STOCK_THRESHOLD = 3;
 // a reload, but nothing here is fabricated either. A `notification_reads`
 // table would be the natural next step if that persistence turns out to
 // matter more than the simplicity.
+//
+// `storeIds` are the Tiendas on screen. With more than one, the follow-up
+// and low-stock warnings come one per Tienda so each carries its tag.
 export async function getNotifications(
   businessId: string,
+  storeIds: string[],
   conversations: ConversationWithContact[],
   products: Product[],
 ): Promise<NotificationItem[]> {
+  if (storeIds.length === 0) return [];
   const supabase = await createClient();
   const items: NotificationItem[] = [];
 
   const { data: recentInbound } = await supabase
     .from("messages")
-    .select("id, body, created_at, conversation_id, conversations(contact:contacts(name))")
+    .select("id, body, created_at, conversation_id, store_id, conversations(contact:contacts(name))")
     .eq("business_id", businessId)
+    .in("store_id", storeIds)
     .eq("direction", "in")
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(storeIds.length > 1 ? 10 : 5);
 
   for (const m of recentInbound ?? []) {
     const conv = Array.isArray(m.conversations) ? m.conversations[0] : m.conversations;
@@ -47,37 +55,18 @@ export async function getNotifications(
       description: m.body ?? "",
       time: m.created_at,
       link: `/chat?c=${m.conversation_id}`,
+      storeId: m.store_id,
     });
   }
 
-  const staleLeads = conversations.filter(
-    (c) =>
-      c.stage !== "ganado" &&
-      c.stage !== "perdido" &&
-      c.last_message_at &&
-      Date.now() - new Date(c.last_message_at).getTime() > STALE_MS,
-  );
-  if (staleLeads.length > 0) {
-    items.push({
-      id: "warning-stale",
-      kind: "warning",
-      title: `${staleLeads.length} contacto${staleLeads.length === 1 ? "" : "s"} requiere${staleLeads.length === 1 ? "" : "n"} seguimiento`,
-      description: "Llevan más de un día sin respuesta en tu Chekeo — revísalos antes de que se enfríen.",
-      time: new Date().toISOString(),
-      link: "/chekeo",
-    });
-  }
-
-  const lowStock = products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD);
-  if (lowStock.length > 0) {
-    items.push({
-      id: "warning-stock",
-      kind: "warning",
-      title: "Poco inventario",
-      description: lowStock.map((p) => `"${p.name}"`).join(", ") + " están por agotarse.",
-      time: new Date().toISOString(),
-      link: "/inventory",
-    });
+  for (const storeId of storeIds) {
+    const several = storeIds.length > 1;
+    pushWarnings(
+      items,
+      several ? conversations.filter((c) => c.store_id === storeId) : conversations,
+      several ? products.filter((p) => p.store_id === storeId) : products,
+      storeId,
+    );
   }
 
   const recentWins = [...conversations]
@@ -92,8 +81,48 @@ export async function getNotifications(
       description: c.value_hnl ? formatLempiras(c.value_hnl) : "Sin valor asignado",
       time: c.last_message_at ?? c.created_at,
       link: `/chat?c=${c.id}`,
+      storeId: c.store_id,
     });
   }
 
   return items.sort((a, b) => b.time.localeCompare(a.time));
+}
+
+function pushWarnings(
+  items: NotificationItem[],
+  conversations: ConversationWithContact[],
+  products: Product[],
+  storeId: string,
+) {
+  const staleLeads = conversations.filter(
+    (c) =>
+      c.stage !== "ganado" &&
+      c.stage !== "perdido" &&
+      c.last_message_at &&
+      Date.now() - new Date(c.last_message_at).getTime() > STALE_MS,
+  );
+  if (staleLeads.length > 0) {
+    items.push({
+      id: `warning-stale-${storeId}`,
+      kind: "warning",
+      title: `${staleLeads.length} contacto${staleLeads.length === 1 ? "" : "s"} requiere${staleLeads.length === 1 ? "" : "n"} seguimiento`,
+      description: "Llevan más de un día sin respuesta en tu Chekeo — revísalos antes de que se enfríen.",
+      time: new Date().toISOString(),
+      link: "/chekeo",
+      storeId,
+    });
+  }
+
+  const lowStock = products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD);
+  if (lowStock.length > 0) {
+    items.push({
+      id: `warning-stock-${storeId}`,
+      kind: "warning",
+      title: "Poco inventario",
+      description: lowStock.map((p) => `"${p.name}"`).join(", ") + " están por agotarse.",
+      time: new Date().toISOString(),
+      link: "/inventory",
+      storeId,
+    });
+  }
 }
