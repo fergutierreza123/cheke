@@ -68,6 +68,23 @@ sheets), but the rules apply anywhere something animates.
   dimming. The sidebar and cards stay solid per the brand manual — don't
   add translucency to brand-colored surfaces.
 
+## Design skills
+
+The user-level skills `impeccable`, `design-taste-frontend`,
+`redesign-existing-projects`, `imagegen-frontend-mobile` and `motion-design`
+are available for UI work (critique, polish, audit, animate, mobile
+concepts). In this repo they **refine, never replace**:
+
+- The approved mockups in `/design`, the brand (colors, Space Grotesk / Work
+  Sans, logos) and the "Interaction & motion" rules above always win over a
+  skill's taste or defaults. Use `motion` springs as specified, not GSAP or
+  fixed-duration curves.
+- No redesign of an existing screen unless the founder asks for one.
+- Simplicity first: users in Honduras aren't tech-savvy, so prefer fewer
+  options and familiar WhatsApp/Instagram patterns over novelty.
+- impeccable is installed without its engine binary or hooks, so its launcher
+  step fails by design. Use its fallback (read the project files directly).
+
 ## Multi-tenant rules
 
 - Every table with business data has `business_id`.
