@@ -56,6 +56,22 @@ _Avoid_: Pipeline, CRM
 cheKe's AI assistant that answers customers from the Tienda's own catalog and templates until a person replies.
 _Avoid_: Bot, chatbot
 
+**Traspaso**:
+The moment chekelin hands a Conversación to a person, telling the customer who will help them.
+_Avoid_: Handoff, escalamiento, transferencia
+
+**Asignación**:
+Which person is responsible for a Conversación right now. Only shown when a Negocio has two or more people.
+_Avoid_: Ticket owner, dueño de la conversación
+
+**Ausente**:
+A person who receives no new Conversaciones for now (day off, vacation). Everyone is available unless marked Ausente.
+_Avoid_: Offline, desconectado, no disponible
+
+**Sugerencia de chekelin**:
+A Plantilla that chekelin proposes from questions the team keeps answering. It only becomes a Plantilla when a Gerente or Dueño approves it.
+_Avoid_: Plantilla automática
+
 **Coexistencia**:
 A WhatsApp number connected to cheKe while the Negocio keeps using it in the WhatsApp Business app on its phone.
 _Avoid_: Migración del número
