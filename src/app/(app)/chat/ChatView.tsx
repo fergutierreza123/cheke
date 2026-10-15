@@ -9,7 +9,7 @@ import { parseAmount, formatAmount } from "@/lib/payments";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { BrandMark } from "@/components/BrandMark";
-import { isWhatsAppWindowClosed, WINDOW_CLOSED_MESSAGE } from "@/lib/whatsappWindow";
+import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
@@ -159,9 +159,12 @@ export function ChatView({
   // Falls back to "nuevo" if the `stage` migration hasn't run yet on this
   // database — avoids a hard crash on old rows missing the column.
   const selectedStage = selected?.stage ?? "nuevo";
-  // Past WhatsApp's 24h reply window: free-text sending is blocked (also
-  // enforced server-side) until the customer writes again.
-  const windowClosed = selected?.channel?.type === "whatsapp" && isWhatsAppWindowClosed(selected.window_expires_at, now);
+  // Past the reply window (WhatsApp: 24 h; Instagram/Facebook: 7 days) free-
+  // text sending is blocked (also enforced server-side) until the customer
+  // writes again. Instagram/Facebook between 24 h and 7 days: a person can
+  // still answer, chekelin can't.
+  const replyState = replyWindow(selected?.channel?.type, selected?.window_expires_at, now);
+  const windowClosed = replyState === "closed";
   // Test mode types as the customer, which is exactly what reopens the window.
   const sendBlocked = windowClosed && !simulateMode;
   const messages = useMemo(
@@ -823,6 +826,11 @@ export function ChatView({
                     {m.source === "phone" && !(prev && prev.source === "phone") && (
                       <div className="mb-0.5 px-1 text-[11px] font-semibold text-ink-muted">Desde el teléfono</div>
                     )}
+                    {m.source === "meta_app" && !(prev && prev.source === "meta_app") && (
+                      <div className="mb-0.5 px-1 text-[11px] font-semibold text-ink-muted">
+                        {selected.channel?.type === "instagram" ? "Desde Instagram" : "Desde Facebook"}
+                      </div>
+                    )}
                     <div
                       className={`relative max-w-[82%] rounded-[7.5px] px-[9px] pb-[7px] pt-[6px] text-[14.2px] leading-[19px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] lg:max-w-[65%] ${
                         out ? "bg-[#D9FDD3]" : "bg-white"
@@ -890,7 +898,12 @@ export function ChatView({
             )}
             {sendBlocked && (
               <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 text-[12.5px] text-danger lg:px-6">
-                {WINDOW_CLOSED_MESSAGE}
+                {windowClosedMessage(selected.channel?.type)}
+              </div>
+            )}
+            {replyState === "human_agent" && !simulateMode && selected.channel && (
+              <div className="shrink-0 border-t border-border bg-surface-2 px-4 py-2 text-[12.5px] text-ink-muted lg:px-6">
+                {humanAgentNotice(selected.channel.type)}
               </div>
             )}
             {simulateMode && !pendingProduct && (
@@ -1152,7 +1165,9 @@ export function ChatView({
                 }}
                 placeholder={
                   sendBlocked
-                    ? "Ventana de 24 h cerrada"
+                    ? selected.channel?.type === "whatsapp" || !selected.channel
+                      ? "Ventana de 24 h cerrada"
+                      : "Ventana de 7 días cerrada"
                     : pendingProduct
                     ? "Agrega un mensaje (opcional)…"
                     : simulateMode

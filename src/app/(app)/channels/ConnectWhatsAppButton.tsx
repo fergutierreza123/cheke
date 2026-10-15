@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GRAPH_API_VERSION } from "@/lib/meta";
 import { connectWhatsAppChannel } from "./actions";
+import { loadFacebookSdk } from "./facebookSdk";
 
 // Meta's "Embedded Signup" (v4): a Facebook popup where the business owner
 // either connects the number they already use in the WhatsApp Business app
@@ -14,36 +14,6 @@ import { connectWhatsAppChannel } from "./actions";
 // two separate pieces — an authorization `code` (from FB.login's callback)
 // and the chosen account (a postMessage from the popup) — and they can
 // arrive in either order, so we wait for both before calling the server.
-
-type FacebookSdk = {
-  init: (options: { appId: string; autoLogAppEvents: boolean; xfbml: boolean; version: string }) => void;
-  login: (
-    callback: (response: { authResponse?: { code?: string } | null }) => void,
-    options: Record<string, unknown>,
-  ) => void;
-};
-declare global {
-  interface Window {
-    FB?: FacebookSdk;
-    fbAsyncInit?: () => void;
-  }
-}
-
-function loadFacebookSdk(appId: string): Promise<FacebookSdk> {
-  return new Promise((resolve) => {
-    if (window.FB) return resolve(window.FB);
-    window.fbAsyncInit = () => {
-      window.FB!.init({ appId, autoLogAppEvents: true, xfbml: false, version: GRAPH_API_VERSION });
-      resolve(window.FB!);
-    };
-    const script = document.createElement("script");
-    script.src = "https://connect.facebook.net/en_US/sdk.js";
-    script.async = true;
-    script.defer = true;
-    script.crossOrigin = "anonymous";
-    document.body.appendChild(script);
-  });
-}
 
 export function ConnectWhatsAppButton({ appId, configId }: { appId: string; configId: string }) {
   const router = useRouter();
