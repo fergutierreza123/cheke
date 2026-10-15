@@ -6,10 +6,10 @@ import { signOut, updateDisplayName } from "./actions";
 import { initialsFor, relativeTime } from "@/lib/format";
 import { BrandMark } from "@/components/BrandMark";
 import type { UserInfo } from "@/lib/user";
+import { isPlanActive, planLabel, PLAN_LAPSED_MESSAGE } from "@/lib/plan";
 import { DeleteAccountButton, type DeletionSummary } from "./DeleteAccountDialog";
 
 const ROLE_LABEL = { owner: "Dueño", agent: "Agente" } as const;
-const PLAN_LABEL: Record<string, string> = { free: "Gratis", trial: "Prueba", pro: "Pro", basic: "Básico" };
 
 export function AccountView({
   user,
@@ -105,7 +105,9 @@ export function AccountView({
 
           <div className="overflow-hidden rounded-2xl border border-border bg-surface">
             <Row label="Negocio" value={business.name} />
-            <Row label="Plan" value={PLAN_LABEL[business.plan] ?? business.plan} />
+            {/* Name and status only. Anything that sells a plan (prices,
+                upgrade, payment methods) goes in <HideInNativeApp>. */}
+            <Row label="Plan" value={isPlanActive(business.plan) ? planLabel(business.plan) : PLAN_LAPSED_MESSAGE} />
             <Row label="Inicio de sesión" value={provider === "google" ? "Google" : "Código por correo"} />
             {lastSignIn && <Row label="Último acceso" value={relativeTime(lastSignIn)} />}
             <Link

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { isNativeAppUserAgent, NATIVE_APP_HOME } from "@/lib/nativeApp";
 
 // Next.js 16 renamed "Middleware" to "Proxy" (same mechanism, this file runs
 // before every request). See node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md
@@ -49,7 +50,8 @@ export async function proxy(request: NextRequest) {
 
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = "/chekeo";
+    // The installed phone app opens on the inbox; the web on Chekeo.
+    url.pathname = isNativeAppUserAgent(request.headers.get("user-agent")) ? NATIVE_APP_HOME : "/chekeo";
     return NextResponse.redirect(url);
   }
 

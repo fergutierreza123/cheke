@@ -3,15 +3,21 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LegalFooter } from "@/components/LegalLayout";
+import { NATIVE_APP_HOME } from "@/lib/nativeApp";
+import { isNativeAppRequest } from "@/lib/nativeAppServer";
 
 // Public home page — what a visitor (or Meta's business reviewers) sees at
-// the domain. Signed-in people skip straight into the app.
+// the domain. Signed-in people skip straight into the app. The installed
+// phone app never shows this marketing page: it opens at the login or the
+// inbox (App Store guideline 4.2).
 export default async function Home() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect("/chekeo");
+  const native = await isNativeAppRequest();
+  if (user) redirect(native ? NATIVE_APP_HOME : "/chekeo");
+  if (native) redirect("/login");
 
   return (
     <div className="min-h-screen bg-bg text-ink">

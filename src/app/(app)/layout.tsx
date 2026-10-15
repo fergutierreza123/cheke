@@ -6,6 +6,10 @@ import { getProducts } from "@/lib/products";
 import { getNotifications } from "@/lib/notifications";
 import { AppShell } from "@/components/AppShell";
 import { PushRegistrar } from "@/components/PushRegistrar";
+import { NativeAppProvider } from "@/components/NativeApp";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { isNativeAppRequest } from "@/lib/nativeAppServer";
+import { isPlanActive, PLAN_LAPSED_MESSAGE } from "@/lib/plan";
 import { WelcomeSplash } from "@/components/WelcomeSplash";
 import { createClient } from "@/lib/supabase/server";
 import { userInfoFrom } from "@/lib/user";
@@ -41,10 +45,21 @@ export default async function AppLayout({
   }
 
   return (
-    <AppShell businessName={business.name} notificationCount={notifications.length} user={userInfoFrom(user)}>
-      {welcome && <WelcomeSplash firstName={welcome.firstName} businessName={business.name} />}
-      <PushRegistrar />
-      {children}
-    </AppShell>
+    <NativeAppProvider isNative={await isNativeAppRequest()}>
+      <AppShell businessName={business.name} notificationCount={notifications.length} user={userInfoFrom(user)}>
+        {welcome && <WelcomeSplash firstName={welcome.firstName} businessName={business.name} />}
+        <PushRegistrar />
+        <OfflineBanner />
+        {!isPlanActive(business.plan) && (
+          // Deliberately neutral: no price, link or "how to pay", so it's
+          // allowed inside the store apps too. A web-only renew button
+          // would go next to it inside <HideInNativeApp>.
+          <div role="status" className="shrink-0 bg-surface-2 px-4 py-2 text-center text-[12.5px] font-medium text-ink-muted">
+            {PLAN_LAPSED_MESSAGE}
+          </div>
+        )}
+        {children}
+      </AppShell>
+    </NativeAppProvider>
   );
 }

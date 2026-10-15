@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS } from "@/lib/channelSend";
+import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS, type SendResult } from "@/lib/channelSend";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { markMessageFailed } from "@/lib/whatsappErrors";
 import { runChekelinReply } from "@/lib/bot";
@@ -18,6 +18,14 @@ function isOwnStorageUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+// The app reviewers' demo Negocio (businesses.is_demo, migration 0015) runs
+// in modo prueba: replies are saved in cheKe but never sent to WhatsApp.
+// If the flag can't be read, treat it as a real Negocio (send as usual).
+async function isDemoBusiness(supabase: Awaited<ReturnType<typeof createClient>>, businessId: string): Promise<boolean> {
+  const { data, error } = await supabase.from("businesses").select("is_demo").eq("id", businessId).maybeSingle();
+  return !error && data?.is_demo === true;
 }
 
 export async function sendChatMessage(
@@ -81,8 +89,11 @@ export async function sendChatMessage(
   }
 
   // Goes out on the conversation's own channel. Conversations without one
-  // (demo/seeded) only save in cheke, as before.
-  const result = await sendOnChannel({
+  // (demo/seeded) only save in cheke, as before — and so does everything in
+  // the app reviewers' demo Negocio, on every network.
+  const result: SendResult = (await isDemoBusiness(supabase, conversation.business_id))
+    ? { notSent: true }
+    : await sendOnChannel({
     channel,
     contact,
     windowExpiresAt: conversation.window_expires_at,
