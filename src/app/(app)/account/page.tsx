@@ -27,6 +27,9 @@ export default async function AccountPage() {
       provider={provider}
       lastSignIn={user.last_sign_in_at ?? null}
       business={{ name: business.name, plan: business.plan, role: business.role }}
+      // Dueños: where Tiendas are created, renamed and archived. The only
+      // spot a single-Tienda Negocio sees the word.
+      storesLink={business.role === "owner" ? (business.allStores.length > 1 ? "manage" : "add") : null}
       deletion={plan.map(({ businessName, outcome }) => ({ businessName, outcome }))}
     />
   );

@@ -15,6 +15,7 @@ import {
 } from "@/lib/format";
 import type { ConversationStage, ConversationWithContact } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
+import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 
 const STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -27,8 +28,22 @@ function isStale(c: ConversationWithContact): boolean {
 type Draft = { name: string; phone: string; ig_handle: string; fb_id: string };
 const EMPTY_DRAFT: Draft = { name: "", phone: "", ig_handle: "", fb_id: "" };
 
-export function ChekeoView({ conversations: initialConversations }: { conversations: ConversationWithContact[] }) {
-  const [conversations, setConversations] = useState(initialConversations);
+export function ChekeoView({
+  conversations: initialConversations,
+  storeNames = null,
+}: {
+  conversations: ConversationWithContact[];
+  // "Todas las tiendas": a tag per card, a store filter, and the new-contact
+  // form asks which Tienda. null with one Tienda in view.
+  storeNames?: StoreNames | null;
+}) {
+  const [allConversations, setConversations] = useState(initialConversations);
+  const [storeFilter, setStoreFilter] = useState<string | "all">("all");
+  // Everything below (columns, totals) works on the filtered board.
+  const conversations = useMemo(
+    () => (storeFilter === "all" ? allConversations : allConversations.filter((c) => c.store_id === storeFilter)),
+    [allConversations, storeFilter],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -106,6 +121,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
         phone: String(formData.get("phone") ?? "").trim() || null,
         ig_handle: String(formData.get("ig_handle") ?? "").trim() || null,
         fb_id: String(formData.get("fb_id") ?? "").trim() || null,
+        storeId: String(formData.get("store_id") ?? "") || null,
       });
       if (result.conversation) {
         setConversations((prev) => [result.conversation!, ...prev]);
@@ -154,6 +170,12 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
       >
         <PlusIcon className="h-6 w-6" />
       </button>
+
+      {storeNames && (
+        <div className="px-4 pt-3 lg:px-8 lg:pt-4">
+          <StoreFilter storeNames={storeNames} value={storeFilter} onChange={setStoreFilter} />
+        </div>
+      )}
 
       {staleCount > 0 && (
         <div className="mx-4 mt-3 flex items-center gap-2 rounded-[10px] border border-danger-border bg-danger-tint px-3 py-2 lg:mx-8 lg:mt-4 lg:px-3.5 lg:py-2.5">
@@ -221,7 +243,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                         }}
                         className="flex flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-3 transition-shadow duration-300"
                       >
-                        <LeadCardContent c={c} onMove={handleSetStage} compact />
+                        <LeadCardContent c={c} onMove={handleSetStage} compact storeName={storeNames?.[c.store_id]} />
                       </div>
                     ))}
                     {items.length === 0 && (
@@ -328,7 +350,7 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                         }}
                         className="flex cursor-grab flex-col gap-1.5 rounded-[10px] border border-border bg-surface p-[11px] transition-[opacity,box-shadow] duration-300 active:cursor-grabbing"
                       >
-                        <LeadCardContent c={c} onMove={handleSetStage} />
+                        <LeadCardContent c={c} onMove={handleSetStage} storeName={storeNames?.[c.store_id]} />
                       </motion.div>
                     );
                   })}
@@ -512,6 +534,25 @@ export function ChekeoView({ conversations: initialConversations }: { conversati
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
                   />
                 </Field>
+                {storeNames && (
+                  <Field label="Tienda">
+                    <select
+                      name="store_id"
+                      required
+                      defaultValue={storeFilter !== "all" ? storeFilter : ""}
+                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+                    >
+                      <option value="" disabled>
+                        Elige la tienda
+                      </option>
+                      {Object.entries(storeNames).map(([id, name]) => (
+                        <option key={id} value={id}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
 
                 {leadError && (
                   <div className="rounded-lg border border-danger-border bg-danger-tint px-3 py-2.5 text-[12.5px] text-danger">
@@ -554,10 +595,13 @@ function LeadCardContent({
   c,
   onMove,
   compact = false,
+  storeName,
 }: {
   c: ConversationWithContact;
   onMove: (id: string, stage: ConversationStage) => void;
   compact?: boolean;
+  // Only in "Todas las tiendas".
+  storeName?: string;
 }) {
   const channelMeta = c.channel ? CHANNEL_META[c.channel.type] : null;
   const stageIdx = STAGE_ORDER.indexOf(c.stage);
@@ -622,7 +666,10 @@ function LeadCardContent({
           {avatar}
           <div className="min-w-0 flex-1">
             <div className="truncate text-[14px] font-semibold text-ink">{c.contact.name}</div>
-            {channelMeta && <div className="truncate text-xs text-ink-muted">{channelMeta.label}</div>}
+            <div className="flex items-center gap-1.5">
+              {channelMeta && <div className="truncate text-xs text-ink-muted">{channelMeta.label}</div>}
+              <StoreTag name={storeName} />
+            </div>
           </div>
           <div className="shrink-0 self-start text-[11px] text-ink-soft">{relativeTime(c.last_message_at)}</div>
         </div>
@@ -642,7 +689,10 @@ function LeadCardContent({
         {avatar}
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13.5px] font-semibold text-ink">{c.contact.name}</div>
-          {channelMeta && <div className="truncate text-xs text-ink-muted">{channelMeta.label}</div>}
+          <div className="flex items-center gap-1.5">
+            {channelMeta && <div className="truncate text-xs text-ink-muted">{channelMeta.label}</div>}
+            <StoreTag name={storeName} />
+          </div>
         </div>
       </div>
       <div className="truncate text-[13px] text-ink-muted">{c.last_message_body ?? ""}</div>

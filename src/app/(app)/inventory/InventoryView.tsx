@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { saveProduct, deleteProduct } from "./actions";
+import { copyProductToStore } from "../stores/actions";
+import type { StoreRef } from "@/lib/stores";
 import { sendProductToConversation } from "../actions";
 import { initialsFor, formatLempiras } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
@@ -42,10 +44,14 @@ const EMPTY_DRAFT: Draft = {
 export function InventoryView({
   products,
   conversations,
+  otherStores = [],
 }: {
   products: Product[];
   conversations: ConversationWithContact[];
+  // The person's other Tiendas, for "Copiar a otra tienda" (empty with one).
+  otherStores?: StoreRef[];
 }) {
+  const [copyingTo, setCopyingTo] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -125,6 +131,17 @@ export function InventoryView({
       closeDraft();
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleCopy(store: StoreRef) {
+    if (!draft?.id) return;
+    setCopyingTo(store.id);
+    try {
+      const result = await copyProductToStore(draft.id, store.id);
+      setToast(result.error ? result.error : `"${draft.name}" se copió al catálogo de ${store.name}.`);
+    } finally {
+      setCopyingTo(null);
     }
   }
 
@@ -459,6 +476,28 @@ export function InventoryView({
                   <input type="checkbox" name="visible" defaultChecked={draft.visible} className="h-4 w-4 rounded border-border accent-brand" />
                   Visible para clientes
                 </label>
+
+                {draft.id && otherStores.length > 0 && (
+                  <div className="rounded-lg bg-surface-2 px-3 py-2.5">
+                    <div className="text-[12.5px] font-semibold text-ink">Copiar a otra tienda</div>
+                    <p className="mb-2 text-[11.5px] text-ink-soft">
+                      Se crea igual en esa tienda, con su propio stock. Los cambios que no guardaste no se copian.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {otherStores.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleCopy(s)}
+                          disabled={copyingTo !== null}
+                          className="min-h-10 rounded-lg border border-border bg-surface px-3 text-[12.5px] font-semibold text-ink transition-colors hover:border-brand hover:text-brand disabled:opacity-60 lg:min-h-8"
+                        >
+                          {copyingTo === s.id ? "Copiando…" : s.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {saveError && (
                   <div className="rounded-lg border border-danger-border bg-danger-tint px-3 py-2.5 text-[12.5px] text-danger">

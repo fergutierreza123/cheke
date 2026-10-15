@@ -8,6 +8,7 @@ import { DEFAULT_NAV_ITEMS } from "./Sidebar";
 import { initialsFor } from "@/lib/format";
 import { signOut } from "@/app/(app)/account/actions";
 import type { UserInfo } from "@/lib/user";
+import { StoreSwitcher, type StoreSwitcherProps } from "@/components/StoreSwitcher";
 
 // Phones get a bottom tab bar (thumb-reachable) instead of the desktop side
 // menu: the four screens used all day, plus "Más" for the rest.
@@ -18,6 +19,7 @@ export function MobileNav({
   notificationCount = 0,
   basePath = "",
   user,
+  storeSwitcher = null,
 }: {
   businessName: string;
   notificationCount?: number;
@@ -25,6 +27,7 @@ export function MobileNav({
   // navigates between demo screens instead of the real (signed-in) routes.
   basePath?: string;
   user: UserInfo;
+  storeSwitcher?: StoreSwitcherProps | null;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -94,6 +97,7 @@ export function MobileNav({
               style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
             >
               <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-white/20" />
+              {storeSwitcher && <StoreSwitcher {...storeSwitcher} variant="sheet" onNavigate={() => setMoreOpen(false)} />}
               {/* Who's signed in → Mi cuenta (details, log out) */}
               <Link
                 href={basePath + "/account"}

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentBusiness } from "@/lib/business";
+import { canManageStore, getCurrentBusiness } from "@/lib/business";
+import { claimExternalId, unsubscribeMetaPage } from "./channelHelpers";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
 import { PAGE_SUBSCRIBED_FIELDS } from "@/lib/metaMessaging";
@@ -23,7 +24,7 @@ const GRAPH = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 //    browser could send any id. Then we subscribe the Page to our webhook and
 //    save one channel for the Page (Messenger) and one for its Instagram.
 //
-// Owners only.
+// Dueños, and Gerentes of the Tienda the channels are connected to.
 
 export type MetaPageOption = { id: string; name: string; instagram: { id: string; username: string | null } | null };
 
@@ -36,10 +37,12 @@ type MetaPage = {
 
 const SESSION_TTL_MS = 15 * 60 * 1000;
 
-async function ownerBusiness() {
+async function managerOf(storeId: string) {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." } as const;
-  if (business.role !== "owner") return { error: "Solo el dueño del negocio puede conectar canales." } as const;
+  if (!canManageStore(business, storeId) || business.allStores.find((s) => s.id === storeId)?.archived) {
+    return { error: "Solo el dueño del negocio o un gerente pueden conectar canales." } as const;
+  }
   return { business } as const;
 }
 
@@ -60,8 +63,9 @@ async function listPages(token: string, withTokens: boolean): Promise<{ pages?: 
 
 export async function startMetaConnection(
   code: string,
+  storeId: string,
 ): Promise<{ error?: string; session?: string; pages?: MetaPageOption[] }> {
-  const owner = await ownerBusiness();
+  const owner = await managerOf(storeId);
   if ("error" in owner) return { error: owner.error };
 
   const appId = process.env.NEXT_PUBLIC_META_APP_ID;
@@ -101,7 +105,7 @@ export async function startMetaConnection(
   }
 
   const session = encryptSecret(
-    JSON.stringify({ token, businessId: owner.business.id, expiresAt: Date.now() + SESSION_TTL_MS }),
+    JSON.stringify({ token, businessId: owner.business.id, storeId, expiresAt: Date.now() + SESSION_TTL_MS }),
   );
   return {
     session,
@@ -119,16 +123,23 @@ export async function connectMetaPage(
   session: string,
   pageId: string,
 ): Promise<{ error?: string; warning?: string }> {
-  const owner = await ownerBusiness();
+  let token: string;
+  let storeId: string;
+  let businessId: string;
+  try {
+    const parsed = JSON.parse(decryptSecret(session)) as { token: string; businessId: string; storeId: string; expiresAt: number };
+    if (!parsed.storeId || parsed.expiresAt < Date.now()) throw new Error("expired");
+    token = parsed.token;
+    storeId = parsed.storeId;
+    businessId = parsed.businessId;
+  } catch {
+    return { error: "La autorización de Meta venció. Vuelve a tocar \"Conectar Instagram y Facebook\"." };
+  }
+  // The session was started in this Negocio, for a Tienda this person manages.
+  const owner = await managerOf(storeId);
   if ("error" in owner) return { error: owner.error };
   const { business } = owner;
-
-  let token: string;
-  try {
-    const parsed = JSON.parse(decryptSecret(session)) as { token: string; businessId: string; expiresAt: number };
-    if (parsed.businessId !== business.id || parsed.expiresAt < Date.now()) throw new Error("expired");
-    token = parsed.token;
-  } catch {
+  if (businessId !== business.id) {
     return { error: "La autorización de Meta venció. Vuelve a tocar \"Conectar Instagram y Facebook\"." };
   }
 
@@ -181,14 +192,14 @@ export async function connectMetaPage(
     connected_at: new Date().toISOString(),
   };
 
-  const facebookError = await saveChannel(supabase, business.id, "facebook", page.id, {
+  const facebookError = await saveChannel(supabase, business.id, storeId, "facebook", page.id, {
     ...common,
     verified_name: page.name ?? null,
   });
   if (facebookError) return { error: facebookError };
 
   if (instagram) {
-    const instagramError = await saveChannel(supabase, business.id, "instagram", instagram.id, {
+    const instagramError = await saveChannel(supabase, business.id, storeId, "instagram", instagram.id, {
       ...common,
       verified_name: instagram.username ? `@${instagram.username}` : null,
     });
@@ -199,6 +210,7 @@ export async function connectMetaPage(
       .from("channels")
       .update({ status: "disconnected", access_token_encrypted: null })
       .eq("business_id", business.id)
+      .eq("store_id", storeId)
       .eq("type", "instagram")
       .eq("page_id", page.id);
     warning =
@@ -212,57 +224,56 @@ export async function connectMetaPage(
 async function saveChannel(
   supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
+  storeId: string,
   type: "facebook" | "instagram",
   externalId: string,
   fields: Record<string, unknown>,
 ): Promise<string | null> {
+  const claimError = await claimExternalId(businessId, storeId, type, externalId);
+  if (claimError) return claimError;
   const { data: existing } = await supabase
     .from("channels")
     .select("id")
     .eq("business_id", businessId)
+    .eq("store_id", storeId)
     .eq("type", type)
     .eq("external_id", externalId)
     .limit(1)
     .maybeSingle();
   const { error } = existing
     ? await supabase.from("channels").update(fields).eq("id", existing.id)
-    : await supabase.from("channels").insert({ business_id: businessId, type, external_id: externalId, ...fields });
+    : await supabase
+        .from("channels")
+        .insert({ business_id: businessId, store_id: storeId, type, external_id: externalId, ...fields });
   return error ? error.message : null;
 }
 
 // Disconnects a Page and its Instagram together: both go through the same
-// Page connection. Owners only.
+// Page connection. Dueños and the Tienda's Gerentes.
 export async function disconnectMetaPage(pageId: string): Promise<{ error?: string }> {
-  const owner = await ownerBusiness();
-  if ("error" in owner) return { error: owner.error };
-  const { business } = owner;
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
 
   const supabase = await createClient();
   const { data: channels } = await supabase
     .from("channels")
-    .select("id, access_token_encrypted")
+    .select("id, store_id, access_token_encrypted")
     .eq("business_id", business.id)
     .in("type", ["facebook", "instagram"])
     .eq("page_id", pageId);
   if (!channels || channels.length === 0) return { error: "No se encontró el canal." };
-
-  // Best effort: stop Meta sending this Page's messages here.
-  const encrypted = channels.find((c) => c.access_token_encrypted)?.access_token_encrypted;
-  if (encrypted) {
-    try {
-      await fetch(`${GRAPH}/${encodeURIComponent(pageId)}/subscribed_apps`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${decryptSecret(encrypted)}` },
-      });
-    } catch (e) {
-      console.error("channels: could not unsubscribe page webhook", e);
-    }
+  const storeIds = Array.from(new Set(channels.map((c) => c.store_id as string)));
+  if (!storeIds.every((id) => canManageStore(business, id))) {
+    return { error: "Solo el dueño del negocio o un gerente pueden desconectar canales." };
   }
+
+  await unsubscribeMetaPage(pageId, channels.find((c) => c.access_token_encrypted)?.access_token_encrypted ?? null);
 
   const { error } = await supabase
     .from("channels")
     .update({ status: "disconnected", access_token_encrypted: null })
     .eq("business_id", business.id)
+    .in("store_id", storeIds)
     .in("type", ["facebook", "instagram"])
     .eq("page_id", pageId);
   if (error) return { error: error.message };

@@ -15,6 +15,8 @@ export type Contact = {
 export type Channel = {
   id: string;
   business_id: string;
+  // The Tienda this channel belongs to (see GLOSSARY.md).
+  store_id: string;
   type: ChannelType;
   external_id: string | null;
   status: "disconnected" | "connected" | "error";
@@ -25,6 +27,8 @@ export type ConversationStage = "nuevo" | "consulta" | "cotizacion" | "negociaci
 export type Conversation = {
   id: string;
   business_id: string;
+  // Always the Tienda of its channel (set by the database).
+  store_id: string;
   contact_id: string;
   channel_id: string | null;
   status: "open" | "pending" | "closed";
@@ -41,6 +45,8 @@ export type Message = {
   id: string;
   conversation_id: string;
   business_id: string;
+  // Copied from its conversation by the database.
+  store_id?: string;
   direction: "in" | "out";
   body: string | null;
   media_url: string | null;
@@ -76,13 +82,15 @@ export type Template = {
 export type TeamMember = {
   user_id: string;
   email: string;
-  role: "owner" | "agent";
+  role: "owner" | "manager" | "agent";
   joined_at: string;
 };
 
 export type Product = {
   id: string;
   business_id: string;
+  // Each Tienda has its own catalog.
+  store_id: string;
   retailer_id: string;
   name: string;
   description: string | null;

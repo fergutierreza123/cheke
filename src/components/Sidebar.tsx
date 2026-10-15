@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { initialsFor } from "@/lib/format";
 import { signOut } from "@/app/(app)/account/actions";
 import type { UserInfo } from "@/lib/user";
+import { StoreSwitcher, type StoreSwitcherProps } from "@/components/StoreSwitcher";
 
 export const DEFAULT_NAV_ITEMS = [
   { href: "/chat", label: "Chat", icon: ChatIcon },
@@ -28,10 +29,12 @@ export function Sidebar({
   businessName,
   notificationCount = 0,
   user,
+  storeSwitcher = null,
 }: {
   businessName: string;
   notificationCount?: number;
   user: UserInfo;
+  storeSwitcher?: StoreSwitcherProps | null;
 }) {
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion();
@@ -75,6 +78,8 @@ export function Sidebar({
       <div className="px-6 pb-[22px] pt-1">
         <Image src="/logos/cheke-wordmark-color.png" alt="Cheke" width={148} height={80} priority />
       </div>
+
+      {storeSwitcher && <StoreSwitcher {...storeSwitcher} />}
 
       <Reorder.Group axis="y" values={order} onReorder={handleReorder} as="div" className="flex flex-col">
         {items.map((item) => (

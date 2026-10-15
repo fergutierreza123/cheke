@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentBusiness } from "@/lib/business";
+import { canAccessStore, getCurrentBusiness } from "@/lib/business";
 import { primaryChannel, formatLempiras } from "@/lib/format";
 import { sendChatMessage } from "./chat/actions";
 import type { Channel, ChannelType, ConversationStage, ConversationWithContact, Product } from "@/lib/types";
@@ -86,6 +86,9 @@ const DEMO_CONTACTS: Array<{
 export async function seedDemoData() {
   const business = await getCurrentBusiness();
   if (!business) return;
+  // The Tienda on screen (or the first one, from "Todas las tiendas").
+  const storeId = business.selectedStore?.id ?? business.stores[0]?.id;
+  if (!storeId) return;
 
   const supabase = await createClient();
 
@@ -99,7 +102,7 @@ export async function seedDemoData() {
   for (const type of ["whatsapp", "instagram", "facebook"] as const) {
     const { data, error } = await supabase
       .from("channels")
-      .insert({ business_id: business.id, type, status: "connected" })
+      .insert({ business_id: business.id, store_id: storeId, type, status: "connected" })
       .select("id")
       .single();
     if (error || !data) throw new Error(error?.message ?? "No se pudo crear el canal.");
@@ -217,9 +220,13 @@ export async function createLead(input: {
   phone: string | null;
   ig_handle: string | null;
   fb_id: string | null;
+  // Which Tienda the lead belongs to; only asked in "Todas las tiendas".
+  storeId?: string | null;
 }): Promise<{ conversation?: ConversationWithContact; error?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
+  const storeId = input.storeId || business.selectedStore?.id || (business.multiStore ? null : business.stores[0]?.id);
+  if (!storeId || !canAccessStore(business, storeId)) return { error: "Elige la tienda del contacto." };
 
   const name = input.name.trim();
   if (!name) return { error: "Ponle un nombre al contacto." };
@@ -247,7 +254,9 @@ export async function createLead(input: {
       .from("channels")
       .select("id, type")
       .eq("business_id", business.id)
+      .eq("store_id", storeId)
       .eq("type", type)
+      .limit(1)
       .maybeSingle();
     if (channelRow) channel = channelRow;
   }
@@ -257,6 +266,7 @@ export async function createLead(input: {
     .from("conversations")
     .insert({
       business_id: business.id,
+      store_id: storeId,
       contact_id: contact.id,
       channel_id: channel?.id ?? null,
       status: "open",

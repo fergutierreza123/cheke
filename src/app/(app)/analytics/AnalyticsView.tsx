@@ -5,6 +5,7 @@ import { STAGE_META, STAGE_ORDER, CHANNEL_META, formatLempiras } from "@/lib/for
 import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ChannelType, ConversationWithContact, Product } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
+import type { StoreNames } from "@/components/StoreTag";
 
 type Range = "semana" | "mes" | "trimestre";
 const RANGE_DAYS: Record<Range, number> = { semana: 7, mes: 30, trimestre: 90 };
@@ -15,9 +16,15 @@ const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 export function AnalyticsView({
   conversations,
   products,
+  storeNames = null,
+  people = [],
 }: {
   conversations: ConversationWithContact[];
   products: Product[];
+  // "Todas las tiendas": the totals above plus a Tienda-by-Tienda comparison.
+  storeNames?: StoreNames | null;
+  // Teammates, only passed once conversations are assigned to someone.
+  people?: Array<{ id: string; email: string }>;
 }) {
   const [range, setRange] = useState<Range>("mes");
   // Captured once per mount rather than read fresh in useMemo/render — an
@@ -81,6 +88,38 @@ export function AnalyticsView({
     return days.map((d) => ({ ...d, barHeight: Math.round((d.count / max) * 120) + 8 }));
   }, [conversations, now]);
 
+  // One row per Tienda, same numbers as the totals above.
+  const byStore = useMemo(() => {
+    if (!storeNames) return [];
+    return Object.entries(storeNames).map(([id, name]) => {
+      const rows = inRange.filter((c) => c.store_id === id);
+      const wonRows = rows.filter((c) => c.stage === "ganado");
+      const lostRows = rows.filter((c) => c.stage === "perdido");
+      const closed = wonRows.length + lostRows.length;
+      return {
+        id,
+        name,
+        revenue: wonRows.reduce((sum, c) => sum + (c.value_hnl ?? 0), 0),
+        won: wonRows.length,
+        conversion: closed > 0 ? Math.round((wonRows.length / closed) * 100) : 0,
+        fresh: rows.length,
+      };
+    });
+  }, [storeNames, inRange]);
+  const topStoreRevenue = Math.max(1, ...byStore.map((s) => s.revenue));
+
+  // Sales per person (assigned conversations won in the range).
+  const byPerson = useMemo(() => {
+    if (people.length === 0) return [];
+    return people
+      .map((p) => {
+        const wonRows = inRange.filter((c) => c.assigned_to === p.id && c.stage === "ganado");
+        return { ...p, won: wonRows.length, revenue: wonRows.reduce((sum, c) => sum + (c.value_hnl ?? 0), 0) };
+      })
+      .filter((p) => p.won > 0)
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [people, inRange]);
+
   const topProducts = useMemo(() => {
     return [...products]
       .map((p) => ({ ...p, totalValue: p.price_hnl * p.stock }))
@@ -129,6 +168,61 @@ export function AnalyticsView({
               </div>
             ))}
           </div>
+
+          {byStore.length > 0 && (
+            <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
+              <div className="font-heading text-[15.5px] font-semibold text-ink">Por tienda</div>
+              <div className="mb-3.5 text-[13px] text-ink-muted">Cómo le va a cada tienda en {RANGE_LABEL[range].toLowerCase()}</div>
+              <div className="flex flex-col">
+                <div className="hidden justify-between border-b border-border py-2 text-[12px] uppercase tracking-wide text-ink-soft sm:flex">
+                  <div>Tienda</div>
+                  <div className="flex gap-6 tabular-nums">
+                    <div className="w-16 text-right">Nuevos</div>
+                    <div className="w-16 text-right">Cierre</div>
+                    <div className="w-24 text-right">Vendido</div>
+                  </div>
+                </div>
+                {byStore.map((s) => (
+                  <div key={s.id} className="border-b border-border py-2.5 last:border-b-0">
+                    <div className="flex items-center justify-between gap-3 text-[13.5px] text-ink">
+                      <div className="min-w-0 truncate font-semibold">{s.name}</div>
+                      <div className="flex shrink-0 gap-3 tabular-nums sm:gap-6">
+                        <div className="w-16 text-right text-ink-muted">
+                          {s.fresh}
+                          <span className="sm:hidden"> nuevos</span>
+                        </div>
+                        <div className="w-16 text-right text-ink-muted">
+                          {s.conversion}%<span className="sm:hidden"> cierre</span>
+                        </div>
+                        <div className="w-24 text-right font-semibold">{formatLempiras(s.revenue)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-md bg-surface-2">
+                      <div className="h-full rounded-md bg-brand" style={{ width: `${Math.round((s.revenue / topStoreRevenue) * 100)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {byPerson.length > 0 && (
+            <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
+              <div className="font-heading text-[15.5px] font-semibold text-ink">Por persona</div>
+              <div className="mb-3.5 text-[13px] text-ink-muted">Ventas ganadas en conversaciones asignadas</div>
+              {byPerson.map((p) => (
+                <div key={p.id} className="flex justify-between gap-3 border-b border-border py-2.5 text-[13.5px] text-ink last:border-b-0">
+                  <div className="min-w-0 truncate">{p.email}</div>
+                  <div className="flex shrink-0 gap-6 tabular-nums">
+                    <div className="text-ink-muted">
+                      {p.won} venta{p.won === 1 ? "" : "s"}
+                    </div>
+                    <div className="w-24 text-right font-semibold">{formatLempiras(p.revenue)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* One grid spanning both rows, not two independent flex rows —
               each flex row was computing its own column widths from its

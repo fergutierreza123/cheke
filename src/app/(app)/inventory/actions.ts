@@ -10,6 +10,9 @@ import { removeBackgroundToWhite } from "@/lib/images";
 export async function saveProduct(formData: FormData): Promise<{ error?: string; photoWarning?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
+  // Catálogo always shows one Tienda: new products go to that one.
+  const storeId = business.selectedStore?.id;
+  if (!storeId) return { error: "Elige una tienda para ver su catálogo." };
 
   const id = String(formData.get("id") ?? "").trim() || null;
   const name = String(formData.get("name") ?? "").trim();
@@ -74,6 +77,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   } else {
     const { error } = await supabase.from("products").insert({
       business_id: business.id,
+      store_id: storeId,
       retailer_id: randomUUID(),
       name,
       category,

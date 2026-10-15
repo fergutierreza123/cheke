@@ -93,15 +93,17 @@ concepts). In this repo they **refine, never replace**:
 
 ## Core data model (start here, extend later)
 
-- `businesses` (id, name, plan, created_at)
-- `members` (business_id, user_id, role: owner | agent)
+- `businesses` (id, name, plan, created_at) = the Negocio
+- `stores` (business_id, name, archived_at) = its Tiendas (migration 0018). Channels, conversations, messages, products, catalogs and orders carry `store_id`; contacts and templates stay Negocio-wide. RLS: Dueños see every Tienda, Gerentes/Agentes only theirs (`my_store_ids()`). Server code gets the Negocio, role and selected Tienda from `getCurrentBusiness()` (src/lib/business.ts).
+- `members` (business_id, user_id, role: owner | manager | agent = Dueño | Gerente | Agente) and `store_members` (store_id, user_id: which Tiendas a Gerente/Agente works in)
+- `invitations` (single-use links, 7 days, role + Tiendas; `create_invitation` / `accept_invitation`)
 - `channels` (business_id, type: whatsapp | instagram | facebook, external_id e.g. phone_number_id, access_token_encrypted, status)
 - `contacts` (business_id, name, phone, ig_handle, fb_id, tags, notes)
 - `conversations` (business_id, contact_id, channel_id, status: open | pending | closed, assigned_to, last_message_at, window_expires_at)
 - `messages` (conversation_id, business_id, direction: in | out, body, media_url, external_message_id unique, status: sent | delivered | read | failed, created_at)
 
 - `catalogs` (business_id, meta_catalog_id, status, last_synced_at)
-- `products` (business_id, retailer_id unique per business, name, description, price_hnl, image_url, stock, visible, meta_sync_status)
+- `products` (business_id, retailer_id unique per Tienda, name, description, price_hnl, image_url, stock, visible, meta_sync_status)
 - `orders` (business_id, conversation_id, contact_id, items json, total_hnl, status: new | awaiting_payment | paid | delivered | cancelled, payment_link)
 
 `window_expires_at` = last inbound message + 24h. Outside the window only approved templates can be sent; the UI must show this.

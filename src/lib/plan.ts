@@ -27,3 +27,12 @@ export function isPlanActive(plan: string): boolean {
 // Neutral wording for a lapsed plan: no price, no instructions, no link, so
 // it is also fine inside the store apps (Apple 3.1.3(f)).
 export const PLAN_LAPSED_MESSAGE = "Tu plan no está activo.";
+
+// The one place the plan's Tienda limit will plug in (issue #9). Until
+// plans are priced, any Negocio can open as many Tiendas as it needs.
+// Archived Tiendas don't count.
+export function canOpenAnotherStore(plan: string, openStoreCount: number): boolean {
+  void plan;
+  void openStoreCount;
+  return true;
+}

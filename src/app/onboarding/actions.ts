@@ -24,23 +24,5 @@ export async function createBusiness(formData: FormData) {
   redirect("/chekeo");
 }
 
-export async function joinBusiness(formData: FormData) {
-  const code = String(formData.get("code") ?? "").trim().toLowerCase();
-  if (!code) {
-    redirect("/onboarding?error=" + encodeURIComponent("Ingresa un código de invitación."));
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { error } = await supabase.rpc("join_business_by_code", { code });
-
-  if (error) {
-    redirect("/onboarding?error=" + encodeURIComponent("No encontramos un negocio con ese código."));
-  }
-
-  redirect("/chekeo");
-}
+// Joining an existing Negocio is by invitation link only (see
+// src/app/invitacion), which replaced the shared invite code.
