@@ -14,10 +14,13 @@ import { loadFacebookSdk } from "./facebookSdk";
 export function ConnectMetaButton({
   appId,
   configId,
+  storeId,
   label = "Conectar Instagram y Facebook",
 }: {
   appId: string;
   configId: string;
+  // The Tienda the Page and its Instagram are connected to.
+  storeId: string;
   label?: string;
 }) {
   const router = useRouter();
@@ -41,7 +44,7 @@ export function ConnectMetaButton({
 
   async function onCode(code: string) {
     setStatus("loading");
-    const result = await startMetaConnection(code);
+    const result = await startMetaConnection(code, storeId);
     if (result.error || !result.session || !result.pages) {
       setStatus("idle");
       setError(result.error ?? "Meta no devolvió tus páginas.");

@@ -15,7 +15,8 @@ import { loadFacebookSdk } from "./facebookSdk";
 // and the chosen account (a postMessage from the popup) — and they can
 // arrive in either order, so we wait for both before calling the server.
 
-export function ConnectWhatsAppButton({ appId, configId }: { appId: string; configId: string }) {
+// `storeId`: the Tienda the number is connected to.
+export function ConnectWhatsAppButton({ appId, configId, storeId }: { appId: string; configId: string; storeId: string }) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "opening" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export function ConnectWhatsAppButton({ appId, configId }: { appId: string; conf
 
   async function maybeFinish() {
     if (!codeRef.current || !sessionRef.current) return;
-    const input = { code: codeRef.current, ...sessionRef.current };
+    const input = { code: codeRef.current, storeId, ...sessionRef.current };
     codeRef.current = null;
     sessionRef.current = null;
     setStatus("saving");

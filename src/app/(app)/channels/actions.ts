@@ -4,7 +4,8 @@ import { randomInt } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentBusiness } from "@/lib/business";
+import { canManageStore, getCurrentBusiness } from "@/lib/business";
+import { claimExternalId, unsubscribeWhatsApp } from "./channelHelpers";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
 import { requestCoexistenceSync } from "@/lib/coexistence";
@@ -19,16 +20,20 @@ const GRAPH = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 // trade the code for a token, confirm the number belongs to that account,
 // point Meta's webhooks at this app, register the number (new numbers only),
 // save the connection with the token encrypted, and — for coexistence —
-// start importing the phone's contacts and chat history. Owners only.
+// start importing the phone's contacts and chat history. The number goes to
+// the Tienda the button was pressed in. Dueños and that Tienda's Gerentes.
 export async function connectWhatsAppChannel(input: {
   code: string;
+  storeId: string;
   wabaId: string;
   phoneNumberId: string | null;
   coexistence: boolean;
 }): Promise<{ error?: string; warning?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
-  if (business.role !== "owner") return { error: "Solo el dueño del negocio puede conectar canales." };
+  if (!canManageStore(business, input.storeId) || business.allStores.find((s) => s.id === input.storeId)?.archived) {
+    return { error: "Solo el dueño del negocio o un gerente pueden conectar canales." };
+  }
 
   const appId = process.env.NEXT_PUBLIC_META_APP_ID;
   const appSecret = process.env.WHATSAPP_APP_SECRET;
@@ -135,17 +140,26 @@ export async function connectWhatsAppChannel(input: {
   };
 
   const supabase = await createClient();
+  // The same number connected in another of this Negocio's Tiendas.
+  const claimError = await claimExternalId(business.id, input.storeId, "whatsapp", number.id);
+  if (claimError) return { error: claimError };
+
   const { data: existing } = await supabase
     .from("channels")
     .select("id")
     .eq("business_id", business.id)
+    .eq("store_id", input.storeId)
     .eq("type", "whatsapp")
     .limit(1)
     .maybeSingle();
 
   const { data: saved, error } = existing
     ? await supabase.from("channels").update(fields).eq("id", existing.id).select("id").single()
-    : await supabase.from("channels").insert({ business_id: business.id, type: "whatsapp", ...fields }).select("id").single();
+    : await supabase
+        .from("channels")
+        .insert({ business_id: business.id, store_id: input.storeId, type: "whatsapp", ...fields })
+        .select("id")
+        .single();
   if (error || !saved) return { error: error?.message ?? "No se pudo guardar la conexión." };
 
   // Only after the channel is saved: the imported chats arrive through the
@@ -164,19 +178,21 @@ export async function connectWhatsAppChannel(input: {
 }
 
 // "Importar chats" in Canales: retries the coexistence contacts/history
-// import if Meta didn't accept it at connect time. Owners only.
+// import if Meta didn't accept it at connect time. Dueños and the Tienda's Gerentes.
 export async function retryCoexistenceSync(channelId: string): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
-  if (business.role !== "owner") return { error: "Solo el dueño del negocio puede importar chats." };
 
   const supabase = await createClient();
   const { data: channel } = await supabase
     .from("channels")
-    .select("id, external_id, access_token_encrypted, coexistence, connected_at, contacts_sync_requested_at, history_sync_requested_at")
+    .select("id, store_id, external_id, access_token_encrypted, coexistence, connected_at, contacts_sync_requested_at, history_sync_requested_at")
     .eq("id", channelId)
     .eq("business_id", business.id)
     .single();
+  if (channel && !canManageStore(business, channel.store_id)) {
+    return { error: "Solo el dueño del negocio o un gerente pueden importar chats." };
+  }
   if (!channel?.coexistence || !channel.external_id || !channel.access_token_encrypted) {
     return { error: "Este canal no puede importar chats." };
   }
@@ -196,28 +212,20 @@ export async function retryCoexistenceSync(channelId: string): Promise<{ error?:
 export async function disconnectChannel(channelId: string): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
-  if (business.role !== "owner") return { error: "Solo el dueño del negocio puede desconectar canales." };
 
   const supabase = await createClient();
   const { data: channel } = await supabase
     .from("channels")
-    .select("id, waba_id, access_token_encrypted")
+    .select("id, store_id, waba_id, access_token_encrypted")
     .eq("id", channelId)
     .eq("business_id", business.id)
     .single();
   if (!channel) return { error: "No se encontró el canal." };
-
-  // Best effort: stop Meta sending this number's messages here.
-  if (channel.waba_id && channel.access_token_encrypted) {
-    try {
-      await fetch(`${GRAPH}/${channel.waba_id}/subscribed_apps`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${decryptSecret(channel.access_token_encrypted)}` },
-      });
-    } catch (e) {
-      console.error("channels: could not unsubscribe webhook", e);
-    }
+  if (!canManageStore(business, channel.store_id)) {
+    return { error: "Solo el dueño del negocio o un gerente pueden desconectar canales." };
   }
+
+  await unsubscribeWhatsApp(channel);
 
   const { error } = await supabase
     .from("channels")

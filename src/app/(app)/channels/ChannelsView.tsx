@@ -15,6 +15,7 @@ import { META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 
 export type ChannelItem = {
   id: string;
+  store_id: string;
   type: ChannelType;
   status: "disconnected" | "connected" | "error";
   external_id: string | null;
@@ -32,14 +33,22 @@ export type ChannelItem = {
 // Recent WhatsApp messages Meta refused because of the business's billing.
 export type BillingProblem = { count: number; lastAt: string };
 
+// One block of channels per Tienda. A Negocio with one Tienda gets a single
+// block without a title, exactly as before; with several ("Todas las
+// tiendas") each Tienda's channels are listed under its name, and connecting
+// from a block attaches the channel to that Tienda.
+export type ChannelSection = { storeId: string; name: string; canManage: boolean };
+
 export function ChannelsView({
   channels,
+  sections,
   isOwner,
   meta,
   messaging,
   billingProblem,
 }: {
   channels: ChannelItem[];
+  sections: ChannelSection[];
   isOwner: boolean;
   // null until Meta's app + Embedded Signup are configured on the server
   meta: { appId: string; configId: string } | null;
@@ -47,6 +56,58 @@ export function ChannelsView({
   messaging: { appId: string; configId: string } | null;
   billingProblem?: BillingProblem | null;
 }) {
+  const titled = sections.length > 1;
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 flex-col gap-1 border-b border-border bg-surface px-4 py-3.5 lg:px-8 lg:py-[18px]">
+        <h1 className="flex items-center justify-between gap-2 font-heading text-xl font-semibold text-ink">
+            Canales
+            <BrandMark />
+          </h1>
+        <p className="hidden text-[13.5px] text-ink-muted sm:block">
+          Conecta tus redes para recibir todos los mensajes en un solo buzón
+        </p>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
+        <div className="mx-auto grid max-w-3xl gap-3">
+          {billingProblem && <BillingBanner problem={billingProblem} isOwner={isOwner} />}
+
+          {sections.map((section, i) => (
+            <section key={section.storeId} className={`grid gap-3 ${titled && i > 0 ? "mt-4" : ""}`}>
+              {titled && <h2 className="px-1 font-heading text-[15.5px] font-semibold text-ink">{section.name}</h2>}
+              <StoreChannels
+                channels={channels.filter((c) => c.store_id === section.storeId)}
+                storeId={section.storeId}
+                canManage={section.canManage}
+                meta={meta}
+                messaging={messaging}
+              />
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const NO_PERMISSION = "Solo el dueño del negocio o un gerente pueden conectar o desconectar canales.";
+
+// One Tienda's WhatsApp and Instagram/Facebook cards.
+function StoreChannels({
+  channels,
+  storeId,
+  canManage,
+  meta,
+  messaging,
+}: {
+  channels: ChannelItem[];
+  storeId: string;
+  canManage: boolean;
+  meta: { appId: string; configId: string } | null;
+  messaging: { appId: string; configId: string } | null;
+}) {
+  const isOwner = canManage;
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,21 +138,7 @@ export function ChannelsView({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-col gap-1 border-b border-border bg-surface px-4 py-3.5 lg:px-8 lg:py-[18px]">
-        <h1 className="flex items-center justify-between gap-2 font-heading text-xl font-semibold text-ink">
-            Canales
-            <BrandMark />
-          </h1>
-        <p className="hidden text-[13.5px] text-ink-muted sm:block">
-          Conecta tus redes para recibir todos los mensajes en un solo buzón
-        </p>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
-        <div className="mx-auto grid max-w-3xl gap-3">
-          {billingProblem && <BillingBanner problem={billingProblem} isOwner={isOwner} />}
-
+    <>
           {/* WhatsApp */}
           <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
             <div className="flex items-start gap-3">
@@ -128,7 +175,7 @@ export function ChannelsView({
 
             <div className="mt-4">
               {!isOwner ? (
-                <p className="text-[12.5px] text-ink-soft">Solo el dueño del negocio puede conectar o desconectar canales.</p>
+                <p className="text-[12.5px] text-ink-soft">{NO_PERMISSION}</p>
               ) : whatsappConnected && whatsapp ? (
                 <button
                   onClick={() => handleDisconnect(whatsapp.id)}
@@ -138,7 +185,7 @@ export function ChannelsView({
                   {busy ? "Desconectando…" : "Desconectar"}
                 </button>
               ) : meta ? (
-                <ConnectWhatsAppButton appId={meta.appId} configId={meta.configId} />
+                <ConnectWhatsAppButton appId={meta.appId} configId={meta.configId} storeId={storeId} />
               ) : (
                 <div className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-muted">
                   La conexión con WhatsApp se activa cuando Meta termine de verificar el negocio de cheke. Mientras
@@ -149,10 +196,8 @@ export function ChannelsView({
             </div>
           </div>
 
-          <MetaChannelsCard channels={channels} isOwner={isOwner} messaging={messaging} />
-        </div>
-      </div>
-    </div>
+          <MetaChannelsCard channels={channels} isOwner={isOwner} messaging={messaging} storeId={storeId} />
+    </>
   );
 }
 
@@ -163,10 +208,12 @@ function MetaChannelsCard({
   channels,
   isOwner,
   messaging,
+  storeId,
 }: {
   channels: ChannelItem[];
   isOwner: boolean;
   messaging: { appId: string; configId: string } | null;
+  storeId: string;
 }) {
   const router = useRouter();
   const [busyPage, setBusyPage] = useState<string | null>(null);
@@ -255,9 +302,10 @@ function MetaChannelsCard({
 
       <div className="mt-4">
         {!isOwner ? (
-          <p className="text-[12.5px] text-ink-soft">Solo el dueño del negocio puede conectar o desconectar canales.</p>
+          <p className="text-[12.5px] text-ink-soft">{NO_PERMISSION}</p>
         ) : messaging ? (
           <ConnectMetaButton
+            storeId={storeId}
             appId={messaging.appId}
             configId={messaging.configId}
             label={pages.length > 0 ? "Conectar otra página" : undefined}

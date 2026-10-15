@@ -33,16 +33,17 @@ export default async function DemoScreen({
   const d = buildDemoData(nowMs);
 
   const views: Record<string, React.ReactNode> = {
-    chat: <ChatView businessId="demo" conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} startInThread={Boolean(c)} />,
+    chat: <ChatView businessId="demo" storeIds={d.business.scopeStoreIds} conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} startInThread={Boolean(c)} />,
     chekeo: <ChekeoView conversations={d.conversations} />,
     contacts: <ContactsView contacts={d.contacts} />,
     templates: <TemplatesView templates={d.templates} />,
     inventory: <InventoryView products={d.products} conversations={d.conversations} />,
-    team: <TeamView business={d.business} members={d.members} currentUserId="u1" />,
+    team: <TeamView business={d.business} members={d.members} currentUserId="u1" demo />,
     notifications: <NotificationsView notifications={d.notifications} />,
     channels: (
       <ChannelsView
         channels={d.channels}
+        sections={[{ storeId: d.business.scopeStoreIds[0], name: d.business.name, canManage: false }]}
         isOwner={false}
         meta={null}
         messaging={null}

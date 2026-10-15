@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentBusiness } from "@/lib/business";
+import { canManageStore, getCurrentBusiness } from "@/lib/business";
 import { createClient } from "@/lib/supabase/server";
 import { isBillingError } from "@/lib/whatsappErrors";
 import { ChannelsView, type BillingProblem, type ChannelItem } from "./ChannelsView";
@@ -17,10 +17,11 @@ export default async function ChannelsPage() {
     supabase
       .from("channels")
       .select(
-        "id, type, status, external_id, page_id, display_phone, verified_name, connected_at, coexistence, contacts_sync_requested_at, history_sync_requested_at, history_sync_progress, history_sync_error",
+        "id, store_id, type, status, external_id, page_id, display_phone, verified_name, connected_at, coexistence, contacts_sync_requested_at, history_sync_requested_at, history_sync_progress, history_sync_error",
       )
-      .eq("business_id", business.id),
-    findBillingProblem(supabase, business.id),
+      .eq("business_id", business.id)
+      .in("store_id", business.scopeStoreIds),
+    findBillingProblem(supabase, business.id, business.scopeStoreIds),
   ]);
 
   const appId = process.env.NEXT_PUBLIC_META_APP_ID;
@@ -37,6 +38,12 @@ export default async function ChannelsPage() {
   return (
     <ChannelsView
       channels={(data ?? []) as ChannelItem[]}
+      // Listed by Tienda in "Todas las tiendas"; one untitled block otherwise.
+      sections={business.scopeStoreIds.map((id) => ({
+        storeId: id,
+        name: business.allStores.find((s) => s.id === id)?.name ?? "",
+        canManage: canManageStore(business, id) && !business.allStores.find((s) => s.id === id)?.archived,
+      }))}
       isOwner={business.role === "owner"}
       meta={metaReady ? { appId: appId!, configId: configId! } : null}
       messaging={messagingReady ? { appId: appId!, configId: messagingConfigId! } : null}
@@ -51,12 +58,15 @@ export default async function ChannelsPage() {
 async function findBillingProblem(
   supabase: Awaited<ReturnType<typeof createClient>>,
   businessId: string,
+  storeIds: string[],
 ): Promise<BillingProblem | null> {
+  if (storeIds.length === 0) return null;
   const since = new Date(Date.now() - BILLING_LOOKBACK_MS).toISOString();
   const { data, error } = await supabase
     .from("messages")
     .select("created_at, error_code, error_details")
     .eq("business_id", businessId)
+    .in("store_id", storeIds)
     .eq("status", "failed")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
@@ -74,6 +84,7 @@ async function findBillingProblem(
     .from("messages")
     .select("id")
     .eq("business_id", businessId)
+    .in("store_id", storeIds)
     .eq("direction", "out")
     .in("status", ["delivered", "read"])
     .gt("created_at", lastAt)

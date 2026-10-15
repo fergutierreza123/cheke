@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentBusiness } from "@/lib/business";
+import { getCurrentBusiness, storeNamesForTags } from "@/lib/business";
 import { getConversations } from "@/lib/conversations";
 import { ChekeoView } from "./ChekeoView";
 
@@ -7,7 +7,7 @@ export default async function ChekeoPage() {
   const business = await getCurrentBusiness();
   if (!business) redirect("/onboarding");
 
-  const conversations = await getConversations(business.id);
+  const conversations = await getConversations(business.id, business.scopeStoreIds);
 
-  return <ChekeoView conversations={conversations} />;
+  return <ChekeoView conversations={conversations} storeNames={storeNamesForTags(business)} />;
 }

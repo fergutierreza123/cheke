@@ -9,7 +9,7 @@ import type { UserInfo } from "@/lib/user";
 import { isPlanActive, planLabel, PLAN_LAPSED_MESSAGE } from "@/lib/plan";
 import { DeleteAccountButton, type DeletionSummary } from "./DeleteAccountDialog";
 
-const ROLE_LABEL = { owner: "Dueño", agent: "Agente" } as const;
+import { ROLE_LABEL, type Role } from "@/lib/stores";
 
 export function AccountView({
   user,
@@ -17,12 +17,15 @@ export function AccountView({
   lastSignIn,
   business,
   deletion = [],
+  storesLink = null,
   demo = false,
 }: {
   user: UserInfo;
   provider: "google" | "email";
   lastSignIn: string | null;
-  business: { name: string; plan: string; role: "owner" | "agent" };
+  business: { name: string; plan: string; role: Role };
+  // Dueños: "add" a second Tienda, or "manage" the ones they have.
+  storesLink?: "add" | "manage" | null;
   // What "Eliminar mi cuenta" would do to each Negocio this person is in.
   deletion?: DeletionSummary;
   // The /demo phone has no real session, so saving and logging out are
@@ -117,6 +120,15 @@ export function AccountView({
               Ver mi equipo e invitar personas
               <span aria-hidden>›</span>
             </Link>
+            {storesLink && !demo && (
+              <Link
+                href="/stores"
+                className="flex items-center justify-between border-t border-border px-5 py-3.5 text-[13.5px] font-semibold text-brand hover:bg-surface-2"
+              >
+                {storesLink === "add" ? "Agregar otra tienda" : "Administrar tiendas"}
+                <span aria-hidden>›</span>
+              </Link>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-x-5 gap-y-1 px-1 text-[12.5px] text-ink-soft">

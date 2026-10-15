@@ -5,6 +5,7 @@ import Link from "next/link";
 import { relativeTime } from "@/lib/format";
 import type { NotificationItem, NotificationKind } from "@/lib/notifications";
 import { BrandMark } from "@/components/BrandMark";
+import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 
 const KIND_STYLE: Record<NotificationKind, { bg: string; color: string }> = {
   message: { bg: "var(--color-accent-tint)", color: "var(--color-brand-dark)" },
@@ -12,17 +13,29 @@ const KIND_STYLE: Record<NotificationKind, { bg: string; color: string }> = {
   success: { bg: "var(--color-accent-tint)", color: "var(--color-brand-dark)" },
 };
 
-export function NotificationsView({ notifications }: { notifications: NotificationItem[] }) {
+export function NotificationsView({
+  notifications,
+  storeNames = null,
+}: {
+  notifications: NotificationItem[];
+  // "Todas las tiendas": tag + filter per Tienda. null with one Tienda in view.
+  storeNames?: StoreNames | null;
+}) {
+  const [storeFilter, setStoreFilter] = useState<string | "all">("all");
   // No persisted read-state (no notifications table) — this resets on
   // reload, but everything shown is computed from real data, nothing
   // fabricated to fill the screen.
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<"todas" | "no-leidas">("todas");
 
-  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
+  const inStore = useMemo(
+    () => (storeFilter === "all" ? notifications : notifications.filter((n) => n.storeId === storeFilter)),
+    [notifications, storeFilter],
+  );
+  const unreadCount = inStore.filter((n) => !readIds.has(n.id)).length;
   const filtered = useMemo(
-    () => (filter === "no-leidas" ? notifications.filter((n) => !readIds.has(n.id)) : notifications),
-    [notifications, filter, readIds],
+    () => (filter === "no-leidas" ? inStore.filter((n) => !readIds.has(n.id)) : inStore),
+    [inStore, filter, readIds],
   );
 
   function markRead(id: string) {
@@ -57,6 +70,7 @@ export function NotificationsView({ notifications }: { notifications: Notificati
             );
           })}
         </div>
+        {storeNames && <StoreFilter storeNames={storeNames} value={storeFilter} onChange={setStoreFilter} className="lg:basis-full" />}
       </div>
 
       {/* Flat, full-width feed (like a social app's notification list) —
@@ -88,6 +102,7 @@ export function NotificationsView({ notifications }: { notifications: Notificati
                   <div className="flex items-baseline gap-1.5">
                     <span className="truncate text-[14px] font-semibold text-ink lg:text-[12.5px]">{n.title}</span>
                     <span className="shrink-0 text-[12px] text-ink-soft lg:text-[11px]">· {relativeTime(n.time)}</span>
+                    {storeNames && n.storeId && <StoreTag name={storeNames[n.storeId]} className="ml-auto self-center" />}
                   </div>
                   <div className="truncate text-[13px] text-ink-muted lg:text-[12px]">{n.description}</div>
                 </div>

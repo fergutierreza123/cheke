@@ -13,6 +13,7 @@ import { isPlanActive, PLAN_LAPSED_MESSAGE } from "@/lib/plan";
 import { WelcomeSplash } from "@/components/WelcomeSplash";
 import { createClient } from "@/lib/supabase/server";
 import { userInfoFrom } from "@/lib/user";
+import { ArchivedStoreBanner } from "@/components/ArchivedStoreBanner";
 
 export default async function AppLayout({
   children,
@@ -26,10 +27,17 @@ export default async function AppLayout({
   // state, so this is "how many would show up right now", not a stored
   // unread count. Good enough for a sidebar badge; see src/lib/notifications.ts.
   const [conversations, products] = await Promise.all([
-    getConversations(business.id),
-    getProducts(business.id),
+    getConversations(business.id, business.scopeStoreIds),
+    getProducts(business.id, business.scopeStoreIds),
   ]);
-  const notifications = await getNotifications(business.id, conversations, products);
+  const notifications = await getNotifications(business.id, business.scopeStoreIds, conversations, products);
+
+  // People in 2+ Tiendas get the store selector; everyone else sees the
+  // app exactly as a single-Tienda Negocio always has.
+  const archivedSelected = business.selectedStore?.archived ? business.selectedStore : null;
+  const storeSwitcher = business.multiStore
+    ? { stores: business.stores, selected: business.selected, archivedSelected, canManage: business.role === "owner" }
+    : null;
 
   const supabase = await createClient();
   const {
@@ -46,7 +54,12 @@ export default async function AppLayout({
 
   return (
     <NativeAppProvider isNative={await isNativeAppRequest()}>
-      <AppShell businessName={business.name} notificationCount={notifications.length} user={userInfoFrom(user)}>
+      <AppShell
+        businessName={business.name}
+        notificationCount={notifications.length}
+        user={userInfoFrom(user)}
+        storeSwitcher={storeSwitcher}
+      >
         {welcome && <WelcomeSplash firstName={welcome.firstName} businessName={business.name} />}
         <PushRegistrar />
         <OfflineBanner />
@@ -58,8 +71,20 @@ export default async function AppLayout({
             {PLAN_LAPSED_MESSAGE}
           </div>
         )}
+        {archivedSelected && <ArchivedStoreBanner name={archivedSelected.name} />}
+        {business.stores.length === 0 && business.role !== "owner" && <NoStoreYet />}
         {children}
       </AppShell>
     </NativeAppProvider>
+  );
+}
+
+// A Gerente or Agente who isn't in any Tienda yet (or whose Tiendas were
+// all archived) sees no conversations until a Dueño adds them to one.
+function NoStoreYet() {
+  return (
+    <div role="status" className="shrink-0 bg-surface-2 px-4 py-2 text-center text-[12.5px] font-medium text-ink-muted">
+      Todavía no tienes conversaciones asignadas. Pídele al dueño de tu negocio que te agregue en Equipo.
+    </div>
   );
 }

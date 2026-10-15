@@ -9,6 +9,7 @@ import { parseAmount, formatAmount } from "@/lib/payments";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { BrandMark } from "@/components/BrandMark";
+import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
@@ -34,6 +35,8 @@ const LIST_WIDTH_DEFAULT = 320;
 
 export function ChatView({
   businessId,
+  storeIds,
+  storeNames = null,
   conversations: initialConversations,
   products,
   templates,
@@ -42,6 +45,10 @@ export function ChatView({
   startInThread = false,
 }: {
   businessId: string;
+  // The Tiendas on screen: live messages from any other Tienda are ignored.
+  storeIds: string[];
+  // "Todas las tiendas": a tag per conversation and a store filter.
+  storeNames?: StoreNames | null;
   conversations: ConversationWithContact[];
   products: Product[];
   templates: Template[];
@@ -58,6 +65,7 @@ export function ChatView({
   );
   const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<ChannelType | "todos">("todos");
+  const [storeFilter, setStoreFilter] = useState<string | "all">("all");
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
@@ -246,6 +254,10 @@ export function ChatView({
   // Mirror of the conversation list's ids, readable from the Realtime handler
   // below (which is set up once and would otherwise see a stale list).
   const knownConversationIds = useRef<Set<string>>(new Set());
+  const storeIdsRef = useRef(storeIds);
+  useEffect(() => {
+    storeIdsRef.current = storeIds;
+  }, [storeIds]);
   useEffect(() => {
     const ids = knownConversationIds.current;
     ids.clear();
@@ -266,6 +278,8 @@ export function ChatView({
         { event: "INSERT", schema: "public", table: "messages", filter: `business_id=eq.${businessId}` },
         (payload) => {
           const msg = payload.new as Message;
+          // Another Tienda than the one(s) on screen (the selector).
+          if (msg.store_id && !storeIdsRef.current.includes(msg.store_id)) return;
           appendMessage(msg);
           if (knownConversationIds.current.has(msg.conversation_id)) {
             bumpConversation(msg.conversation_id, msg.created_at, msg.body);
@@ -360,9 +374,13 @@ export function ChatView({
     return conversations.filter((c) => {
       const matchesChannel = channelFilter === "todos" || c.channel?.type === channelFilter;
       const matchesQuery = !q || c.contact.name.toLowerCase().includes(q);
-      return matchesChannel && matchesQuery;
+      const matchesStore = storeFilter === "all" || c.store_id === storeFilter;
+      return matchesChannel && matchesQuery && matchesStore;
     });
-  }, [conversations, query, channelFilter]);
+  }, [conversations, query, channelFilter, storeFilter]);
+
+  // Each Tienda has its own catalog: offer the open conversation's.
+  const storeProducts = selected ? products.filter((p) => p.store_id === selected.store_id) : products;
 
   async function handleSend() {
     const text = draft.trim();
@@ -625,6 +643,7 @@ export function ChatView({
               );
             })}
           </div>
+          {storeNames && <StoreFilter storeNames={storeNames} value={storeFilter} onChange={setStoreFilter} className="mt-2" />}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
@@ -659,7 +678,10 @@ export function ChatView({
                     <div className="truncate text-[13.5px] font-semibold text-ink">{c.contact.name}</div>
                     <div className="shrink-0 text-[11px] text-ink-soft">{relativeTime(c.last_message_at)}</div>
                   </div>
-                  <div className="truncate text-[12.5px] text-ink-muted">{lastBody ?? ""}</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="min-w-0 flex-1 truncate text-[12.5px] text-ink-muted">{lastBody ?? ""}</div>
+                    {storeNames && <StoreTag name={storeNames[c.store_id]} />}
+                  </div>
                 </div>
               </button>
             );
@@ -988,12 +1010,12 @@ export function ChatView({
                     >
                       <div className="px-2 py-1 text-[11px] text-ink-soft">Enviar producto del catálogo…</div>
                       <div className="max-h-56 overflow-y-auto">
-                        {products.length === 0 && (
+                        {storeProducts.length === 0 && (
                           <div className="px-2 py-1.5 text-[12.5px] text-ink-soft">
                             Todavía no tienes productos en el catálogo.
                           </div>
                         )}
-                        {products.map((p) => (
+                        {storeProducts.map((p) => (
                           <button
                             key={p.id}
                             onClick={() => handlePickProduct(p)}
