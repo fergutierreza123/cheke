@@ -1,7 +1,9 @@
 import Image from "next/image";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentBusiness } from "@/lib/business";
-import { createBusiness, joinBusiness } from "./actions";
+import { INVITE_COOKIE, isInviteToken } from "@/lib/invitations";
+import { createBusiness } from "./actions";
 import { OnboardingCard } from "./OnboardingCard";
 
 export default async function OnboardingPage({
@@ -11,6 +13,10 @@ export default async function OnboardingPage({
 }) {
   const business = await getCurrentBusiness();
   if (business) redirect("/chekeo");
+
+  // Just logged in from an invitation link: back to that invitation.
+  const invite = (await cookies()).get(INVITE_COOKIE)?.value;
+  if (isInviteToken(invite)) redirect(`/invitacion/${invite}`);
 
   const { error } = await searchParams;
 
@@ -29,8 +35,8 @@ export default async function OnboardingPage({
           cómo crecen tus ventas
         </h1>
         <p className="mt-1 text-center text-sm text-white/70">
-          Crea el negocio de tu equipo, o únete a uno con un código de
-          invitación.
+          Crea el negocio de tu equipo. Si alguien te invitó, abre el link que
+          te mandó.
         </p>
 
         {error && (
@@ -54,20 +60,6 @@ export default async function OnboardingPage({
           </button>
         </OnboardingCard>
 
-        <OnboardingCard title="Unirme a un negocio existente" action={joinBusiness}>
-          <input
-            name="code"
-            required
-            placeholder="Código de invitación"
-            className="rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-tint"
-          />
-          <button
-            type="submit"
-            className="rounded-lg border border-border bg-surface-2 px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-surface-3"
-          >
-            Unirme
-          </button>
-        </OnboardingCard>
       </div>
     </div>
   );

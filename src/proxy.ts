@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { isNativeAppUserAgent, NATIVE_APP_HOME } from "@/lib/nativeApp";
+import { INVITE_COOKIE, isInviteToken } from "@/lib/invitations";
 
 // Next.js 16 renamed "Middleware" to "Proxy" (same mechanism, this file runs
 // before every request). See node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md
@@ -45,7 +46,15 @@ export async function proxy(request: NextRequest) {
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    url.search = "";
+    const redirect = NextResponse.redirect(url);
+    // An invitation link opened while signed out: remember it, so after
+    // logging in onboarding sends the person back to it.
+    const invite = pathname.match(/^\/invitacion\/([^/]+)$/)?.[1];
+    if (isInviteToken(invite)) {
+      redirect.cookies.set(INVITE_COOKIE, invite, { path: "/", maxAge: 24 * 60 * 60, sameSite: "lax", httpOnly: true });
+    }
+    return redirect;
   }
 
   if (user && pathname === "/login") {
