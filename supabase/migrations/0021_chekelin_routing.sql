@@ -512,7 +512,15 @@ stable
 set search_path = public
 as $$
   select m.user_id,
-         u.email::text,
+         -- No email (phone-only login, migration 0020): show the number.
+         coalesce(
+           nullif(u.email::text, ''),
+           case
+             when u.phone ~ '^504[0-9]{8}$' then '+504 ' || substr(u.phone, 4, 4) || '-' || substr(u.phone, 8, 4)
+             when coalesce(u.phone, '') <> '' then '+' || u.phone
+           end,
+           ''
+         ),
          m.role,
          m.created_at,
          coalesce(

@@ -39,7 +39,7 @@ export type Conversation = {
   last_message_at: string | null;
   window_expires_at: string | null;
   created_at: string;
-  // Routing and chekelin's Traspaso (migration 0019). Optional so demo data
+  // Routing and chekelin's Traspaso (migration 0021). Optional so demo data
   // without them still type-checks.
   // Set = chekelin passed the chat to a person (or a person took it).
   handed_off_at?: string | null;
@@ -115,7 +115,7 @@ export type TeamMember = {
   email: string;
   role: "owner" | "manager" | "agent";
   joined_at: string;
-  // From the sign-in profile; null when never set (migration 0019).
+  // From the sign-in profile; null when never set (migration 0021).
   name?: string | null;
   // Ausente: receives no new conversations.
   away?: boolean;

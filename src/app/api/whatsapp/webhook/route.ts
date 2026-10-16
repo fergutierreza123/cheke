@@ -204,7 +204,7 @@ async function saveInboundMessage(
 // A message the business sent from the WhatsApp Business app on its phone
 // (coexistence). It shows in the chat like any reply and counts as a person
 // replying: chekelin goes silent, the timers stop and an unassigned chat goes
-// to the Dueño (database trigger, migration 0019). It doesn't touch the
+// to the Dueño (database trigger, migration 0021). It doesn't touch the
 // 24-hour window: only the customer's messages open it.
 async function saveEchoMessage(supabase: Admin, book: ContactBook, channel: Channel, echo: WhatsAppEcho) {
   const body = describeMessage(echo);

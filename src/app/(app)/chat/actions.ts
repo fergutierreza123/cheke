@@ -81,7 +81,7 @@ export async function sendChatMessage(
     .update({ last_message_at: message.created_at })
     .eq("id", conversationId);
 
-  // A person just answered: the database (migration 0019) marks the chat as
+  // A person just answered: the database (migration 0021) marks the chat as
   // handed off — chekelin goes silent, the timers stop, and an unassigned
   // chat becomes this person's. Nothing to do here.
 

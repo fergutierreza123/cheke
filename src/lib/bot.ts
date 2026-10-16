@@ -24,7 +24,7 @@ import type { Message } from "@/lib/types";
 //
 // The conversation's bookkeeping (customer wrote, a person replied, chekelin
 // coming back after a close or 7 days) is kept by a database trigger
-// (migration 0019); this file decides and speaks.
+// (migration 0021); this file decides and speaks.
 
 type Admin = SupabaseClient;
 
