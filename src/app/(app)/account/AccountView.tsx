@@ -9,6 +9,8 @@ import type { UserInfo } from "@/lib/user";
 import { isPlanActive, planLabel, PLAN_LAPSED_MESSAGE } from "@/lib/plan";
 import { DeleteAccountButton, type DeletionSummary } from "./DeleteAccountDialog";
 import { PhoneRow } from "./PhoneRow";
+import { QuickLoginRow } from "./QuickLoginRow";
+import { turnOffBiometricLogin } from "@/lib/biometricLogin";
 
 import { ROLE_LABEL, type Role } from "@/lib/stores";
 
@@ -112,6 +114,8 @@ export function AccountView({
             <Row label="Plan" value={isPlanActive(business.plan) ? planLabel(business.plan) : PLAN_LAPSED_MESSAGE} />
             {/* Log in with a code to this cell number or to the email. */}
             <PhoneRow phone={user.phone ?? ""} demo={demo} />
+            {/* Face ID / fingerprint in the app, passkey on the web. */}
+            {!demo && <QuickLoginRow />}
             {lastSignIn && <Row label="Último acceso" value={relativeTime(lastSignIn)} />}
             <Link
               href={demo ? "#" : "/team"}
@@ -145,7 +149,14 @@ export function AccountView({
               Cerrar sesión
             </Link>
           ) : (
-            <form action={signOut}>
+            <form
+              action={async () => {
+                // Logging out also forgets the Face ID / fingerprint login
+                // on this phone (no-op on the web).
+                await turnOffBiometricLogin();
+                await signOut();
+              }}
+            >
               <button
                 type="submit"
                 className="flex min-h-12 w-full items-center justify-center rounded-xl border border-danger-border bg-danger-tint text-[14px] font-semibold text-danger transition-colors hover:bg-danger/10"

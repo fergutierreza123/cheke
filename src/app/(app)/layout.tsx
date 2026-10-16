@@ -6,6 +6,7 @@ import { getProducts } from "@/lib/products";
 import { getNotifications } from "@/lib/notifications";
 import { AppShell } from "@/components/AppShell";
 import { PushRegistrar } from "@/components/PushRegistrar";
+import { BiometricSessionSync } from "@/components/BiometricSessionSync";
 import { NativeAppProvider } from "@/components/NativeApp";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { isNativeAppRequest } from "@/lib/nativeAppServer";
@@ -62,6 +63,7 @@ export default async function AppLayout({
       >
         {welcome && <WelcomeSplash firstName={welcome.firstName} businessName={business.name} />}
         <PushRegistrar />
+        <BiometricSessionSync />
         <OfflineBanner />
         {!isPlanActive(business.plan) && (
           // Deliberately neutral: no price, link or "how to pay", so it's

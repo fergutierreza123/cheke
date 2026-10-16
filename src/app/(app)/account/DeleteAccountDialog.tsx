@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { deleteAccount } from "./actions";
+import { resaveBiometricLogin, turnOffBiometricLogin } from "@/lib/biometricLogin";
+import { forgetPasskeyOnThisDevice } from "@/lib/passkeyLogin";
 import { DELETE_CONFIRM_WORD, type DeletionOutcome } from "./deletion";
 
 export type DeletionSummary = { businessName: string; outcome: DeletionOutcome }[];
@@ -51,9 +53,16 @@ export function DeleteAccountButton({
     if (!confirmed || demo) return;
     setError("");
     startTransition(async () => {
-      // On success the action redirects away; we only get here on failure.
+      // Forget the Face ID / fingerprint login first: on success the action
+      // redirects away and nothing after it runs.
+      const biometricWasOn = await turnOffBiometricLogin();
+      forgetPasskeyOnThisDevice();
       const result = await deleteAccount(typed);
-      if (result?.error) setError(result.error);
+      // Only reached on failure: the account still exists, put it back.
+      if (result?.error) {
+        if (biometricWasOn) await resaveBiometricLogin();
+        setError(result.error);
+      }
     });
   }
 

@@ -7,6 +7,13 @@ import type { CapacitorConfig } from "@capacitor/cli";
 //
 // To create the native projects (needs Xcode / Android Studio installed):
 //   npx cap add ios && npx cap add android && npx cap sync
+//
+// Then, for "Entrar con Face ID / huella" (src/lib/biometricLogin.ts):
+// - ios/App/App/Info.plist: NSFaceIDUsageDescription =
+//   "cheke usa Face ID para que entres a tu cuenta sin esperar un código."
+// - android/app/src/main/AndroidManifest.xml:
+//   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+// (Full steps in README.md → "App móvil".)
 const config: CapacitorConfig = {
   appId: "io.cheke.app",
   appName: "cheke",
