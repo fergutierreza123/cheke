@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LegalFooter } from "@/components/LegalLayout";
 import { NATIVE_APP_HOME } from "@/lib/nativeApp";
 import { isNativeAppRequest } from "@/lib/nativeAppServer";
+import { appHref } from "@/lib/site";
 
 // Public home page — what a visitor (or Meta's business reviewers) sees at
 // the domain. Signed-in people skip straight into the app. The installed
@@ -16,7 +17,7 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
   const native = await isNativeAppRequest();
-  if (user) redirect(native ? NATIVE_APP_HOME : "/chekeo");
+  if (user) redirect(NATIVE_APP_HOME);
   if (native) redirect("/login");
 
   return (
@@ -24,7 +25,7 @@ export default async function Home() {
       <section className="bg-brand-dark px-5 pb-16 pt-6 text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Image src="/logos/cheke-wordmark-color.png" alt="cheke" width={96} height={52} priority />
-          <Link href="/login" className="rounded-lg border border-white/25 px-4 py-2 text-sm font-semibold hover:bg-white/10">
+          <Link href={appHref("/login")} className="rounded-lg border border-white/25 px-4 py-2 text-sm font-semibold hover:bg-white/10">
             Entrar
           </Link>
         </div>
@@ -37,10 +38,10 @@ export default async function Home() {
             tus ventas y deja que chekelin, tu asistente de IA, atienda la primera respuesta.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/login" className="rounded-xl bg-accent px-6 py-3 text-[15px] font-semibold text-brand-dark hover:opacity-90">
+            <Link href={appHref("/login")} className="rounded-xl bg-accent px-6 py-3 text-[15px] font-semibold text-brand-dark hover:opacity-90">
               Empezar
             </Link>
-            <Link href="/demo" className="rounded-xl border border-white/25 px-6 py-3 text-[15px] font-semibold hover:bg-white/10">
+            <Link href={appHref("/demo")} className="rounded-xl border border-white/25 px-6 py-3 text-[15px] font-semibold hover:bg-white/10">
               Ver demo en iPhone
             </Link>
           </div>

@@ -1,9 +1,9 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isNativeAppUserAgent, NATIVE_APP_HOME } from "@/lib/nativeApp";
+import { NATIVE_APP_HOME } from "@/lib/nativeApp";
 import { INVITE_COOKIE } from "@/lib/invitations";
 
 // "Unirme": joins the Negocio with the invitation's role and Tiendas (the
@@ -23,6 +23,5 @@ export async function acceptInvitation(formData: FormData) {
     redirect(`/invitacion/${encodeURIComponent(token)}?error=${encodeURIComponent(error.message)}`);
   }
 
-  const native = isNativeAppUserAgent((await headers()).get("user-agent"));
-  redirect(native ? NATIVE_APP_HOME : "/chekeo");
+  redirect(NATIVE_APP_HOME);
 }
