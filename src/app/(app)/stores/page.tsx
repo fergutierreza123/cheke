@@ -9,7 +9,7 @@ export const metadata = { title: "Tiendas · cheke" };
 export default async function StoresPage() {
   const business = await getCurrentBusiness();
   if (!business) redirect("/onboarding");
-  if (business.role !== "owner") redirect("/chekeo");
+  if (business.role !== "owner") redirect("/chat");
 
   return <StoresView businessName={business.name} stores={business.stores} archivedStores={business.archivedStores} />;
 }

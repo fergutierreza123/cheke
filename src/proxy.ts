@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
-import { isNativeAppUserAgent, NATIVE_APP_HOME } from "@/lib/nativeApp";
+import { NATIVE_APP_HOME } from "@/lib/nativeApp";
 import { INVITE_COOKIE, isInviteToken } from "@/lib/invitations";
+import { APP_URL, isSiteHost, SITE_PATHS } from "@/lib/site";
 
 // Next.js 16 renamed "Middleware" to "Proxy" (same mechanism, this file runs
 // before every request). See node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md
@@ -15,6 +16,15 @@ import { INVITE_COOKIE, isInviteToken } from "@/lib/invitations";
 const PUBLIC_PATHS = ["/login", "/demo", "/privacidad", "/terminos", "/eliminar-datos"];
 
 export async function proxy(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+
+  // cheke.io is the informational site: it serves its own pages with no
+  // session, and sends everything else to the app (ventas.cheke.app).
+  if (isSiteHost(request.headers.get("host"))) {
+    if (SITE_PATHS.includes(pathname)) return NextResponse.next({ request });
+    return NextResponse.redirect(`${APP_URL}${pathname}${search}`, 308);
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -40,7 +50,6 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
   const isPublic = pathname === "/" || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublic) {
@@ -57,10 +66,18 @@ export async function proxy(request: NextRequest) {
     return redirect;
   }
 
+  // Signed in: everyone lands on Chat (web and phone app alike).
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
-    // The installed phone app opens on the inbox; the web on Chekeo.
-    url.pathname = isNativeAppUserAgent(request.headers.get("user-agent")) ? NATIVE_APP_HOME : "/chekeo";
+    url.pathname = NATIVE_APP_HOME;
+    return NextResponse.redirect(url);
+  }
+
+  // On the app's own domain the home page is the app, not the marketing
+  // page (that lives on cheke.io).
+  if (APP_URL && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = user ? NATIVE_APP_HOME : "/login";
     return NextResponse.redirect(url);
   }
 
