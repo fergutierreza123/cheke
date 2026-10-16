@@ -103,6 +103,18 @@ export function formatLempiras(value: number): string {
   return "L " + value.toLocaleString("es-HN");
 }
 
+// The text that goes with a product photo in a chat ("Enviar producto" in
+// Chat and Catálogo, and chekelin when it shows a product).
+export function productMessageText(
+  product: { name: string; price_hnl: number; description: string | null },
+  caption?: string,
+): string {
+  const lines = [`${product.name} — ${formatLempiras(product.price_hnl)}`];
+  if (product.description) lines.push(product.description);
+  if (caption?.trim()) lines.push(caption.trim());
+  return lines.join("\n");
+}
+
 // Tints a brand hex color for a soft background (e.g. an unselected filter
 // chip) while keeping the same hue as the solid/selected version.
 export function withAlpha(hex: string, alpha: number): string {

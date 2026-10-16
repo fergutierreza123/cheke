@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { dismissSuggestion, saveTemplate } from "./actions";
 import { TEMPLATE_CATEGORY_META, TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
@@ -158,6 +159,18 @@ export function TemplatesView({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8 lg:pt-4">
+        <Link
+          href="/chekelin"
+          className="mb-4 flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3 text-[13px] text-ink hover:bg-surface-2"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
+          <img src="/logos/cheke-icon-blue.png" alt="" className="h-4 w-4 shrink-0 object-contain" />
+          <span className="min-w-0 flex-1">
+            <span className="font-semibold">Lo que chekelin sabe de tu negocio</span>
+            <span className="text-ink-muted"> · formas de pago, envíos, horarios y cambios que chekelin usa para vender</span>
+          </span>
+          <span aria-hidden className="text-ink-soft">›</span>
+        </Link>
         {suggestions.length > 0 && (
           <section aria-labelledby="sugerencias" className="mb-5 rounded-2xl bg-accent-tint p-4 lg:p-5">
             <h2 id="sugerencias" className="flex items-center gap-2 font-heading text-[15.5px] font-semibold text-brand-dark">

@@ -6,7 +6,7 @@ import { canAccessStore, canManageStore, getCurrentBusiness } from "@/lib/busine
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handOffActiveChats } from "@/lib/bot";
 import { CHEKELIN_OFF_OPTIONS, chekelinOffUntil, type ChekelinOffDuration } from "@/lib/chekelinState";
-import { primaryChannel, formatLempiras } from "@/lib/format";
+import { primaryChannel, productMessageText } from "@/lib/format";
 import { sendChatMessage } from "./chat/actions";
 import type { Channel, ChannelType, ConversationStage, ConversationWithContact, Product } from "@/lib/types";
 
@@ -177,10 +177,7 @@ export async function sendProductToConversation(
   product: Pick<Product, "name" | "price_hnl" | "description" | "image_url">,
   caption?: string,
 ): Promise<{ error?: string }> {
-  const lines = [`${product.name} — ${formatLempiras(product.price_hnl)}`];
-  if (product.description) lines.push(product.description);
-  if (caption?.trim()) lines.push(caption.trim());
-  const text = lines.join("\n");
+  const text = productMessageText(product, caption);
 
   const result = await sendChatMessage(conversationId, text, product.image_url);
   if (result.error) return { error: result.error };

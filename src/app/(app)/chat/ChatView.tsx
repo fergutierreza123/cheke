@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
 import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProductToConversation } from "../actions";
@@ -12,6 +13,7 @@ import {
   resolveOrder,
   reassignConversation,
   listConversationNotes,
+  resolveComplaint,
   type OpenOrder,
 } from "./actions";
 import { setChekelinOff } from "../actions";
@@ -31,17 +33,19 @@ export type ChekelinStore = { id: string; name: string; offUntil: string | null;
 const CHEKELIN_STATE_LABEL: Record<ChekelinChatState, string> = {
   active: "chekelin activo",
   silent: "chekelin en silencio",
+  complaint: "chekelin en silencio",
   paused: "chekelin pausado",
   off: "chekelin apagado",
 };
 const CHEKELIN_STATE_HINT: Record<ChekelinChatState, string> = {
-  active: "chekelin responde primero en este chat. Toca para pausarlo aquí.",
+  active: "chekelin atiende y vende en este chat (pedido, datos de pago, comprobante). Toca para pausarlo aquí.",
   silent:
     "chekelin le pasó este chat a una persona. Solo responde datos simples (precio, tallas, envío…) si nadie contesta en 5 minutos. Toca para pausarlo aquí.",
-  paused: "chekelin está pausado en este chat. Toca para que vuelva a responder primero.",
+  complaint: "Hay una queja abierta: chekelin no responde hasta que alguien la marque resuelta.",
+  paused: "chekelin está pausado en este chat. Toca para que vuelva a atender.",
   off: "chekelin está apagado en esta tienda.",
 };
-import { parseAmount, formatAmount } from "@/lib/payments";
+import { parseAmount, formatAmount, orderConcept, type OrderItem } from "@/lib/payments";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { BrandMark } from "@/components/BrandMark";
@@ -84,6 +88,7 @@ export function ChatView({
   chekelinAvailable = true,
   chekelinStores = [],
   highlightAssignment = false,
+  highlightOrderId = null,
 }: {
   businessId: string;
   // The Tiendas on screen: live messages from any other Tienda are ignored.
@@ -107,6 +112,8 @@ export function ChatView({
   chekelinStores?: ChekelinStore[];
   // Opened from the 10-minute alert: point at the reassign control.
   highlightAssignment?: boolean;
+  // Opened from a "comprobante recibido" alert: point at "Confirmar pago".
+  highlightOrderId?: string | null;
 }) {
   const showAssignment = people.length >= 2;
   const [stores, setStores] = useState(chekelinStores);
@@ -242,9 +249,11 @@ export function ChatView({
         storeOffUntil: selectedStore?.offUntil,
         botEnabled: selected.bot_enabled,
         handedOffAt: selected.handed_off_at,
+        complaintOpenAt: selected.complaint_open_at,
         nowMs: now,
       })
     : "off";
+  const complaintOpen = Boolean(selected?.complaint_open_at);
   const assignee = selected?.assigned_to ? people.find((p) => p.userId === selected.assigned_to) : undefined;
   const assignable = selected ? people.filter((p) => p.storeIds.includes(selected.store_id)) : [];
   const canReassign = Boolean(selectedStore?.canManage) && assignable.length > 1;
@@ -276,6 +285,18 @@ export function ChatView({
       setSendError(result.error);
       setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, assigned_to: previous } : c)));
     }
+  }
+
+  // "Marcar queja resuelta" (Gerente or Dueño).
+  async function handleResolveComplaint() {
+    if (!selected) return;
+    if (!confirm("¿Marcar la queja como resuelta? chekelin podrá volver a responder en este chat.")) return;
+    const result = await resolveComplaint(selected.id);
+    if (result.error) {
+      setSendError(result.error);
+      return;
+    }
+    setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, complaint_open_at: null } : c)));
   }
 
   async function handleChekelinStore(storeId: string, duration: ChekelinOffDuration | null) {
@@ -441,11 +462,50 @@ export function ChatView({
                     handed_off_at: row.handed_off_at,
                     chekelin_replies: row.chekelin_replies,
                     awaiting_since: row.awaiting_since,
+                    complaint_open_at: row.complaint_open_at ?? null,
                     stage: row.stage ?? c.stage,
                   }
                 : c,
             ),
           );
+        },
+      )
+      // Orders chekelin takes, and receipts it receives, show up live
+      // ("Cobro pendiente" / "Comprobante recibido · Confirmar pago").
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `business_id=eq.${businessId}` },
+        (payload) => {
+          const row = payload.new as {
+            id?: string;
+            conversation_id?: string | null;
+            status?: string;
+            total_hnl?: number;
+            items?: OrderItem[];
+            payment_link?: string | null;
+            created_at?: string;
+            source?: string;
+            receipt_at?: string | null;
+          };
+          if (!row?.id || !row.conversation_id) return;
+          const conversationId = row.conversation_id;
+          setOrdersByConversation((prev) => {
+            const list = prev[conversationId];
+            // Not loaded yet: it loads when the conversation is opened.
+            if (!list) return prev;
+            const rest = list.filter((o) => o.id !== row.id);
+            if (row.status !== "awaiting_payment") return { ...prev, [conversationId]: rest };
+            const order: OpenOrder = {
+              id: row.id as string,
+              total_hnl: Number(row.total_hnl ?? 0),
+              concept: orderConcept(Array.isArray(row.items) ? row.items : []),
+              payment_link: row.payment_link ?? null,
+              created_at: row.created_at ?? new Date().toISOString(),
+              by_chekelin: row.source === "chekelin",
+              receipt_at: row.receipt_at ?? null,
+            };
+            return { ...prev, [conversationId]: [order, ...rest] };
+          });
         },
       )
       .on(
@@ -604,7 +664,7 @@ export function ChatView({
   // Per-conversation pause. Turning it back on makes chekelin the first
   // responder here again.
   async function handleToggleBot() {
-    if (!selected || chatState === "off") return;
+    if (!selected || chatState === "off" || chatState === "complaint") return;
     const next = chatState === "paused";
     setConversations((prev) =>
       prev.map((c) =>
@@ -710,8 +770,9 @@ export function ChatView({
 
   async function handleResolveOrder(order: OpenOrder, outcome: "paid" | "cancelled") {
     if (!selected) return;
-    const label = outcome === "paid" ? "pagado" : "cancelado";
-    if (!confirm(`¿Marcar el cobro de ${formatAmount(order.total_hnl)} como ${label}?`)) return;
+    // "Confirmar pago" is one tap (the button itself says what it does);
+    // cancelling asks first.
+    if (outcome === "cancelled" && !confirm(`¿Cancelar el cobro de ${formatAmount(order.total_hnl)}?`)) return;
     const result = await resolveOrder(order.id, outcome);
     if (result.error) {
       setSendError(result.error);
@@ -857,6 +918,7 @@ export function ChatView({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="min-w-0 flex-1 truncate text-[12.5px] text-ink-muted">{lastBody ?? ""}</div>
+                    {c.complaint_open_at && <ComplaintTag />}
                     {storeNames && <StoreTag name={storeNames[c.store_id]} />}
                   </div>
                 </div>
@@ -899,7 +961,10 @@ export function ChatView({
                 {initialsFor(selected.contact.name)}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-semibold text-ink">{selected.contact.name}</div>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-[14.5px] font-semibold text-ink">{selected.contact.name}</span>
+                  {complaintOpen && <ComplaintTag />}
+                </div>
                 <div className="flex items-center gap-1.5">
                   {selected.channel && (
                     <>
@@ -921,7 +986,7 @@ export function ChatView({
               {chekelinAvailable && (
                 <button
                   onClick={handleToggleBot}
-                  disabled={chatState === "off"}
+                  disabled={chatState === "off" || chatState === "complaint"}
                   title={CHEKELIN_STATE_HINT[chatState]}
                   aria-label={CHEKELIN_STATE_LABEL[chatState]}
                   className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-semibold transition-colors disabled:opacity-60 lg:h-[30px] ${
@@ -1002,12 +1067,28 @@ export function ChatView({
 
             {/* Team-only strip: who has the chat (2+ people) and chekelin's
                 Traspaso summary. Never sent to the customer. */}
-            {(showAssignment || latestNote) && (
+            {(showAssignment || latestNote || complaintOpen) && (
               <div
                 className={`shrink-0 border-b border-border bg-surface-2 px-3 py-2 text-[12.5px] lg:px-6 ${
                   highlightAssignment && canReassign ? "ring-2 ring-inset ring-brand" : ""
                 }`}
               >
+                {complaintOpen && (
+                  <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <ComplaintTag />
+                    <span className="min-w-0 flex-1 text-ink">
+                      chekelin no responde hasta que la queja se marque resuelta.
+                    </span>
+                    {selectedStore?.canManage && (
+                      <button
+                        onClick={handleResolveComplaint}
+                        className="min-h-8 rounded-lg border border-border bg-surface px-3 text-[12px] font-semibold text-ink hover:bg-surface-3"
+                      >
+                        Marcar queja resuelta
+                      </button>
+                    )}
+                  </div>
+                )}
                 {showAssignment && (
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-ink-muted">Lo atiende</span>
@@ -1201,18 +1282,27 @@ export function ChatView({
             {(ordersByConversation[selected.id] ?? []).map((order) => (
               <div
                 key={order.id}
-                className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-border bg-accent-tint px-4 py-2 lg:px-6"
+                className={`flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-border bg-accent-tint px-4 py-2 lg:px-6 ${
+                  highlightOrderId === order.id ? "ring-2 ring-inset ring-brand" : ""
+                }`}
               >
                 <div className="min-w-0 flex-1 text-[12.5px] text-ink">
-                  <span className="font-semibold">Cobro pendiente · {formatAmount(order.total_hnl)}</span>
+                  <span className="font-semibold">
+                    {order.receipt_at ? "Comprobante recibido" : "Cobro pendiente"} · {formatAmount(order.total_hnl)}
+                  </span>
                   {order.concept && <span className="text-ink-muted"> — {order.concept}</span>}
+                  {order.by_chekelin && <span className="text-ink-muted"> · pedido tomado por chekelin</span>}
+                  {order.receipt_at && (
+                    <span className="block text-ink-muted">Revisa que el dinero entró y confirma: la venta pasa a Ganado.</span>
+                  )}
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   <button
                     onClick={() => handleResolveOrder(order, "paid")}
+                    autoFocus={highlightOrderId === order.id}
                     className="min-h-8 rounded-lg bg-brand px-3 text-[12px] font-semibold text-white"
                   >
-                    Marcar pagado
+                    Confirmar pago
                   </button>
                   <button
                     onClick={() => handleResolveOrder(order, "cancelled")}
@@ -1562,7 +1652,11 @@ function ChekelinStoreSwitch({
             className="absolute left-0 top-[calc(100%+6px)] z-20 flex w-[300px] max-w-[calc(100vw-32px)] flex-col gap-3 rounded-[12px] border border-border bg-surface p-3.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
           >
             <p className="text-[12px] leading-snug text-ink-muted">
-              chekelin responde primero y pasa el chat a una persona cuando hace falta.
+              chekelin atiende y vende: responde, toma el pedido y manda los datos de pago. Pasa el chat a una persona
+              cuando hace falta.{" "}
+              <Link href="/chekelin" className="font-semibold text-brand">
+                Lo que chekelin sabe de tu negocio
+              </Link>
             </p>
             {stores.map((s) => {
               const off = isChekelinOff(s.offUntil, nowMs);
@@ -1606,6 +1700,15 @@ function ChekelinStoreSwitch({
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// The red "Queja" tag: an open complaint (chekelin silent until resolved).
+function ComplaintTag() {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-md border border-danger-border bg-danger-tint px-1.5 py-px text-[10.5px] font-bold uppercase tracking-wide text-danger">
+      Queja
+    </span>
   );
 }
 

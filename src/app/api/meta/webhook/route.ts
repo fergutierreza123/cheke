@@ -55,18 +55,24 @@ export async function POST(request: NextRequest) {
   if (result.saved.length > 0 || result.echoes.length > 0) {
     after(async () => {
       const supabase = createAdminClient();
-      // chekelin answers or hands off; otherwise the chat goes to a person
-      // and only they are alerted (src/lib/bot.ts).
-      for (const item of result.saved) {
-        await handleInboundMessage(supabase, item.conversationId, { preview: item.body }).catch((error) =>
+      // chekelin answers (after a natural 3–10 s pause with "escribiendo…")
+      // or hands off; otherwise the chat goes to a person and only they are
+      // alerted (src/lib/bot.ts). Once per conversation, conversations in
+      // parallel, and alongside the echoes: a person replying from the
+      // Instagram app must be saved in time to stop chekelin's pending reply.
+      const latest = new Map<string, SavedMessage>();
+      for (const item of result.saved) latest.set(item.conversationId, item);
+      const inbound = [...latest.values()].map((item) =>
+        handleInboundMessage(supabase, item.conversationId, { preview: item.body }).catch((error) =>
           console.error("inbound handling error", error),
-        );
-      }
+        ),
+      );
 
       // Echoes = messages the business sent. When cheke itself sent one, the
       // echo can arrive before the send finished saving Meta's message id,
       // so wait a moment and then skip anything cheke already has.
-      if (result.echoes.length > 0) {
+      const echoes = async () => {
+        if (result.echoes.length === 0) return;
         await new Promise((resolve) => setTimeout(resolve, ECHO_DELAY_MS));
         for (const echo of result.echoes) {
           try {
@@ -75,7 +81,8 @@ export async function POST(request: NextRequest) {
             console.error("meta echo error", echo.event.message?.mid, error);
           }
         }
-      }
+      };
+      await Promise.all([...inbound, echoes()]);
     });
   }
 
