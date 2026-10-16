@@ -4,7 +4,43 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
 import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProductToConversation } from "../actions";
-import { sendChatMessage, simulateInboundMessage, sendPaymentRequest, listOpenOrders, resolveOrder, type OpenOrder } from "./actions";
+import {
+  sendChatMessage,
+  simulateInboundMessage,
+  sendPaymentRequest,
+  listOpenOrders,
+  resolveOrder,
+  reassignConversation,
+  listConversationNotes,
+  type OpenOrder,
+} from "./actions";
+import { setChekelinOff } from "../actions";
+import {
+  CHEKELIN_OFF_OPTIONS,
+  chekelinChatState,
+  chekelinOffLabel,
+  isChekelinOff,
+  type ChekelinChatState,
+  type ChekelinOffDuration,
+} from "@/lib/chekelinState";
+import type { Role } from "@/lib/stores";
+
+export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
+export type ChekelinStore = { id: string; name: string; offUntil: string | null; canManage: boolean };
+
+const CHEKELIN_STATE_LABEL: Record<ChekelinChatState, string> = {
+  active: "chekelin activo",
+  silent: "chekelin en silencio",
+  paused: "chekelin pausado",
+  off: "chekelin apagado",
+};
+const CHEKELIN_STATE_HINT: Record<ChekelinChatState, string> = {
+  active: "chekelin responde primero en este chat. Toca para pausarlo aquí.",
+  silent:
+    "chekelin le pasó este chat a una persona. Solo responde datos simples (precio, tallas, envío…) si nadie contesta en 5 minutos. Toca para pausarlo aquí.",
+  paused: "chekelin está pausado en este chat. Toca para que vuelva a responder primero.",
+  off: "chekelin está apagado en esta tienda.",
+};
 import { parseAmount, formatAmount } from "@/lib/payments";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
@@ -13,7 +49,7 @@ import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
-import type { ChannelType, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
+import type { ChannelType, ConversationNote, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "todos", label: "Todos" },
@@ -43,6 +79,11 @@ export function ChatView({
   initialSelectedId,
   initialMessages,
   startInThread = false,
+  currentUserId = null,
+  people = [],
+  chekelinAvailable = true,
+  chekelinStores = [],
+  highlightAssignment = false,
 }: {
   businessId: string;
   // The Tiendas on screen: live messages from any other Tienda are ignored.
@@ -57,7 +98,20 @@ export function ChatView({
   // Phones: open straight into the conversation (a tapped notification)
   // instead of the chat list.
   startInThread?: boolean;
+  currentUserId?: string | null;
+  // Everyone in the Negocio, for Asignación (shown only with 2+ people).
+  people?: ChatPerson[];
+  // chekelin is in the Negocio's plan (cheKe Plus / Pro).
+  chekelinAvailable?: boolean;
+  // chekelin's switch for each Tienda on screen.
+  chekelinStores?: ChekelinStore[];
+  // Opened from the 10-minute alert: point at the reassign control.
+  highlightAssignment?: boolean;
 }) {
+  const showAssignment = people.length >= 2;
+  const [stores, setStores] = useState(chekelinStores);
+  const [notesByConversation, setNotesByConversation] = useState<Record<string, ConversationNote[]>>({});
+  const [showChekelinMenu, setShowChekelinMenu] = useState(false);
   const [conversations, setConversations] = useState(initialConversations);
   const [selectedId, setSelectedId] = useState(initialSelectedId);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, Message[]>>(
@@ -179,6 +233,60 @@ export function ChatView({
     () => (selectedId ? (messagesByConversation[selectedId] ?? []) : []),
     [selectedId, messagesByConversation],
   );
+
+  // chekelin and Asignación for the open conversation.
+  const selectedStore = selected ? stores.find((s) => s.id === selected.store_id) : undefined;
+  const chatState: ChekelinChatState = selected
+    ? chekelinChatState({
+        available: chekelinAvailable,
+        storeOffUntil: selectedStore?.offUntil,
+        botEnabled: selected.bot_enabled,
+        handedOffAt: selected.handed_off_at,
+        nowMs: now,
+      })
+    : "off";
+  const assignee = selected?.assigned_to ? people.find((p) => p.userId === selected.assigned_to) : undefined;
+  const assignable = selected ? people.filter((p) => p.storeIds.includes(selected.store_id)) : [];
+  const canReassign = Boolean(selectedStore?.canManage) && assignable.length > 1;
+  const latestNote = selectedId ? notesByConversation[selectedId]?.[0] : undefined;
+  // Automated messages say who wrote them: chekelin, or (plans without it)
+  // a plain automatic message.
+  const botLabel = chekelinAvailable ? "chekelin" : "Mensaje automático";
+
+  // The Traspaso summary for the open conversation (team-only).
+  useEffect(() => {
+    if (!selectedId || businessId === "demo") return;
+    let cancelled = false;
+    listConversationNotes(selectedId)
+      .then((notes) => {
+        if (!cancelled) setNotesByConversation((prev) => ({ ...prev, [selectedId]: notes }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, businessId]);
+
+  async function handleReassign(userId: string) {
+    if (!selected || !userId || userId === selected.assigned_to) return;
+    const previous = selected.assigned_to;
+    setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, assigned_to: userId } : c)));
+    const result = await reassignConversation(selected.id, userId);
+    if (result.error) {
+      setSendError(result.error);
+      setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, assigned_to: previous } : c)));
+    }
+  }
+
+  async function handleChekelinStore(storeId: string, duration: ChekelinOffDuration | null) {
+    setShowChekelinMenu(false);
+    const result = await setChekelinOff(storeId, duration);
+    if (result.error) {
+      setSendError(result.error);
+      return;
+    }
+    setStores((prev) => prev.map((s) => (s.id === storeId ? { ...s, offUntil: result.until ?? null } : s)));
+  }
 
   // Pending charges for the open conversation (not in demo, which has no
   // signed-in business behind it).
@@ -316,6 +424,42 @@ export function ChatView({
           patchMessage(payload.new as Message);
         },
       )
+      // Asignación and chekelin's state change on the server (handoff,
+      // someone replied, reassigned): keep the list and header current.
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "conversations", filter: `business_id=eq.${businessId}` },
+        (payload) => {
+          const row = payload.new as ConversationWithContact;
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === row.id
+                ? {
+                    ...c,
+                    assigned_to: row.assigned_to,
+                    bot_enabled: row.bot_enabled,
+                    handed_off_at: row.handed_off_at,
+                    chekelin_replies: row.chekelin_replies,
+                    awaiting_since: row.awaiting_since,
+                    stage: row.stage ?? c.stage,
+                  }
+                : c,
+            ),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "conversation_notes", filter: `business_id=eq.${businessId}` },
+        (payload) => {
+          const note = payload.new as ConversationNote;
+          setNotesByConversation((prev) =>
+            prev[note.conversation_id]
+              ? { ...prev, [note.conversation_id]: [note, ...prev[note.conversation_id]] }
+              : prev,
+          );
+        },
+      )
       .subscribe();
 
     return () => {
@@ -431,8 +575,21 @@ export function ChatView({
       appendMessage(result.message);
       bumpConversation(selected.id, result.message.created_at, result.message.body);
     }
-    if (result.botDisabled) {
-      setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, bot_enabled: false } : c)));
+    if (result.message) {
+      // A person replied: chekelin goes silent and an unassigned chat is
+      // now theirs (the database does the same; this is just immediate).
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === selected.id
+            ? {
+                ...c,
+                handed_off_at: c.handed_off_at ?? result.message!.created_at,
+                assigned_to: c.assigned_to ?? currentUserId,
+                awaiting_since: null,
+              }
+            : c,
+        ),
+      );
     }
     if (result.sendError) setSendError(result.sendError);
     else if (result.error) setSendError(result.error);
@@ -444,10 +601,20 @@ export function ChatView({
     await setConversationStage(selected.id, stage);
   }
 
+  // Per-conversation pause. Turning it back on makes chekelin the first
+  // responder here again.
   async function handleToggleBot() {
-    if (!selected) return;
-    const next = !selected.bot_enabled;
-    setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, bot_enabled: next } : c)));
+    if (!selected || chatState === "off") return;
+    const next = chatState === "paused";
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === selected.id
+          ? next
+            ? { ...c, bot_enabled: true, handed_off_at: null, chekelin_replies: 0 }
+            : { ...c, bot_enabled: false }
+          : c,
+      ),
+    );
     await setConversationBotEnabled(selected.id, next);
   }
 
@@ -607,6 +774,16 @@ export function ChatView({
             Chat
             <BrandMark />
           </div>
+          {chekelinAvailable && stores.length > 0 && businessId !== "demo" && (
+            <ChekelinStoreSwitch
+              stores={stores}
+              nowMs={now}
+              open={showChekelinMenu}
+              onOpenChange={setShowChekelinMenu}
+              onSet={handleChekelinStore}
+              reducedMotion={Boolean(prefersReducedMotion)}
+            />
+          )}
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             <input
@@ -739,21 +916,27 @@ export function ChatView({
               {/* On phones the controls drop to their own row under the name; on
                   desktop they sit inline at the right. */}
               <div className="flex w-full items-center gap-2 lg:ml-auto lg:w-auto">
-              {/* Chekelin on/off — the AI only replies here while this is on;
-                  sending a manual message below turns it off automatically. */}
-              <button
-                onClick={handleToggleBot}
-                title={selected.bot_enabled ? "chekelin está respondiendo automáticamente" : "chekelin está pausado"}
-                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-semibold transition-colors lg:h-[30px] ${
-                  selected.bot_enabled
-                    ? "border-accent bg-accent-tint text-brand-dark"
-                    : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
-                }`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, not worth next/image's overhead here */}
-                <img src="/logos/cheke-icon-blue.png" alt="" className="h-3.5 w-3.5 object-contain" />
-                <span className="hidden sm:inline">chekelin {selected.bot_enabled ? "activo" : "pausado"}</span>
-              </button>
+              {/* chekelin in this chat: first responder, silent after the
+                  Traspaso, paused here by hand, or off in the Tienda. */}
+              {chekelinAvailable && (
+                <button
+                  onClick={handleToggleBot}
+                  disabled={chatState === "off"}
+                  title={CHEKELIN_STATE_HINT[chatState]}
+                  aria-label={CHEKELIN_STATE_LABEL[chatState]}
+                  className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-semibold transition-colors disabled:opacity-60 lg:h-[30px] ${
+                    chatState === "active"
+                      ? "border-accent bg-accent-tint text-brand-dark"
+                      : chatState === "silent"
+                        ? "border-brand-tint bg-brand-tint text-brand-dark"
+                        : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset, not worth next/image's overhead here */}
+                  <img src="/logos/cheke-icon-blue.png" alt="" className="h-3.5 w-3.5 object-contain" />
+                  <span className="hidden sm:inline">{CHEKELIN_STATE_LABEL[chatState]}</span>
+                </button>
+              )}
 
               {/* Demo/testing only — tucked away as a small secondary icon
                   instead of a primary compose-bar button, since real
@@ -817,6 +1000,61 @@ export function ChatView({
               </div>
             </div>
 
+            {/* Team-only strip: who has the chat (2+ people) and chekelin's
+                Traspaso summary. Never sent to the customer. */}
+            {(showAssignment || latestNote) && (
+              <div
+                className={`shrink-0 border-b border-border bg-surface-2 px-3 py-2 text-[12.5px] lg:px-6 ${
+                  highlightAssignment && canReassign ? "ring-2 ring-inset ring-brand" : ""
+                }`}
+              >
+                {showAssignment && (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-ink-muted">Lo atiende</span>
+                    {canReassign ? (
+                      <label className="relative inline-flex min-h-8 items-center gap-1 rounded-md border border-border bg-surface pl-2 pr-1.5 font-semibold text-ink">
+                        <span className="max-w-[180px] truncate">{assignee?.name ?? "Nadie todavía"}</span>
+                        <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                        <select
+                          value={selected.assigned_to ?? ""}
+                          onChange={(e) => handleReassign(e.target.value)}
+                          aria-label="Reasignar conversación"
+                          // The 10-minute alert lands here: one tap opens the list.
+                          autoFocus={highlightAssignment}
+                          className="absolute inset-0 h-full w-full cursor-pointer text-[16px] opacity-0"
+                        >
+                          {!selected.assigned_to && <option value="">Nadie todavía</option>}
+                          {assignable.map((p) => (
+                            <option key={p.userId} value={p.userId}>
+                              {p.name}
+                              {p.away ? " (Ausente)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <span className="font-semibold text-ink">{assignee?.name ?? "Nadie todavía"}</span>
+                    )}
+                    {assignee?.away && <span className="text-ink-soft">· Ausente</span>}
+                    {selected.awaiting_since && (
+                      <span className="text-danger">· Esperando respuesta desde {formatMessageTime(selected.awaiting_since)}</span>
+                    )}
+                  </div>
+                )}
+                {latestNote && (
+                  <div className={`${showAssignment ? "mt-1.5" : ""} flex items-start gap-1.5 leading-snug`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
+                    <img src="/logos/cheke-icon-blue.png" alt="" className="mt-[2px] h-3.5 w-3.5 shrink-0 object-contain" />
+                    <p className="min-w-0 text-ink">
+                      <span className="font-semibold text-brand-dark">Solo para el equipo: </span>
+                      {latestNote.summary}
+                      {latestNote.reason && <span className="text-ink-muted"> · {latestNote.reason}</span>}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Looks and reads like WhatsApp on purpose, so clients moving their
                 conversations here don't feel a change: beige wallpaper, white
                 / green bubbles, the time tucked into the last line of the
@@ -842,7 +1080,7 @@ export function ChatView({
                       <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
                         {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
                         <img src="/logos/cheke-icon-blue.png" alt="" className="h-3 w-3 object-contain" />
-                        chekelin
+                        {botLabel}
                       </div>
                     )}
                     {m.source === "phone" && !(prev && prev.source === "phone") && (
@@ -1268,6 +1506,103 @@ export function ChatView({
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// chekelin's switch for the Tienda(s) on screen: off for 1 hour, until
+// tomorrow, 1 week or until turned back on. Dueños and Gerentes change it;
+// Agentes only see it.
+function ChekelinStoreSwitch({
+  stores,
+  nowMs,
+  open,
+  onOpenChange,
+  onSet,
+  reducedMotion,
+}: {
+  stores: ChekelinStore[];
+  nowMs: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSet: (storeId: string, duration: ChekelinOffDuration | null) => void;
+  reducedMotion: boolean;
+}) {
+  const offCount = stores.filter((s) => isChekelinOff(s.offUntil, nowMs)).length;
+  const several = stores.length > 1;
+  const label =
+    offCount === 0
+      ? "chekelin encendido"
+      : several && offCount < stores.length
+        ? `chekelin apagado en ${offCount} tienda${offCount === 1 ? "" : "s"}`
+        : "chekelin apagado";
+  return (
+    <div className="relative mb-3">
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        aria-expanded={open}
+        className={`flex min-h-9 items-center gap-2 rounded-lg border px-2.5 text-[12.5px] font-semibold transition-colors lg:min-h-8 ${
+          offCount === 0 ? "border-accent bg-accent-tint text-brand-dark" : "border-border bg-surface-2 text-ink-muted"
+        }`}
+      >
+        <span className={`h-2 w-2 rounded-full ${offCount === 0 ? "bg-accent" : "bg-ink-soft"}`} aria-hidden />
+        {label}
+        <ChevronDownIcon className="h-3.5 w-3.5 text-ink-muted" />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            transition={reducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.3 }}
+            className="absolute left-0 top-[calc(100%+6px)] z-20 flex w-[300px] max-w-[calc(100vw-32px)] flex-col gap-3 rounded-[12px] border border-border bg-surface p-3.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+          >
+            <p className="text-[12px] leading-snug text-ink-muted">
+              chekelin responde primero y pasa el chat a una persona cuando hace falta.
+            </p>
+            {stores.map((s) => {
+              const off = isChekelinOff(s.offUntil, nowMs);
+              return (
+                <div key={s.id} className="flex flex-col gap-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="truncate text-[13px] font-semibold text-ink">{several ? s.name : "En tu tienda"}</span>
+                    <span className={`shrink-0 text-[11.5px] ${off ? "text-ink-muted" : "font-semibold text-brand-dark"}`}>
+                      {off && s.offUntil ? chekelinOffLabel(s.offUntil, nowMs) : "Encendido"}
+                    </span>
+                  </div>
+                  {!s.canManage ? (
+                    <p className="text-[11.5px] text-ink-soft">Solo el dueño o el gerente puede apagarlo.</p>
+                  ) : off ? (
+                    <button
+                      onClick={() => onSet(s.id, null)}
+                      className="min-h-9 rounded-lg bg-brand text-[12.5px] font-semibold text-white"
+                    >
+                      Encender ahora
+                    </button>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Apagar chekelin en ${s.name}`}>
+                      <span className="w-full text-[11.5px] text-ink-soft">
+                        Apagar (los chats que atiende pasan a una persona):
+                      </span>
+                      {CHEKELIN_OFF_OPTIONS.map((o) => (
+                        <button
+                          key={o.id}
+                          onClick={() => onSet(s.id, o.id)}
+                          className="min-h-9 rounded-lg border border-border bg-surface-2 px-2.5 text-[12px] font-semibold text-ink hover:bg-surface-3"
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -1,19 +1,22 @@
 import { redirect } from "next/navigation";
-import { canAccessStore, getCurrentBusiness, storeNamesForTags } from "@/lib/business";
+import { canAccessStore, canManageStore, getCurrentBusiness, storeNamesForTags } from "@/lib/business";
 import { getConversations, getMessages } from "@/lib/conversations";
 import { getProducts } from "@/lib/products";
 import { getTemplates } from "@/lib/templates";
+import { getTeamMembers } from "@/lib/team";
+import { canUseChekelin } from "@/lib/plan";
+import { displayNameOf } from "@/lib/chekelinState";
 import { createClient } from "@/lib/supabase/server";
-import { ChatView } from "./ChatView";
+import { ChatView, type ChatPerson, type ChekelinStore } from "./ChatView";
 
 export default async function ChatPage({
   searchParams,
 }: {
-  searchParams: Promise<{ c?: string }>;
+  searchParams: Promise<{ c?: string; reasignar?: string }>;
 }) {
   const business = await getCurrentBusiness();
   if (!business) redirect("/onboarding");
-  const { c } = await searchParams;
+  const { c, reasignar } = await searchParams;
 
   // A tapped phone notification can be for a Tienda other than the one
   // selected: show that Tienda's chats too (with store tags), so the
@@ -31,11 +34,31 @@ export default async function ChatPage({
     }
   }
 
-  const [conversations, products, templates] = await Promise.all([
+  const supabase = await createClient();
+  const [conversations, products, templates, members, { data: storeRows }, { data: membership }] = await Promise.all([
     getConversations(business.id, storeIds),
     getProducts(business.id, storeIds),
     getTemplates(business.id),
+    getTeamMembers(business.id).catch(() => []),
+    supabase.from("stores").select("id, name, chekelin_off_until").in("id", storeIds),
+    supabase.from("store_members").select("store_id, user_id").eq("business_id", business.id),
   ]);
+
+  // Asignación: who can have a chat of each Tienda (its people + Dueños).
+  const people: ChatPerson[] = members.map((m) => ({
+    userId: m.user_id,
+    name: displayNameOf(m),
+    role: m.role,
+    away: Boolean(m.away),
+    storeIds:
+      m.role === "owner" ? storeIds : (membership ?? []).filter((r) => r.user_id === m.user_id).map((r) => r.store_id),
+  }));
+  const chekelinStores: ChekelinStore[] = (storeRows ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    offUntil: s.chekelin_off_until ?? null,
+    canManage: canManageStore(business, s.id),
+  }));
   const requested = c && conversations.some((conv) => conv.id === c) ? c : null;
   const firstId = requested ?? conversations[0]?.id ?? null;
   const initialMessages = firstId ? await getMessages(firstId) : [];
@@ -55,6 +78,12 @@ export default async function ChatPage({
       initialSelectedId={firstId}
       initialMessages={initialMessages}
       startInThread={requested !== null}
+      currentUserId={business.userId}
+      people={people}
+      chekelinAvailable={canUseChekelin(business.plan)}
+      chekelinStores={chekelinStores}
+      // The 10-minute alert's "toca para reasignar".
+      highlightAssignment={requested !== null && reasignar === "1"}
     />
   );
 }

@@ -2,15 +2,25 @@
 
 import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
-import { saveTemplate } from "./actions";
+import { dismissSuggestion, saveTemplate } from "./actions";
 import { TEMPLATE_CATEGORY_META, TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
-import type { Template, TemplateCategory } from "@/lib/types";
+import type { Template, TemplateCategory, TemplateSuggestion } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
 
-type Draft = { id: string | null; name: string; category: TemplateCategory; body: string };
+// suggestionId: editing a Sugerencia de chekelin; saving approves it.
+type Draft = { id: string | null; name: string; category: TemplateCategory; body: string; suggestionId?: string };
 const EMPTY_DRAFT: Draft = { id: null, name: "", category: "precios", body: "" };
 
-export function TemplatesView({ templates }: { templates: Template[] }) {
+export function TemplatesView({
+  templates,
+  suggestions: initialSuggestions = [],
+}: {
+  templates: Template[];
+  // Sugerencias de chekelin waiting for a Dueño or Gerente (empty for Agentes).
+  suggestions?: TemplateSuggestion[];
+}) {
+  const [suggestions, setSuggestions] = useState(initialSuggestions);
+  const [busySuggestion, setBusySuggestion] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<TemplateCategory | "todas">("todas");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -34,6 +44,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
       const result = await saveTemplate(formData);
       if (!result.error) {
         setToast(draft?.id ? `Cambios guardados en "${draft.name}".` : `Plantilla "${formData.get("name")}" creada.`);
+        if (draft?.suggestionId) setSuggestions((prev) => prev.filter((s) => s.id !== draft.suggestionId));
         setDraft(null);
       } else {
         setToast(result.error);
@@ -50,6 +61,37 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
     if (!el) return;
     el.focus();
     el.setRangeText(tag, el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length, "end");
+  }
+
+  // "Guardar": approve the Sugerencia exactly as chekelin proposed it.
+  async function handleApprove(s: TemplateSuggestion) {
+    setBusySuggestion(s.id);
+    try {
+      const form = new FormData();
+      form.set("name", s.name);
+      form.set("category", s.category);
+      form.set("body", s.body);
+      form.set("suggestion_id", s.id);
+      const result = await saveTemplate(form);
+      if (result.error) setToast(result.error);
+      else {
+        setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+        setToast(`Plantilla "${s.name}" creada.`);
+      }
+    } finally {
+      setBusySuggestion(null);
+    }
+  }
+
+  async function handleDismiss(s: TemplateSuggestion) {
+    setBusySuggestion(s.id);
+    try {
+      const result = await dismissSuggestion(s.id);
+      if (result.error) setToast(result.error);
+      else setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+    } finally {
+      setBusySuggestion(null);
+    }
   }
 
   async function handleCopy(t: Template) {
@@ -116,6 +158,63 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8 lg:pt-4">
+        {suggestions.length > 0 && (
+          <section aria-labelledby="sugerencias" className="mb-5 rounded-2xl bg-accent-tint p-4 lg:p-5">
+            <h2 id="sugerencias" className="flex items-center gap-2 font-heading text-[15.5px] font-semibold text-brand-dark">
+              {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
+              <img src="/logos/cheke-icon-blue.png" alt="" className="h-4 w-4 object-contain" />
+              Sugerencias de chekelin
+            </h2>
+            <p className="mt-0.5 max-w-[60ch] text-[12.5px] leading-snug text-brand-dark/80">
+              Tu equipo respondió estas preguntas varias veces esta semana. Guárdalas como plantilla, edítalas o
+              descártalas: nada se guarda sin tu aprobación.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:gap-3.5">
+              {suggestions.map((s) => {
+                const busy = busySuggestion === s.id;
+                return (
+                  <div key={s.id} className="flex min-w-0 flex-col gap-2.5 rounded-[14px] bg-surface p-4 shadow-[0_1px_2px_rgba(0,16,55,0.08)] lg:w-[328px]">
+                    <div className="min-w-0">
+                      <div className="text-[13.5px] font-bold text-ink">“{s.question}”</div>
+                      <div className="mt-1 text-[11.5px] text-ink-soft">
+                        Respondida {s.times} veces · {TEMPLATE_CATEGORY_META[s.category].label}
+                      </div>
+                    </div>
+                    <div className="flex-1 break-words rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink-muted lg:text-[12.5px]">
+                      <div className="mb-1 text-[11px] font-semibold text-ink">{s.name}</div>
+                      {s.body}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleApprove(s)}
+                        disabled={busy}
+                        className="min-h-10 flex-1 rounded-lg bg-brand-dark px-3 text-[13px] font-semibold text-white disabled:opacity-60 lg:min-h-9 lg:text-xs"
+                      >
+                        Guardar
+                      </button>
+                      <button
+                        onClick={() =>
+                          setDraft({ id: null, name: s.name, category: s.category, body: s.body, suggestionId: s.id })
+                        }
+                        disabled={busy}
+                        className="min-h-10 flex-1 rounded-lg bg-surface-2 px-3 text-[13px] font-semibold text-brand-dark disabled:opacity-60 lg:min-h-9 lg:text-xs"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDismiss(s)}
+                        disabled={busy}
+                        className="min-h-10 rounded-lg px-3 text-[13px] font-semibold text-ink-muted hover:bg-surface-2 disabled:opacity-60 lg:min-h-9 lg:text-xs"
+                      >
+                        Descartar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
         {templates.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
             <p className="text-[13.5px] text-ink-muted">Todavía no tienes plantillas guardadas.</p>
@@ -204,6 +303,7 @@ export function TemplatesView({ templates }: { templates: Template[] }) {
                 </div>
 
                 {draft.id && <input type="hidden" name="id" value={draft.id} />}
+                {draft.suggestionId && <input type="hidden" name="suggestion_id" value={draft.suggestionId} />}
 
                 <Field label="Nombre de la plantilla">
                   <input
