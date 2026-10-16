@@ -24,7 +24,7 @@ const config: CapacitorConfig = {
   // Must match NATIVE_APP_UA_MARKER in src/lib/nativeApp.ts.
   appendUserAgent: "cheKeApp",
   server: {
-    url: "https://cheke.io",
+    url: "https://ventas.cheke.app",
     cleartext: false,
     // Bundled inside the app (from webDir) and shown when the site can't
     // load, e.g. no internet, instead of a blank page or a browser error.
