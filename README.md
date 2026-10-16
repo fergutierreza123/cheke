@@ -370,6 +370,31 @@ sigue siendo manual).
      proyectos nativos; en Apple Developer subir la llave APNs a Firebase.
   El envío ocurre en `src/lib/push.ts`, disparado por el webhook de WhatsApp
   y por el modo prueba del Chat.
+- **Entrar con Face ID / huella** (código listo, se activa al generar los
+  proyectos nativos; plugin `@capgo/capacitor-native-biometric`):
+  1. Después de `npx cap add ios` / `npx cap add android`, correr
+     `npx cap sync` (instala el plugin en los proyectos nativos).
+  2. **iPhone**: en Xcode abrir `ios/App/App/Info.plist` y agregar la llave
+     *Privacy - Face ID Usage Description* (`NSFaceIDUsageDescription`) con
+     el texto:
+     `cheke usa Face ID para que entres a tu cuenta sin esperar un código.`
+     Sin este texto la app se cierra al pedir Face ID.
+  3. **Android**: en `android/app/src/main/AndroidManifest.xml`, junto a los
+     otros `<uses-permission>`, agregar
+     `<uses-permission android:name="android.permission.USE_BIOMETRIC" />`.
+  4. Probar en un teléfono real: Mi cuenta → activar "Entrar con Face ID".
+     Para simular que la sesión se perdió, borrar las cookies de cheke.io
+     (iPhone: Safari de la Mac → Desarrollo → el iPhone → la app →
+     Almacenamiento → Cookies; Android: Chrome → `chrome://inspect`) y
+     volver a abrir la app: debe pedir Face ID / huella y abrir el Chat.
+     Cancelar debe dejar la pantalla del código.
+  Cómo funciona: `src/lib/biometricLogin.ts`.
+- **Web: Entrar con huella o rostro (passkey)**: en Supabase → Authentication
+  → Passkeys, activar *Enable Passkey authentication* con *Relying Party
+  Display Name* `cheke`, *Relying Party ID* `cheke.io` y *Relying Party
+  Origins* `https://cheke.io`. Mientras no esté activado, el interruptor en
+  Mi cuenta dice "Esta opción todavía no está disponible." Cómo funciona:
+  `src/lib/passkeyLogin.ts`.
 
 ## Dejar todo listo para conectar WhatsApp (Meta)
 

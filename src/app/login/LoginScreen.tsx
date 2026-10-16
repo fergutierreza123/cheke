@@ -9,6 +9,7 @@ import { formatPhone, isForeignNumber, isHondurasE164, localDigits, toE164, CODE
 import { SMS_UNAVAILABLE, USE_EMAIL_INSTEAD, sendErrorMessage, verifyErrorMessage, type CodeChannel } from "@/lib/auth/errors";
 import { CodeInput, FIELD, PhoneInput, ResendButton, useResendCooldown } from "@/components/OtpFields";
 import { finishSignIn } from "./actions";
+import { QuickLoginButton } from "./QuickLoginButton";
 
 // Login with a 6-digit code, no passwords (design: GitHub issue #12).
 // Main path: "Tu número de celular" (+504) and a code by SMS (Supabase phone
@@ -16,7 +17,9 @@ import { finishSignIn } from "./actions";
 // correo" and the same kind of code by email. The browser talks to Supabase
 // directly, so each person's own connection counts toward Supabase's
 // per-device limits; afterwards finishSignIn() decides where they go.
-// Same screen on the web and inside the iPhone/Android app.
+// Same screen on the web and inside the iPhone/Android app. People who
+// turned on Face ID / fingerprint (app) or a passkey (web) in Mi cuenta also
+// get that shortcut on top (QuickLoginButton, issue #44).
 
 type Step = "enter" | "code";
 
@@ -143,6 +146,12 @@ export function LoginScreen({ reviewerLoginEnabled }: { reviewerLoginEnabled: bo
           transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.4 }}
           className="mt-6 overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_60px_rgba(0,16,55,0.25)]"
         >
+          {/* Face ID / fingerprint (app) or passkey (web), only for people
+              who turned it on in Mi cuenta. Outside the step animation and
+              mounted once, so the prompt isn't asked again on every step. */}
+          <div hidden={step !== "enter"}>
+            <QuickLoginButton />
+          </div>
           <motion.div
             // Steps move forward to the right and back to the left.
             key={`${channel}-${step}`}

@@ -16,7 +16,9 @@ export async function signOut() {
     data: { user },
   } = await supabase.auth.getUser();
   if (user) await supabase.from("device_tokens").delete().eq("user_id", user.id);
-  await supabase.auth.signOut();
+  // "local": only this device's session ends. The default ("global") would
+  // also sign the person out of their other phones and computers.
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/login");
 }
 
