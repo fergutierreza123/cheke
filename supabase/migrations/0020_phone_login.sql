@@ -23,6 +23,10 @@
 create or replace function public.enforce_honduras_phone()
 returns trigger
 language plpgsql
+-- Runs inside Supabase Auth's own writes (role supabase_auth_admin):
+-- security definer so a missing grant can never break sign-ins, the
+-- pattern Supabase recommends for triggers on auth.users.
+security definer
 set search_path = ''
 as $$
 begin
@@ -39,6 +43,8 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.enforce_honduras_phone() from public, anon, authenticated;
 
 drop trigger if exists honduras_phone_only on auth.users;
 create trigger honduras_phone_only
