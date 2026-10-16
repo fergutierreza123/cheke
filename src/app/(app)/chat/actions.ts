@@ -4,12 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS, type SendResult } from "@/lib/channelSend";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { markMessageFailed } from "@/lib/whatsappErrors";
-import { handleInboundMessage } from "@/lib/bot";
+import { afterPaymentConfirmed, handleInboundMessage } from "@/lib/bot";
 import { sendPushToPeople } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canManageStore, getCurrentBusiness } from "@/lib/business";
-import { buildPaymentMessage, normalizePaymentLink } from "@/lib/payments";
-import type { ConversationNote, ConversationStage, Message } from "@/lib/types";
+import { buildPaymentMessage, normalizePaymentLink, orderConcept, type OrderItem } from "@/lib/payments";
+import { recordPaymentRequest } from "@/lib/orders";
+import type { ConversationNote, Message } from "@/lib/types";
 
 // Images sent to customers must come from our own storage, not an arbitrary
 // address a client could supply.
@@ -215,6 +216,10 @@ export type OpenOrder = {
   concept: string;
   payment_link: string | null;
   created_at: string;
+  // chekelin took it (vs. a person's Cobrar).
+  by_chekelin?: boolean;
+  // The customer sent a receipt / said they paid: waiting for "Confirmar pago".
+  receipt_at?: string | null;
 };
 
 // Orders waiting on payment for one conversation (shown above the composer).
@@ -222,7 +227,7 @@ export async function listOpenOrders(conversationId: string): Promise<OpenOrder[
   const supabase = await createClient();
   const { data } = await supabase
     .from("orders")
-    .select("id, total_hnl, items, payment_link, created_at")
+    .select("id, total_hnl, items, payment_link, created_at, source, receipt_at")
     .eq("conversation_id", conversationId)
     .eq("status", "awaiting_payment")
     .order("created_at", { ascending: false });
@@ -230,9 +235,11 @@ export async function listOpenOrders(conversationId: string): Promise<OpenOrder[
   return (data ?? []).map((o) => ({
     id: o.id,
     total_hnl: Number(o.total_hnl),
-    concept: Array.isArray(o.items) ? (o.items[0]?.name ?? "") : "",
+    concept: Array.isArray(o.items) ? orderConcept(o.items as OrderItem[]) : "",
     payment_link: o.payment_link,
     created_at: o.created_at,
+    by_chekelin: o.source === "chekelin",
+    receipt_at: o.receipt_at ?? null,
   }));
 }
 
@@ -266,64 +273,73 @@ export async function sendPaymentRequest(
   const sent = await sendChatMessage(conversationId, text);
   if (sent.error || sent.sendError) return { message: sent.message, error: sent.error ?? sent.sendError };
 
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      business_id: conversation.business_id,
-      conversation_id: conversationId,
-      contact_id: conversation.contact_id,
-      items: [{ name: concept, quantity: 1, price_hnl: input.amountHnl }],
-      total_hnl: input.amountHnl,
-      status: "awaiting_payment",
-      payment_link: linkCheck.link ?? null,
-    })
-    .select("id, total_hnl, items, payment_link, created_at")
-    .single();
+  const order = await recordPaymentRequest(supabase, {
+    conversationId,
+    businessId: conversation.business_id,
+    contactId: conversation.contact_id,
+    stage: conversation.stage,
+    items: [{ name: concept, quantity: 1, price_hnl: input.amountHnl }],
+    totalHnl: input.amountHnl,
+    link: linkCheck.link ?? null,
+    source: "cheke",
+  });
   // The customer already has the message, so don't fail the send — just say
   // the tracking part didn't save so the agent can mark it manually.
-  if (orderError || !order) {
+  if (!order) {
     return { message: sent.message, error: "El mensaje se envió, pero no se pudo registrar el cobro en cheke." };
   }
 
-  // A deal that's being charged is at least in negotiation, and its value is
-  // what's being charged. Never moves a won/lost deal backwards.
-  const earlyStages: ConversationStage[] = ["nuevo", "consulta", "cotizacion"];
-  await supabase
-    .from("conversations")
-    .update({
-      value_hnl: input.amountHnl,
-      ...(earlyStages.includes(conversation.stage as ConversationStage) ? { stage: "negociacion" } : {}),
-    })
-    .eq("id", conversationId);
-
   return {
     message: sent.message,
-    order: {
-      id: order.id,
-      total_hnl: Number(order.total_hnl),
-      concept,
-      payment_link: order.payment_link,
-      created_at: order.created_at,
-    },
+    order: { ...order, concept },
   };
 }
 
-// The agent confirms the customer paid (or the charge was dropped). Paid also
-// moves the deal to "ganado" so Chekeo and Analítica reflect the sale.
-export async function resolveOrder(orderId: string, outcome: "paid" | "cancelled"): Promise<{ error?: string }> {
+// "Confirmar pago": a person checked the money arrived (or the charge was
+// dropped). Paid moves the deal to "ganado" so Chekeo and Analítica reflect
+// the sale, and on an order chekelin took, chekelin tells the customer.
+export async function resolveOrder(
+  orderId: string,
+  outcome: "paid" | "cancelled",
+): Promise<{ error?: string; customerTold?: boolean }> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  // The signed-in client: only someone who works in the order's Tienda can do it (RLS).
   const { data: order, error } = await supabase
     .from("orders")
-    .update({ status: outcome })
+    .update(outcome === "paid" ? { status: "paid", paid_at: new Date().toISOString(), paid_by: user?.id ?? null } : { status: outcome })
     .eq("id", orderId)
     .eq("status", "awaiting_payment")
-    .select("conversation_id")
+    .select("id, conversation_id")
     .maybeSingle();
   if (error) return { error: error.message };
   if (!order) return { error: "Este cobro ya fue actualizado." };
 
   if (outcome === "paid" && order.conversation_id) {
-    await supabase.from("conversations").update({ stage: "ganado" }).eq("id", order.conversation_id);
+    const { told } = await afterPaymentConfirmed(createAdminClient(), order.id);
+    return { customerTold: told };
   }
+  return {};
+}
+
+// "Marcar queja resuelta": the Tienda's Gerente or a Dueño closes the Queja.
+// The red tag goes away; chekelin may answer here again by the usual rules
+// (chat closed, won or lost, 7 days of silence, or switched back on here).
+export async function resolveComplaint(conversationId: string): Promise<{ error?: string }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+  const supabase = await createClient();
+  const { data: conversation } = await supabase.from("conversations").select("id, store_id").eq("id", conversationId).maybeSingle();
+  if (!conversation) return { error: "No se encontró la conversación." };
+  if (!canManageStore(business, conversation.store_id)) {
+    return { error: "Solo el gerente o el dueño puede marcar la queja como resuelta." };
+  }
+  const { error } = await supabase
+    .from("conversations")
+    .update({ complaint_open_at: null, complaint_resolved_at: new Date().toISOString() })
+    .eq("id", conversationId);
+  if (error) return { error: error.message };
   return {};
 }

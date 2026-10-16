@@ -12,11 +12,11 @@ import { ChatView, type ChatPerson, type ChekelinStore } from "./ChatView";
 export default async function ChatPage({
   searchParams,
 }: {
-  searchParams: Promise<{ c?: string; reasignar?: string }>;
+  searchParams: Promise<{ c?: string; reasignar?: string; confirmar?: string }>;
 }) {
   const business = await getCurrentBusiness();
   if (!business) redirect("/onboarding");
-  const { c, reasignar } = await searchParams;
+  const { c, reasignar, confirmar } = await searchParams;
 
   // A tapped phone notification can be for a Tienda other than the one
   // selected: show that Tienda's chats too (with store tags), so the
@@ -84,6 +84,8 @@ export default async function ChatPage({
       chekelinStores={chekelinStores}
       // The 10-minute alert's "toca para reasignar".
       highlightAssignment={requested !== null && reasignar === "1"}
+      // The "comprobante recibido" alert: "Confirmar pago" is right there.
+      highlightOrderId={requested !== null ? (confirmar ?? null) : null}
     />
   );
 }
