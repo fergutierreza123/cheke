@@ -26,6 +26,8 @@ import {
   type ChekelinOffDuration,
 } from "@/lib/chekelinState";
 import type { Role } from "@/lib/stores";
+import type { QuickReply } from "@/lib/quickReplies";
+import { useQuickReplyPicker } from "./QuickReplyPicker";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
 export type ChekelinStore = { id: string; name: string; offUntil: string | null; canManage: boolean };
@@ -89,6 +91,8 @@ export function ChatView({
   chekelinStores = [],
   highlightAssignment = false,
   highlightOrderId = null,
+  quickReplies = [],
+  canManageQuickReplies = false,
 }: {
   businessId: string;
   // The Tiendas on screen: live messages from any other Tienda are ignored.
@@ -114,6 +118,9 @@ export function ChatView({
   highlightAssignment?: boolean;
   // Opened from a "comprobante recibido" alert: point at "Confirmar pago".
   highlightOrderId?: string | null;
+  // Respuestas rápidas: typing "/" in the composer offers them.
+  quickReplies?: QuickReply[];
+  canManageQuickReplies?: boolean;
 }) {
   const showAssignment = people.length >= 2;
   const [stores, setStores] = useState(chekelinStores);
@@ -159,7 +166,7 @@ export function ChatView({
   const [listWidth, setListWidth] = useState(LIST_WIDTH_DEFAULT);
   const resizing = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const draftInputRef = useRef<HTMLInputElement>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement>(null);
   // Ticks forward every second so demo message statuses (see
   // effectiveStatus below) visibly advance over time with no user
   // interaction needed. Stored as state (not read live via Date.now() at
@@ -236,6 +243,22 @@ export function ChatView({
   const windowClosed = replyState === "closed";
   // Test mode types as the customer, which is exactly what reopens the window.
   const sendBlocked = windowClosed && !simulateMode;
+  const quickReplyPicker = useQuickReplyPicker({
+    replies: quickReplies,
+    draft,
+    setDraft,
+    contactName: selected?.contact.name,
+    inputRef: draftInputRef,
+    disabled: !selected || sendBlocked || simulateMode,
+    canManage: canManageQuickReplies,
+  });
+  // The composer grows with multi-line text (up to ~6 lines), then scrolls.
+  useEffect(() => {
+    const el = draftInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [draft, selectedId]);
   const messages = useMemo(
     () => (selectedId ? (messagesByConversation[selectedId] ?? []) : []),
     [selectedId, messagesByConversation],
@@ -1313,7 +1336,8 @@ export function ChatView({
                 </div>
               </div>
             ))}
-            <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface px-3 py-2.5 lg:px-6 lg:py-3.5">
+            <div className="relative flex shrink-0 items-end gap-2 border-t border-border bg-surface px-3 py-2.5 lg:px-6 lg:py-3.5">
+              {quickReplyPicker.picker}
               <div className="relative">
                 <button
                   onClick={() => setShowProductPicker((v) => !v)}
@@ -1360,7 +1384,7 @@ export function ChatView({
               <div className="relative">
                 <button
                   onClick={() => setShowTemplatePicker((v) => !v)}
-                  title="Usar una plantilla (respuesta rápida)"
+                  title="Usar una plantilla"
                   aria-pressed={showTemplatePicker}
                   className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
                     showTemplatePicker
@@ -1379,7 +1403,7 @@ export function ChatView({
                       transition={{ type: "spring", bounce: 0, duration: 0.25 }}
                       className="absolute bottom-[46px] left-0 z-10 w-64 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
                     >
-                      <div className="px-2 py-1 text-[11px] text-ink-soft">Respuesta rápida…</div>
+                      <div className="px-2 py-1 text-[11px] text-ink-soft">Usar una plantilla…</div>
                       <div className="max-h-56 overflow-y-auto">
                         {templates.length === 0 && (
                           <div className="px-2 py-1.5 text-[12.5px] text-ink-soft">
@@ -1502,13 +1526,16 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
-              <input
+              <textarea
                 ref={draftInputRef}
+                rows={1}
                 disabled={sendBlocked}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (quickReplyPicker.onKeyDown(e)) return;
+                  // Enter sends; Shift+Enter starts a new line.
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     handleSend();
                   }
@@ -1522,9 +1549,11 @@ export function ChatView({
                     ? "Agrega un mensaje (opcional)…"
                     : simulateMode
                       ? "Escribe como si fueras el cliente…"
-                      : "Escribe un mensaje"
+                      : quickReplies.length > 0
+                        ? "Escribe un mensaje o /atajo"
+                        : "Escribe un mensaje"
                 }
-                className="min-w-0 flex-1 rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+                className="max-h-[140px] min-w-0 flex-1 resize-none rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-[18px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
               />
               <button
                 onClick={handleSend}

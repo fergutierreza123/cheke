@@ -80,6 +80,10 @@ _Avoid_: Ticket owner, dueño de la conversación
 A person who receives no new Conversaciones for now (day off, vacation). Everyone is available unless marked Ausente.
 _Avoid_: Offline, desconectado, no disponible
 
+**Respuesta rápida**:
+A saved reply of the Negocio that a person inserts in Chat by typing `/` and its atajo (e.g. `/horario`); `{nombre}` becomes the Contacto's name. Everyone uses them; Gerentes and Dueños edit them. Unlike a Plantilla, it is plain text the person can edit before sending, and it can't be sent outside the reply window.
+_Avoid_: Atajo (that's only the `/word`), mensaje guardado, macro
+
 **Sugerencia de chekelin**:
 A Plantilla that chekelin proposes from questions the team keeps answering. It only becomes a Plantilla when a Gerente or Dueño approves it.
 _Avoid_: Plantilla automática
