@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Claude Code agent worktrees (temporary copies of the repo)
 .claude/worktrees/
+
+# Supabase CLI local link state
+supabase/.temp/
