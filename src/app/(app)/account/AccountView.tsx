@@ -8,12 +8,12 @@ import { BrandMark } from "@/components/BrandMark";
 import type { UserInfo } from "@/lib/user";
 import { isPlanActive, planLabel, PLAN_LAPSED_MESSAGE } from "@/lib/plan";
 import { DeleteAccountButton, type DeletionSummary } from "./DeleteAccountDialog";
+import { PhoneRow } from "./PhoneRow";
 
 import { ROLE_LABEL, type Role } from "@/lib/stores";
 
 export function AccountView({
   user,
-  provider,
   lastSignIn,
   business,
   deletion = [],
@@ -21,7 +21,6 @@ export function AccountView({
   demo = false,
 }: {
   user: UserInfo;
-  provider: "google" | "email";
   lastSignIn: string | null;
   business: { name: string; plan: string; role: Role };
   // Dueños: "add" a second Tienda, or "manage" the ones they have.
@@ -72,7 +71,7 @@ export function AccountView({
             </div>
             <div className="min-w-0">
               <div className="truncate font-heading text-[17px] font-semibold text-ink">{user.name}</div>
-              <div className="truncate text-[13.5px] text-ink-muted">{user.email}</div>
+              <div className="truncate text-[13.5px] text-ink-muted">{user.email || user.phone}</div>
               <span className="mt-1.5 inline-block rounded-full bg-brand-tint px-2.5 py-0.5 text-[11.5px] font-semibold text-brand-dark">
                 {ROLE_LABEL[business.role]}
               </span>
@@ -111,7 +110,8 @@ export function AccountView({
             {/* Name and status only. Anything that sells a plan (prices,
                 upgrade, payment methods) goes in <HideInNativeApp>. */}
             <Row label="Plan" value={isPlanActive(business.plan) ? planLabel(business.plan) : PLAN_LAPSED_MESSAGE} />
-            <Row label="Inicio de sesión" value={provider === "google" ? "Google" : "Código por correo"} />
+            {/* Log in with a code to this cell number or to the email. */}
+            <PhoneRow phone={user.phone ?? ""} demo={demo} />
             {lastSignIn && <Row label="Último acceso" value={relativeTime(lastSignIn)} />}
             <Link
               href={demo ? "#" : "/team"}
@@ -155,7 +155,7 @@ export function AccountView({
             </form>
           )}
 
-          <DeleteAccountButton email={user.email} deletion={deletion} demo={demo} />
+          <DeleteAccountButton email={user.email || user.phone || ""} deletion={deletion} demo={demo} />
         </div>
       </div>
     </div>

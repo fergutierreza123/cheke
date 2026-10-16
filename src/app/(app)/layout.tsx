@@ -44,8 +44,8 @@ export default async function AppLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Just signed in (flag set by /auth/callback)? Greet them by first name —
-  // Google gives us one; email-only accounts just get the plain greeting.
+  // Just signed in (flag set by finishSignIn after the login code)? Greet them by first name —
+  // (the one given at onboarding or in Mi cuenta), or the plain greeting.
   let welcome: { firstName: string | null } | null = null;
   if ((await cookies()).get("cheke_welcome")?.value === "1") {
     const fullName = (user?.user_metadata?.full_name ?? user?.user_metadata?.name) as string | undefined;

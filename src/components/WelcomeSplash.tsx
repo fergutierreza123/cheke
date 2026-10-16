@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 // The "welcome back" screen right after signing in: brand dark blue, the
 // white cheke icon in the middle blinking, a greeting and a one-line status,
 // then a fade into the app. Shown once per login — the server decides (the
-// cheke_welcome cookie set in /auth/callback, read in the app layout), so it's
+// cheke_welcome cookie set by finishSignIn in src/app/login/actions.ts, read in the app layout), so it's
 // already on screen in the very first paint with no flash of the app beneath.
 //
 // All the motion is CSS (see "welcome-*" in globals.css) so it doesn't wait

@@ -26,7 +26,7 @@ export default function PrivacyPage() {
       <Section title="2. Qué datos tratamos">
         <Bullets
           items={[
-            "Cuenta: correo electrónico, nombre del negocio, rol dentro del equipo y, si inicias sesión con Google, tu nombre y correo de Google (nunca tu contraseña).",
+            "Cuenta: tu número de celular y/o correo electrónico (con los que recibes el código para entrar), tu nombre, el nombre del negocio y tu rol dentro del equipo. No usamos contraseñas.",
             "Contenido que cargas: catálogo de productos (nombres, precios, descripciones, fotos), plantillas de mensajes, notas y etapas de venta de tus contactos.",
             "Conversaciones: los mensajes que reciben y envían los canales que conectas (texto, y descripción de fotos, audios o documentos), junto con el nombre, el teléfono o el usuario de quien escribe y la hora de cada mensaje.",
             "Conexión con canales: identificadores de tu cuenta de WhatsApp Business y una credencial de acceso que guardamos cifrada.",
@@ -53,7 +53,9 @@ export default function PrivacyPage() {
             "Meta Platforms (WhatsApp Business Platform, Instagram y Messenger): para recibir y enviar los mensajes de los canales que conectas.",
             "Supabase y Vercel: almacenamiento de la base de datos, archivos y alojamiento de la aplicación.",
             "Anthropic: cuando chekelin está activo, el texto de la conversación y la información de tu catálogo se envían a su servicio para redactar la respuesta.",
-            "Google y Firebase: inicio de sesión con Google y envío de notificaciones al teléfono.",
+            "Twilio: envío por mensaje de texto del código para iniciar sesión.",
+            "Resend: envío por correo del código para iniciar sesión.",
+            "Google y Firebase: envío de notificaciones al teléfono.",
             "remove.bg: procesamiento de las fotos de productos que subes para quitarles el fondo.",
           ]}
         />
