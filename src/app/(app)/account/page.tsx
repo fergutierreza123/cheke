@@ -17,14 +17,12 @@ export default async function AccountPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const provider = (user.app_metadata?.provider as string | undefined) === "google" ? "google" : "email";
   // What "Eliminar mi cuenta" would do, so the confirmation can say it up
   // front. The server action checks again before deleting anything.
   const plan = await getDeletionPlan(supabase, user.id).catch(() => []);
   return (
     <AccountView
       user={userInfoFrom(user)}
-      provider={provider}
       lastSignIn={user.last_sign_in_at ?? null}
       business={{ name: business.name, plan: business.plan, role: business.role }}
       // Dueños: where Tiendas are created, renamed and archived. The only

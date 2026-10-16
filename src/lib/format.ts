@@ -7,7 +7,11 @@ export function initialsFor(name: string): string {
 
 // We don't collect display names anywhere (no profiles table) — team
 // members are identified by email, so their "initials" come from that.
-export function initialsFromEmail(email: string): string {
+// People who log in by SMS may have only a number ("+504 9999-9999"; see
+// business_members in migration 0020): use its last two digits.
+export function initialsFromEmail(email: string | null): string {
+  if (!email) return "?";
+  if (!email.includes("@") && email.startsWith("+")) return email.replace(/\D/g, "").slice(-2);
   const local = email.split("@")[0] ?? email;
   const parts = local.split(/[._-]+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();

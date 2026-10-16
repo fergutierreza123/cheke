@@ -52,8 +52,7 @@ export default async function DemoScreen({
     analytics: <AnalyticsView conversations={d.conversations} products={d.products} />,
     account: (
       <AccountView
-        user={{ name: "Fernando Gutiérrez", email: "fernando@cheke.io" }}
-        provider="google"
+        user={{ name: "Fernando Gutiérrez", email: "fernando@cheke.io", phone: "+504 9999-0000" }}
         lastSignIn={new Date(nowMs - 3_600_000).toISOString()}
         business={{ name: d.business.name, plan: "pro", role: "owner" }}
         demo
