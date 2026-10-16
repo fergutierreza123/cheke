@@ -124,6 +124,17 @@ export function AccountView({
               Ver mi equipo e invitar personas
               <span aria-hidden>›</span>
             </Link>
+            {/* Respuestas rápidas: everyone uses them with / in Chat; Dueños
+                and Gerentes edit them there. */}
+            {!demo && (
+              <Link
+                href="/quick-replies"
+                className="flex items-center justify-between border-t border-border px-5 py-3.5 text-[13.5px] font-semibold text-brand hover:bg-surface-2"
+              >
+                Respuestas rápidas
+                <span aria-hidden>›</span>
+              </Link>
+            )}
             {storesLink && !demo && (
               <Link
                 href="/stores"

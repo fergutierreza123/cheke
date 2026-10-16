@@ -3,6 +3,7 @@ import { canAccessStore, canManageStore, getCurrentBusiness, storeNamesForTags }
 import { getConversations, getMessages } from "@/lib/conversations";
 import { getProducts } from "@/lib/products";
 import { getTemplates } from "@/lib/templates";
+import { getQuickReplies } from "@/lib/quickRepliesServer";
 import { getTeamMembers } from "@/lib/team";
 import { canUseChekelin } from "@/lib/plan";
 import { displayNameOf } from "@/lib/chekelinState";
@@ -35,10 +36,12 @@ export default async function ChatPage({
   }
 
   const supabase = await createClient();
-  const [conversations, products, templates, members, { data: storeRows }, { data: membership }] = await Promise.all([
+  const [conversations, products, templates, quickReplies, members, { data: storeRows }, { data: membership }] = await Promise.all([
     getConversations(business.id, storeIds),
     getProducts(business.id, storeIds),
     getTemplates(business.id),
+    // Before migration 0024 runs, the table doesn't exist: no / list.
+    getQuickReplies(business.id).catch(() => []),
     getTeamMembers(business.id).catch(() => []),
     supabase.from("stores").select("id, name, chekelin_off_until").in("id", storeIds),
     supabase.from("store_members").select("store_id, user_id").eq("business_id", business.id),
@@ -86,6 +89,8 @@ export default async function ChatPage({
       highlightAssignment={requested !== null && reasignar === "1"}
       // The "comprobante recibido" alert: "Confirmar pago" is right there.
       highlightOrderId={requested !== null ? (confirmar ?? null) : null}
+      quickReplies={quickReplies}
+      canManageQuickReplies={business.role !== "agent"}
     />
   );
 }
