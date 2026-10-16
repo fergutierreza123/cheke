@@ -132,6 +132,34 @@ export async function createInvitation(role: Role, storeIds: string[]): Promise<
   return { token: data as string };
 }
 
+// "Ausente": receives no new conversations (keeps the open ones). Yourself;
+// a Dueño for anyone; a Gerente for the Agentes of their Tiendas (the
+// database function checks the same rules).
+export async function setMemberAway(targetUserId: string, away: boolean): Promise<{ error?: string }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_member_away", {
+    p_business_id: business.id,
+    p_user_id: targetUserId,
+    p_away: away,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/team");
+  return {};
+}
+
+// Dueños: "avisarme de todo" — also the chats of other people and of chekelin.
+export async function setNotifyAll(on: boolean): Promise<{ error?: string }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_notify_all", { p_business_id: business.id, p_on: on });
+  if (error) return { error: error.message };
+  revalidatePath("/team");
+  return {};
+}
+
 export async function cancelInvitation(invitationId: string): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };

@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessStore, getCurrentBusiness } from "@/lib/business";
+import { canAccessStore, canManageStore, getCurrentBusiness } from "@/lib/business";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { handOffActiveChats } from "@/lib/bot";
+import { CHEKELIN_OFF_OPTIONS, chekelinOffUntil, type ChekelinOffDuration } from "@/lib/chekelinState";
 import { primaryChannel, formatLempiras } from "@/lib/format";
 import { sendChatMessage } from "./chat/actions";
 import type { Channel, ChannelType, ConversationStage, ConversationWithContact, Product } from "@/lib/types";
@@ -192,10 +195,30 @@ export async function setConversationBotEnabled(
   const supabase = await createClient();
   const { error } = await supabase
     .from("conversations")
-    .update({ bot_enabled: enabled })
+    // Turning it back on makes chekelin the first responder again here.
+    .update(enabled ? { bot_enabled: true, handed_off_at: null, chekelin_replies: 0 } : { bot_enabled: false })
     .eq("id", conversationId);
   if (error) return { error: error.message };
   return {};
+}
+
+// chekelin's switch for a whole Tienda (Dueños and its Gerentes): off for
+// 1 hour, until tomorrow, 1 week or until turned back on. The chats it was
+// handling go to a person right away.
+export async function setChekelinOff(storeId: string, duration: ChekelinOffDuration | null): Promise<{ error?: string; until?: string | null }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+  if (!canManageStore(business, storeId)) return { error: "Solo el dueño o el gerente de la tienda puede apagar a chekelin." };
+  if (duration && !CHEKELIN_OFF_OPTIONS.some((o) => o.id === duration)) return { error: "Opción inválida." };
+
+  const until = duration ? chekelinOffUntil(duration, Date.now()) : null;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_chekelin_off", { p_store_id: storeId, p_until: until });
+  if (error) return { error: error.message };
+
+  if (until) await handOffActiveChats(createAdminClient(), storeId);
+  revalidatePath("/chat");
+  return { until };
 }
 
 export async function setConversationValue(

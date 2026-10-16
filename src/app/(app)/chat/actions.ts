@@ -4,11 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS, type SendResult } from "@/lib/channelSend";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { markMessageFailed } from "@/lib/whatsappErrors";
-import { runChekelinReply } from "@/lib/bot";
-import { sendPushToStore } from "@/lib/push";
+import { handleInboundMessage } from "@/lib/bot";
+import { sendPushToPeople } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canManageStore, getCurrentBusiness } from "@/lib/business";
 import { buildPaymentMessage, normalizePaymentLink } from "@/lib/payments";
-import type { ConversationStage, Message } from "@/lib/types";
+import type { ConversationNote, ConversationStage, Message } from "@/lib/types";
 
 // Images sent to customers must come from our own storage, not an arbitrary
 // address a client could supply.
@@ -32,7 +33,7 @@ export async function sendChatMessage(
   conversationId: string,
   body: string,
   mediaUrl?: string | null,
-): Promise<{ message?: Message; error?: string; sendError?: string; botDisabled?: boolean }> {
+): Promise<{ message?: Message; error?: string; sendError?: string }> {
   const text = body.trim();
   if (!text) return { error: "Escribe un mensaje." };
   if (mediaUrl && !isOwnStorageUrl(mediaUrl)) return { error: "La imagen no es válida." };
@@ -42,7 +43,7 @@ export async function sendChatMessage(
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
     .select(
-      `id, business_id, bot_enabled, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`,
+      `id, business_id, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`,
     )
     .eq("id", conversationId)
     .single();
@@ -80,13 +81,9 @@ export async function sendChatMessage(
     .update({ last_message_at: message.created_at })
     .eq("id", conversationId);
 
-  // A human agent just answered manually — hand off from Chekelin so it
-  // doesn't also reply to the same conversation.
-  let botDisabled = false;
-  if (conversation.bot_enabled) {
-    await supabase.from("conversations").update({ bot_enabled: false }).eq("id", conversationId);
-    botDisabled = true;
-  }
+  // A person just answered: the database (migration 0021) marks the chat as
+  // handed off — chekelin goes silent, the timers stop, and an unassigned
+  // chat becomes this person's. Nothing to do here.
 
   // Goes out on the conversation's own channel. Conversations without one
   // (demo/seeded) only save in cheke, as before — and so does everything in
@@ -103,7 +100,7 @@ export async function sendChatMessage(
   });
   if (result.error) {
     const failed = await markMessageFailed(supabase, message.id, result);
-    return { message: { ...message, ...failed }, sendError: result.error, botDisabled };
+    return { message: { ...message, ...failed }, sendError: result.error };
   }
   if (!result.notSent && result.externalMessageId) {
     await supabase
@@ -112,7 +109,7 @@ export async function sendChatMessage(
       .eq("id", message.id);
   }
 
-  return { message, botDisabled };
+  return { message };
 }
 
 // Demo/testing only (no real WhatsApp message involved): lets the founder
@@ -143,21 +140,73 @@ export async function simulateInboundMessage(
 
   await supabase.from("conversations").update({ last_message_at: inbound.created_at }).eq("id", conversationId);
 
-  // Same phone alert a real WhatsApp message would trigger, so test mode can
-  // demo notifications before WhatsApp is connected. Admin client because
-  // the push has to read every teammate's phone, not just the caller's; the
-  // caller was already confirmed to work in this Tienda by the RLS-scoped
-  // conversation lookup above.
-  const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
-  await sendPushToStore(createAdminClient(), conversation.business_id, conversation.store_id, {
-    title: contact?.name ?? "Nuevo mensaje",
-    body: text,
-    conversationId,
+  // Exactly what a real message triggers (chekelin, handoff, routing, phone
+  // alerts), but nothing is sent to the customer. Admin client because
+  // routing and alerts read the whole team; the caller was already confirmed
+  // to work in this Tienda by the RLS-scoped conversation lookup above.
+  const botResult = await handleInboundMessage(createAdminClient(), conversationId, {
+    sendExternally: false,
+    preview: text,
   });
-
-  const botResult = await runChekelinReply(supabase, conversationId, { sendExternally: false });
   if (botResult.error) return { inbound, error: botResult.error };
   return { inbound, reply: botResult.message };
+}
+
+// "Asignación": a Dueño or the Tienda's Gerente gives the chat to someone
+// else (the one-tap reassign of the 10-minute alert). The new person is
+// alerted and gets a fresh 5 minutes before the timers run again.
+export async function reassignConversation(conversationId: string, userId: string): Promise<{ error?: string }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+
+  const supabase = await createClient();
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, store_id, awaiting_since, contact:contacts(name)")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (!conversation) return { error: "No se encontró la conversación." };
+  if (!canManageStore(business, conversation.store_id)) return { error: "Solo el dueño o el gerente puede reasignar." };
+
+  const admin = createAdminClient();
+  const [{ data: member }, { data: inStore }] = await Promise.all([
+    admin.from("members").select("role").eq("business_id", business.id).eq("user_id", userId).maybeSingle(),
+    admin.from("store_members").select("user_id").eq("store_id", conversation.store_id).eq("user_id", userId).maybeSingle(),
+  ]);
+  if (!member || (member.role !== "owner" && !inStore)) return { error: "Esa persona no trabaja en esta tienda." };
+
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("conversations")
+    .update({
+      assigned_to: userId,
+      assigned_at: now,
+      last_assigned_to: userId,
+      escalated_at: null,
+      ...(conversation.awaiting_since ? { awaiting_since: now } : {}),
+    })
+    .eq("id", conversationId);
+  if (error) return { error: error.message };
+
+  const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
+  await sendPushToPeople(admin, business.id, conversation.store_id, [userId], {
+    title: `Te asignaron el chat de ${contact?.name ?? "un cliente"}`,
+    body: conversation.awaiting_since ? "Está esperando respuesta." : "Ahora es tuyo.",
+    conversationId,
+  });
+  return {};
+}
+
+// The team-only notes of a conversation (chekelin's Traspaso summary).
+export async function listConversationNotes(conversationId: string): Promise<ConversationNote[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("conversation_notes")
+    .select("id, conversation_id, store_id, kind, summary, reason, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  return (data ?? []) as ConversationNote[];
 }
 
 export type OpenOrder = {

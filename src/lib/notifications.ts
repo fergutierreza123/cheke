@@ -113,6 +113,23 @@ function pushWarnings(
     });
   }
 
+  // Customers waiting 10+ minutes for a person (same moment as the phone
+  // alert to the Gerente / Dueño), with the one-tap reassign.
+  const waitingSince = Date.now() - 10 * 60 * 1000;
+  for (const c of conversations) {
+    if (!c.awaiting_since || new Date(c.awaiting_since).getTime() > waitingSince) continue;
+    if (Date.now() - new Date(c.awaiting_since).getTime() > STALE_MS) continue;
+    items.push({
+      id: `warning-waiting-${c.id}`,
+      kind: "warning",
+      title: `${c.contact.name} espera respuesta`,
+      description: "Nadie le ha respondido en más de 10 minutos. Tócalo para responder o reasignar.",
+      time: c.awaiting_since,
+      link: `/chat?c=${c.id}&reasignar=1`,
+      storeId,
+    });
+  }
+
   const lowStock = products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD);
   if (lowStock.length > 0) {
     items.push({

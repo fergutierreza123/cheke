@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
-import { updateMemberRole, removeMember, setMemberStore, createInvitation, cancelInvitation } from "./actions";
+import {
+  updateMemberRole,
+  removeMember,
+  setMemberStore,
+  createInvitation,
+  cancelInvitation,
+  setMemberAway,
+  setNotifyAll,
+} from "./actions";
 import { initialsFromEmail, relativeTime } from "@/lib/format";
 import { canManageStore, ROLE_LABEL, type CurrentBusiness, type Role } from "@/lib/stores";
 import type { TeamMember } from "@/lib/types";
@@ -51,6 +59,15 @@ export function TeamView({
     run(() => removeMember(userId));
   }
 
+  // Ausente and Asignación only mean something with 2+ people.
+  const showAway = members.length >= 2;
+  const managedStoreIds = new Set(business.stores.filter((s) => canManageStore(business, s.id)).map((s) => s.id));
+  function canSetAway(m: TeamMember): boolean {
+    if (m.user_id === currentUserId || isOwner) return true;
+    return business.role === "manager" && m.role === "agent" && (storeMembership[m.user_id] ?? []).some((id) => managedStoreIds.has(id));
+  }
+  const me = members.find((m) => m.user_id === currentUserId);
+
   const owners = members.filter((m) => m.role === "owner");
   const hasStore = (userId: string) => business.stores.some((s) => storeMembership[userId]?.includes(s.id));
   const others = members.filter((m) => m.role !== "owner");
@@ -64,16 +81,17 @@ export function TeamView({
     return (
       <div
         key={`${storeId ?? "all"}-${m.user_id}`}
-        className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 lg:flex-wrap lg:gap-x-4 lg:gap-y-2 lg:px-5 lg:py-3.5"
+        className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3 last:border-b-0 lg:gap-x-4 lg:px-5 lg:py-3.5"
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-[13px] font-bold text-white">
             {initialsFromEmail(m.email)}
           </div>
           <div className="min-w-0">
-            <div className="truncate text-[13.5px] font-semibold text-ink">{m.email}</div>
+            <div className="truncate text-[13.5px] font-semibold text-ink">{m.name || m.email}</div>
             <div className="text-[11px] text-ink-soft">
               {isMe && <span className="text-brand">Tú · </span>}
+              {m.name && <span>{m.email} · </span>}
               Desde {relativeTime(m.joined_at)}
               {multi && storeId === undefined && m.role !== "owner" && !hasStore(m.user_id) && (
                 <span className="text-danger"> · Sin tienda: no ve conversaciones</span>
@@ -82,6 +100,18 @@ export function TeamView({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1 lg:gap-2">
+          {showAway &&
+            (canSetAway(m) ? (
+              <AwaySwitch
+                away={Boolean(m.away)}
+                label={isMe ? "Tu disponibilidad" : `Disponibilidad de ${m.name || m.email}`}
+                onChange={(away) => run(() => setMemberAway(m.user_id, away))}
+              />
+            ) : (
+              m.away && (
+                <span className="rounded-md bg-surface-2 px-2 py-1 text-[11.5px] font-semibold text-ink-muted">Ausente</span>
+              )
+            ))}
           {isOwner && !isMe && storeId === undefined ? (
             <select
               value={m.role}
@@ -139,6 +169,32 @@ export function TeamView({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
         <div className="flex flex-col gap-4 lg:gap-5">
           <InviteCard business={business} demo={demo} onError={setToast} />
+
+          {isOwner && me && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-surface px-4 py-3.5 lg:px-5">
+              <input
+                type="checkbox"
+                checked={Boolean(me.notify_all)}
+                onChange={(e) => run(() => setNotifyAll(e.target.checked))}
+                className="mt-0.5 h-4.5 w-4.5 shrink-0 accent-[var(--color-brand)]"
+              />
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-semibold text-ink">Avisarme de todo</span>
+                <span className="block text-[12.5px] leading-snug text-ink-muted">
+                  {showAway
+                    ? "Recibe un aviso de cada mensaje, también de los chats de otras personas y de los que atiende chekelin. Si no, solo te avisamos de los tuyos."
+                    : "Recibe un aviso de cada mensaje, también de los que atiende chekelin. Si no, te avisamos cuando chekelin te pasa un chat."}
+                </span>
+              </span>
+            </label>
+          )}
+
+          {showAway && (
+            <p className="px-1 text-[12.5px] leading-snug text-ink-soft">
+              Los chats nuevos van a quien esté disponible. Marca <span className="font-semibold text-ink-muted">Ausente</span> en
+              tu día libre o vacaciones: conservas tus chats abiertos, pero no te llegan nuevos.
+            </p>
+          )}
 
           {invitations.length > 0 && (
             <div className="overflow-hidden rounded-2xl border border-border bg-surface">
@@ -395,6 +451,32 @@ function InviteCard({
           {busy ? "Creando link…" : "Crear link de invitación"}
         </button>
       )}
+    </div>
+  );
+}
+
+// Disponible / Ausente, as a two-option segmented control (clearer than a
+// bare toggle for people who aren't tech-savvy).
+function AwaySwitch({ away, label, onChange }: { away: boolean; label: string; onChange: (away: boolean) => void }) {
+  return (
+    <div role="group" aria-label={label} className="flex h-10 rounded-lg bg-surface-2 p-0.5 lg:h-8">
+      {([false, true] as const).map((value) => (
+        <button
+          key={String(value)}
+          type="button"
+          aria-pressed={away === value}
+          onClick={() => away !== value && onChange(value)}
+          className={`rounded-md px-2.5 text-[12px] font-semibold transition-colors ${
+            away === value
+              ? value
+                ? "bg-ink-muted text-white"
+                : "bg-surface text-brand-dark shadow-[0_1px_2px_rgba(0,16,55,0.12)]"
+              : "text-ink-soft hover:text-ink"
+          }`}
+        >
+          {value ? "Ausente" : "Disponible"}
+        </button>
+      ))}
     </div>
   );
 }

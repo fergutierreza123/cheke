@@ -36,3 +36,14 @@ export function canOpenAnotherStore(plan: string, openStoreCount: number): boole
   void openStoreCount;
   return true;
 }
+
+// chekelin (the AI first responder, its simple-facts answers and the weekly
+// Sugerencias) is part of cheKe Plus and cheKe Pro. The one place the plan
+// check will plug in (issue #9); until plans are priced every Negocio has it.
+// Routing to people, Ausente and the timers work on every plan; without
+// chekelin the 5-minute "ya le avisamos" goes out as a plain automatic message.
+// TODO(#9): return false for the cheKe plan once plans are priced.
+export function canUseChekelin(plan: string): boolean {
+  void plan;
+  return true;
+}

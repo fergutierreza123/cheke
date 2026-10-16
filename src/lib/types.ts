@@ -39,6 +39,13 @@ export type Conversation = {
   last_message_at: string | null;
   window_expires_at: string | null;
   created_at: string;
+  // Routing and chekelin's Traspaso (migration 0021). Optional so demo data
+  // without them still type-checks.
+  // Set = chekelin passed the chat to a person (or a person took it).
+  handed_off_at?: string | null;
+  chekelin_replies?: number;
+  // Customer waiting for a person since then (the 5 / 10 minute timers).
+  awaiting_since?: string | null;
 };
 
 export type Message = {
@@ -62,6 +69,18 @@ export type Message = {
   created_at: string;
 };
 
+// A team-only note on a conversation (chekelin's Traspaso summary). Never
+// sent to the customer.
+export type ConversationNote = {
+  id: string;
+  conversation_id: string;
+  store_id: string;
+  kind: "handoff";
+  summary: string;
+  reason: string | null;
+  created_at: string;
+};
+
 export type ConversationWithContact = Conversation & {
   contact: Pick<Contact, "id" | "name" | "phone" | "ig_handle" | "fb_id" | "notes">;
   channel: Pick<Channel, "id" | "type"> | null;
@@ -79,11 +98,29 @@ export type Template = {
   created_at: string;
 };
 
+// A Sugerencia de chekelin: a proposed Plantilla, saved only once a Gerente
+// or Dueño approves it.
+export type TemplateSuggestion = {
+  id: string;
+  question: string;
+  times: number;
+  name: string;
+  category: TemplateCategory;
+  body: string;
+  created_at: string;
+};
+
 export type TeamMember = {
   user_id: string;
   email: string;
   role: "owner" | "manager" | "agent";
   joined_at: string;
+  // From the sign-in profile; null when never set (migration 0021).
+  name?: string | null;
+  // Ausente: receives no new conversations.
+  away?: boolean;
+  // Dueños: "avisarme de todo".
+  notify_all?: boolean;
 };
 
 export type Product = {
