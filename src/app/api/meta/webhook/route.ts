@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/whatsapp";
 import { fetchMetaProfile, metaCredentialsForChannel } from "@/lib/metaMessaging";
 import { handleInboundMessage } from "@/lib/bot";
+import { saveMessageMedia, type MediaJob } from "@/lib/messageMedia";
 
 // Instagram DMs and Facebook Messenger webhook (Messenger Platform), one URL
 // for every business: Meta tells us which Page (object "page") or Instagram
@@ -44,12 +45,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  let result: HandleResult = { saved: [], echoes: [] };
+  let result: HandleResult = { saved: [], echoes: [], media: [] };
   try {
     result = await handlePayload(payload);
   } catch (error) {
     // Still 200: Meta only needs to stop retrying. We fix bugs from the logs.
     console.error("meta webhook error", error);
+  }
+
+  // Photos, voice notes, files: Meta's links expire, so they're saved right
+  // after answering Meta, never before (src/lib/messageMedia.ts).
+  if (result.media.length > 0) {
+    after(() => saveMessageMedia(createAdminClient(), result.media));
   }
 
   if (result.saved.length > 0 || result.echoes.length > 0) {
@@ -74,13 +81,16 @@ export async function POST(request: NextRequest) {
       const echoes = async () => {
         if (result.echoes.length === 0) return;
         await new Promise((resolve) => setTimeout(resolve, ECHO_DELAY_MS));
+        const media: MediaJob[] = [];
         for (const echo of result.echoes) {
           try {
-            await saveEchoMessage(supabase, echo);
+            const job = await saveEchoMessage(supabase, echo);
+            if (job) media.push(job);
           } catch (error) {
             console.error("meta echo error", echo.event.message?.mid, error);
           }
         }
+        await saveMessageMedia(supabase, media);
       };
       await Promise.all([...inbound, echoes()]);
     });
@@ -112,10 +122,10 @@ type SavedMessage = {
   body: string | null;
 };
 type PendingEcho = { channel: Channel; event: MessagingEvent };
-type HandleResult = { saved: SavedMessage[]; echoes: PendingEcho[] };
+type HandleResult = { saved: SavedMessage[]; echoes: PendingEcho[]; media: MediaJob[] };
 
 async function handlePayload(payload: MetaWebhookPayload): Promise<HandleResult> {
-  const result: HandleResult = { saved: [], echoes: [] };
+  const result: HandleResult = { saved: [], echoes: [], media: [] };
   const type: NetworkType | null =
     payload.object === "page" ? "facebook" : payload.object === "instagram" ? "instagram" : null;
   if (!type) return result;
@@ -150,7 +160,11 @@ async function handlePayload(payload: MetaWebhookPayload): Promise<HandleResult>
           result.echoes.push({ channel, event });
         } else if (event.message || event.postback) {
           const saved = await saveInboundMessage(supabase, channel, event);
-          if (saved) result.saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...saved });
+          if (saved) {
+            result.saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...saved });
+            const job = mediaJob(event.message);
+            if (job) result.media.push(job);
+          }
         } else if (event.delivery) {
           for (const mid of event.delivery.mids ?? []) await advanceStatus(supabase, mid, "delivered");
         } else if (event.read) {
@@ -195,7 +209,6 @@ async function saveInboundMessage(
     business_id: channel.business_id,
     direction: "in",
     body,
-    media_url: imageUrl(event.message),
     external_message_id: mid,
     status: "sent",
     created_at: messageTime(event.timestamp, now),
@@ -214,13 +227,13 @@ async function saveInboundMessage(
 // a person replying: chekelin goes silent, the timers stop and an unassigned
 // chat goes to the Dueño (database trigger, migration 0021). It doesn't touch
 // the reply window: only the customer's messages open it.
-async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho) {
+async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho): Promise<MediaJob | null> {
   const message = event.message;
   const customerId = event.recipient?.id;
-  if (!message?.mid || !customerId) return;
+  if (!message?.mid || !customerId) return null;
   const body = describeMessage(message);
-  if (body === null) return;
-  if (await alreadySaved(supabase, message.mid)) return;
+  if (body === null) return null;
+  if (await alreadySaved(supabase, message.mid)) return null;
 
   const contact = await findOrCreateContact(supabase, channel, customerId);
   const conversation = await findOrCreateConversation(supabase, channel, contact.id);
@@ -231,14 +244,13 @@ async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho)
     business_id: channel.business_id,
     direction: "out",
     body,
-    media_url: imageUrl(message),
     external_message_id: message.mid,
     status: "sent",
     source: "meta_app",
     created_at: sentAt,
   });
   if (error) {
-    if (error.code === "23505") return;
+    if (error.code === "23505") return null;
     throw new Error(error.message);
   }
 
@@ -246,6 +258,7 @@ async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho)
     .from("conversations")
     .update({ last_message_at: later(conversation.last_message_at, sentAt) })
     .eq("id", conversation.id);
+  return mediaJob(message);
 }
 
 // What to show in the chat for each kind of message. Returns null for
@@ -278,11 +291,48 @@ function describeMessage(message: MetaMessage): string | null {
   }
 }
 
-// Photos are shown inline. Meta's link is temporary; downloading media into
-// our own storage is a later improvement (same as WhatsApp).
-function imageUrl(message: MetaMessage | undefined): string | null {
+// The photo, video, audio, file or location of a message, for Chat to show
+// it. Files come as a temporary link (it expires), downloaded right away.
+function mediaJob(message: MetaMessage | undefined): MediaJob | null {
   const attachment = message?.attachments?.[0];
-  return attachment?.type === "image" ? (attachment.payload?.url ?? null) : null;
+  const mid = message?.mid;
+  if (!mid || !attachment) return null;
+  const url = attachment.payload?.url;
+
+  if (attachment.type === "location") {
+    const { lat, long } = attachment.payload?.coordinates ?? {};
+    if (typeof lat !== "number" || typeof long !== "number") return null;
+    return {
+      externalMessageId: mid,
+      kind: "location",
+      info: { latitude: lat, longitude: long, ...(attachment.title ? { place: attachment.title } : {}) },
+    };
+  }
+  // View-once media comes without a link: it keeps its text.
+  if (!url) return null;
+  switch (attachment.type) {
+    case "image":
+      return { externalMessageId: mid, kind: attachment.payload?.sticker_id ? "sticker" : "image", info: {}, download: { url } };
+    case "video":
+    case "audio":
+      return { externalMessageId: mid, kind: attachment.type, info: {}, download: { url } };
+    case "file": {
+      const filename = fileNameFromUrl(url);
+      return { externalMessageId: mid, kind: "document", info: filename ? { filename } : {}, download: { url } };
+    }
+    default:
+      return null;
+  }
+}
+
+// Messenger file links end in the file's name ("…/cotizacion.pdf?…").
+function fileNameFromUrl(url: string): string | null {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    return /\.[a-z0-9]{1,8}$/i.test(name) ? name : null;
+  } catch {
+    return null;
+  }
 }
 
 async function alreadySaved(supabase: Admin, externalMessageId: string): Promise<boolean> {
@@ -445,7 +495,11 @@ type MetaMessage = {
   app_id?: number | string;
   is_deleted?: boolean;
   is_unsupported?: boolean;
-  attachments?: Array<{ type?: string; payload?: { url?: string } }>;
+  attachments?: Array<{
+    type?: string;
+    title?: string;
+    payload?: { url?: string; sticker_id?: number; coordinates?: { lat?: number; long?: number } };
+  }>;
 };
 type MessagingEvent = {
   sender?: { id?: string };

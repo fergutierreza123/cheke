@@ -68,7 +68,33 @@ export type Message = {
   // Failed sends only: Meta's error code and the Spanish reason shown in Chat.
   error_code?: number | null;
   error_reason?: string | null;
+  // Photos, voice notes, documents… received (migration 0023). `body` keeps
+  // the plain text ("📷 Foto"), shown while the file downloads or if it fails.
+  media_kind?: MediaKind | null;
+  // In the private "message-media" bucket; Chat shows them via signed links.
+  media_path?: string | null;
+  // AAC/M4A copy of a voice note, for Safari and iPhone.
+  media_m4a_path?: string | null;
+  media_info?: MediaInfo | null;
   created_at: string;
+};
+
+export type MediaKind = "image" | "video" | "audio" | "voice" | "document" | "sticker" | "location" | "contacts";
+
+// What's shown with the media; every field is optional.
+export type MediaInfo = {
+  caption?: string;
+  // Documents
+  filename?: string;
+  size?: number; // bytes
+  mime?: string;
+  // Locations
+  latitude?: number;
+  longitude?: number;
+  place?: string;
+  address?: string;
+  // Contact cards
+  contacts?: Array<{ name: string; phones: string[] }>;
 };
 
 // A team-only note on a conversation: chekelin's Traspaso summary, a Queja

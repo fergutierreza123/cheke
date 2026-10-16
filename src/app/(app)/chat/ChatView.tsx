@@ -48,6 +48,7 @@ const CHEKELIN_STATE_HINT: Record<ChekelinChatState, string> = {
 import { parseAmount, formatAmount, orderConcept, type OrderItem } from "@/lib/payments";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
+import { MessageMedia, mediaReplacesBody } from "./MessageMedia";
 import { BrandMark } from "@/components/BrandMark";
 import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
@@ -1177,7 +1178,7 @@ export function ChatView({
                         out ? "bg-[#D9FDD3]" : "bg-white"
                       } ${firstInRun ? (out ? "rounded-tr-none" : "rounded-tl-none") : ""}`}
                     >
-                      {m.media_url && (
+                      {m.media_url && !m.media_kind && (
                         // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL sent as part of a product message
                         <img
                           src={m.media_url}
@@ -1185,8 +1186,9 @@ export function ChatView({
                           className="-mx-1 mb-1 mt-0.5 max-h-48 w-[calc(100%+8px)] rounded-md object-cover"
                         />
                       )}
+                      <MessageMedia message={m} />
                       <div className="flow-root whitespace-pre-line break-words">
-                        {m.body}
+                        {mediaReplacesBody(m) ? m.media_info?.caption : m.body}
                         {/* Floats into the end of the last line; if there's no
                             room it drops below — that's what keeps short
                             messages in a short bubble. */}
