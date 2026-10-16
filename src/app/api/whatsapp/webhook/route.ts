@@ -1,8 +1,9 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { samePhone, verifyWebhookSignature } from "@/lib/whatsapp";
+import { credentialsForChannel, samePhone, verifyWebhookSignature } from "@/lib/whatsapp";
 import { handleInboundMessage } from "@/lib/bot";
-import { describeMessage, type WhatsAppMessage } from "@/lib/whatsappMessages";
+import { describeMessage, whatsappMedia, type WhatsAppMessage } from "@/lib/whatsappMessages";
+import { saveMessageMedia, type MediaJob } from "@/lib/messageMedia";
 import { explainWhatsAppError } from "@/lib/whatsappErrors";
 
 // Meta resends if we answer slowly, so the push alert and Chekelin's AI reply
@@ -42,8 +43,10 @@ export async function POST(request: NextRequest) {
   }
 
   let saved: SavedMessage[] = [];
+  // Photos, voice notes, documents… to download once Meta has its answer.
+  const media: MediaJob[] = [];
   try {
-    saved = await handlePayload(payload);
+    saved = await handlePayload(payload, media);
   } catch (error) {
     // Log and still return 200 — Meta doesn't need to know we had a bug,
     // it just needs to stop retrying. We fix it from the logs, not retries.
@@ -71,6 +74,10 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  if (media.length > 0) {
+    after(() => saveMessageMedia(createAdminClient(), media));
+  }
+
   return NextResponse.json({ ok: true });
 }
 
@@ -92,13 +99,20 @@ function latestPerConversation(saved: SavedMessage[]): SavedMessage[] {
 type Admin = ReturnType<typeof createAdminClient>;
 // A channel belongs to one Tienda: its conversations (and their messages)
 // go to that Tienda. Contacts are matched across the whole Negocio.
-type Channel = { id: string; business_id: string; store_id: string };
+// Its token downloads the media customers send.
+type Channel = {
+  id: string;
+  business_id: string;
+  store_id: string;
+  external_id: string | null;
+  access_token_encrypted: string | null;
+};
 
 // Each business's contacts, loaded once per webhook call: a history import
 // can bring hundreds of chats in one payload, and each needs its contact.
 type ContactBook = Map<string, Array<{ id: string; phone: string | null; name: string }>>;
 
-async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMessage[]> {
+async function handlePayload(payload: WhatsAppWebhookPayload, media: MediaJob[]): Promise<SavedMessage[]> {
   const supabase = createAdminClient();
   const book: ContactBook = new Map();
   const saved: SavedMessage[] = [];
@@ -118,7 +132,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
 
       const { data: channel } = await supabase
         .from("channels")
-        .select("id, business_id, store_id")
+        .select("id, business_id, store_id, external_id, access_token_encrypted")
         .eq("type", "whatsapp")
         .eq("external_id", phoneNumberId)
         // A disconnected channel (archived Tienda, or removed from the
@@ -132,7 +146,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
 
       // Coexistence: the one-time import of the phone's chat history...
       if (change.field === "history") {
-        await saveHistory(supabase, book, channel, value);
+        await saveHistory(supabase, book, channel, value, media);
         continue;
       }
       // ...and of the phone's contacts (plus later changes to them).
@@ -144,7 +158,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
       // One bad message must not drop the rest of the batch.
       for (const message of value.messages ?? []) {
         try {
-          const result = await saveInboundMessage(supabase, book, channel, value, message);
+          const result = await saveInboundMessage(supabase, book, channel, value, message, media);
           if (result) saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...result });
         } catch (error) {
           console.error("whatsapp inbound message error", message?.id, error);
@@ -153,7 +167,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload): Promise<SavedMess
       // Coexistence: what the business sent from the WhatsApp Business app.
       for (const echo of value.message_echoes ?? []) {
         try {
-          await saveEchoMessage(supabase, book, channel, echo);
+          await saveEchoMessage(supabase, book, channel, echo, media);
         } catch (error) {
           console.error("whatsapp echo error", echo?.id, error);
         }
@@ -176,6 +190,7 @@ async function saveInboundMessage(
   channel: Channel,
   value: WhatsAppValue,
   message: WhatsAppMessage,
+  media: MediaJob[],
 ): Promise<{ conversationId: string; contactName: string; body: string | null } | null> {
   // Reactions (a 👍 on one of our messages) aren't conversation messages.
   const body = describeMessage(message);
@@ -209,6 +224,7 @@ async function saveInboundMessage(
     if (insertError.code === "23505") return null;
     throw new Error(insertError.message);
   }
+  queueMedia(media, channel, message);
 
   return { conversationId: conversation.id, contactName: profileName, body };
 }
@@ -218,7 +234,13 @@ async function saveInboundMessage(
 // replying: chekelin goes silent, the timers stop and an unassigned chat goes
 // to the Dueño (database trigger, migration 0021). It doesn't touch the
 // 24-hour window: only the customer's messages open it.
-async function saveEchoMessage(supabase: Admin, book: ContactBook, channel: Channel, echo: WhatsAppEcho) {
+async function saveEchoMessage(
+  supabase: Admin,
+  book: ContactBook,
+  channel: Channel,
+  echo: WhatsAppEcho,
+  media: MediaJob[],
+) {
   const body = describeMessage(echo);
   if (body === null || !echo.to) return;
   if (await alreadySaved(supabase, echo.id)) return;
@@ -238,6 +260,7 @@ async function saveEchoMessage(supabase: Admin, book: ContactBook, channel: Chan
     created_at: sentAt,
   });
   if (error && error.code !== "23505") throw new Error(error.message);
+  queueMedia(media, channel, echo);
 
   await supabase
     .from("conversations")
@@ -249,7 +272,13 @@ async function saveEchoMessage(supabase: Admin, book: ContactBook, channel: Chan
 // chats in chunks (possibly out of order), one thread per customer. Saved
 // as past messages: they don't open the 24-hour window or trigger chekelin,
 // and a chat where the business already answered starts handed to a person (chekelin comes back after 7 days of silence).
-async function saveHistory(supabase: Admin, book: ContactBook, channel: Channel, value: WhatsAppValue) {
+async function saveHistory(
+  supabase: Admin,
+  book: ContactBook,
+  channel: Channel,
+  value: WhatsAppValue,
+  media: MediaJob[],
+) {
   for (const chunk of value.history ?? []) {
     if (chunk.errors?.length) {
       // 2593109 = the business chose not to share its chat history.
@@ -263,7 +292,7 @@ async function saveHistory(supabase: Admin, book: ContactBook, channel: Channel,
 
     for (const thread of chunk.threads ?? []) {
       try {
-        await saveHistoryThread(supabase, book, channel, thread);
+        await saveHistoryThread(supabase, book, channel, thread, media);
       } catch (error) {
         console.error("whatsapp history thread error", error);
       }
@@ -281,7 +310,13 @@ async function saveHistory(supabase: Admin, book: ContactBook, channel: Channel,
   }
 }
 
-async function saveHistoryThread(supabase: Admin, book: ContactBook, channel: Channel, thread: WhatsAppHistoryThread) {
+async function saveHistoryThread(
+  supabase: Admin,
+  book: ContactBook,
+  channel: Channel,
+  thread: WhatsAppHistoryThread,
+  media: MediaJob[],
+) {
   const customer = thread.id;
   if (!customer) return;
 
@@ -313,6 +348,9 @@ async function saveHistoryThread(supabase: Admin, book: ContactBook, channel: Ch
     { onConflict: "external_message_id", ignoreDuplicates: true },
   );
   if (error) throw new Error(error.message);
+  // Meta only sends the files of the last 14 days of history; older ones
+  // stay "📎 Archivo del historial". Already-saved messages get theirs too.
+  for (const { m } of rows) queueMedia(media, channel, m);
 
   const newest = rows.reduce((max, { m }) => later(max, messageTime(m.timestamp, fallback)), conversation.last_message_at);
   await supabase
@@ -490,6 +528,26 @@ async function updateMessageStatus(supabase: Admin, status: WhatsAppStatus) {
   if (error && update.status) {
     await supabase.from("messages").update({ status: update.status }).eq("external_message_id", status.id);
   }
+}
+
+// A photo, voice note, document, location or contact card to save for Chat
+// once the webhook has answered (src/lib/messageMedia.ts).
+function queueMedia(media: MediaJob[], channel: Channel, message: WhatsAppMessage) {
+  const found = whatsappMedia(message);
+  if (!found) return;
+  if (found.kind === "location" || found.kind === "contacts") {
+    media.push({ externalMessageId: message.id, kind: found.kind, info: found.info });
+    return;
+  }
+  // No file to fetch (e.g. old history): the message keeps its text.
+  const token = credentialsForChannel(channel)?.accessToken;
+  if (!found.mediaId || !token) return;
+  media.push({
+    externalMessageId: message.id,
+    kind: found.kind,
+    info: found.info,
+    download: { whatsappMediaId: found.mediaId, accessToken: token },
+  });
 }
 
 function messageTime(timestamp: string | undefined, fallback: Date): string {
