@@ -7,6 +7,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentBusiness } from "@/lib/business";
 import { removeBackgroundToWhite } from "@/lib/images";
 
+// Matches src/lib/shrinkPhoto.ts, which keeps uploads under Vercel's 4.5 MB
+// request limit. (Not imported: a "use server" file may only export actions.)
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 export async function saveProduct(formData: FormData): Promise<{ error?: string; photoWarning?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
@@ -35,6 +40,14 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   let photoWarning: string | undefined;
   const file = formData.get("image");
   if (file instanceof File && file.size > 0) {
+    // The browser already shrinks photos (src/lib/shrinkPhoto.ts); this is
+    // the server-side check in case something else posts here.
+    if (!UPLOAD_TYPES.includes(file.type)) {
+      return { error: "Formato de foto no soportado. Usa una foto JPG, PNG o WebP." };
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return { error: "La foto pesa más de 4 MB. Prueba con otra foto." };
+    }
     // Cut the product out onto a clean white background before storing it,
     // so photos look consistent without the founder needing a photo editor.
     // If this fails for any reason (no key, quota, network), fall back to

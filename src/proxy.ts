@@ -12,7 +12,7 @@ import { INVITE_COOKIE, isInviteToken } from "@/lib/invitations";
 // Public = reachable without signing in. "/" is matched exactly (the home page
 // decides for itself whether to show the landing or send you into the app);
 // the rest match by prefix.
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/demo", "/privacidad", "/terminos", "/eliminar-datos"];
+const PUBLIC_PATHS = ["/login", "/demo", "/privacidad", "/terminos", "/eliminar-datos"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

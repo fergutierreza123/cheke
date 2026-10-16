@@ -2,65 +2,128 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
+import { formatPhone, isForeignNumber, isHondurasE164, localDigits, toE164, CODE_LENGTH } from "@/lib/auth/phone";
+import { SMS_UNAVAILABLE, USE_EMAIL_INSTEAD, sendErrorMessage, verifyErrorMessage, type CodeChannel } from "@/lib/auth/errors";
+import { CodeInput, FIELD, PhoneInput, ResendButton, useResendCooldown } from "@/components/OtpFields";
+import { finishSignIn } from "./actions";
+
+// Login with a 6-digit code, no passwords (design: GitHub issue #12).
+// Main path: "Tu número de celular" (+504) and a code by SMS (Supabase phone
+// auth, sent through Twilio Verify). Small alternative: "Prefiero usar mi
+// correo" and the same kind of code by email. The browser talks to Supabase
+// directly, so each person's own connection counts toward Supabase's
+// per-device limits; afterwards finishSignIn() decides where they go.
+// Same screen on the web and inside the iPhone/Android app.
+
+type Step = "enter" | "code";
 
 export function LoginScreen({ reviewerLoginEnabled }: { reviewerLoginEnabled: boolean }) {
-  return (
-    <Suspense fallback={null}>
-      <LoginForm reviewerLoginEnabled={reviewerLoginEnabled} />
-    </Suspense>
-  );
-}
-
-function LoginForm({ reviewerLoginEnabled }: { reviewerLoginEnabled: boolean }) {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [googleLoading, setGoogleLoading] = useState(false);
   const prefersReducedMotion = useReducedMotion();
-  const searchParams = useSearchParams();
-  const callbackFailed = searchParams.get("error") === "auth";
+  const [channel, setChannel] = useState<CodeChannel>("phone");
+  const [step, setStep] = useState<Step>("enter");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  // What the code was sent to, fixed once sent: "+50499999999" or the email.
+  const [sentTo, setSentTo] = useState("");
+  const [code, setCode] = useState("");
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState("");
+  // The number is from another country: offer email right in the message.
+  const [suggestEmail, setSuggestEmail] = useState(false);
+  const cooldown = useResendCooldown();
+  // Autofill, the 6th digit and "Entrar" can all fire at once: verify once.
+  const verifyingRef = useRef(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus("sending");
-    setErrorMessage("");
+  const spring = prefersReducedMotion ? { duration: 0.15 } : ({ type: "spring", bounce: 0, duration: 0.35 } as const);
 
+  function switchChannel(next: CodeChannel) {
+    setChannel(next);
+    setStep("enter");
+    setError("");
+    setSuggestEmail(false);
+    setCode("");
+  }
+
+  async function sendCode(target: string) {
+    setSending(true);
+    setError("");
+    setSuggestEmail(false);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    const { error: sendError } =
+      channel === "phone"
+        ? await supabase.auth.signInWithOtp({ phone: target, options: { channel: "sms", shouldCreateUser: true } })
+        : await supabase.auth.signInWithOtp({ email: target, options: { shouldCreateUser: true } });
+    setSending(false);
+    if (sendError) {
+      const message = sendErrorMessage(sendError, channel);
+      setError(message);
+      setSuggestEmail(message === SMS_UNAVAILABLE || message === USE_EMAIL_INSTEAD);
+      return false;
+    }
+    setSentTo(target);
+    setCode("");
+    setStep("code");
+    cooldown.restart();
+    return true;
+  }
 
-    if (error) {
-      setStatus("error");
-      setErrorMessage(error.message);
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (sending) return;
+    if (channel === "phone") {
+      if (isForeignNumber(phone)) {
+        setError(USE_EMAIL_INSTEAD);
+        setSuggestEmail(true);
+        return;
+      }
+      const local = localDigits(phone);
+      if (!local || !isHondurasE164(toE164(local))) {
+        setError("Escribe los 8 números de tu celular.");
+        setSuggestEmail(false);
+        return;
+      }
+      await sendCode(toE164(local));
+    } else {
+      const value = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        setError("Escribe tu correo completo, por ejemplo tu@negocio.com.");
+        return;
+      }
+      await sendCode(value);
+    }
+  }
+
+  async function verify(token: string) {
+    if (verifyingRef.current || token.length !== CODE_LENGTH) return;
+    verifyingRef.current = true;
+    setVerifying(true);
+    setError("");
+    const supabase = createClient();
+    const { error: verifyError } =
+      channel === "phone"
+        ? await supabase.auth.verifyOtp({ phone: sentTo, token, type: "sms" })
+        : await supabase.auth.verifyOtp({ email: sentTo, token, type: "email" });
+    if (verifyError) {
+      verifyingRef.current = false;
+      setVerifying(false);
+      setError(verifyErrorMessage(verifyError));
+      setCode("");
       return;
     }
-    setStatus("sent");
-  }
-
-  async function handleGoogleLogin() {
-    setGoogleLoading(true);
-    const supabase = createClient();
-    // Full-page redirect to Google, then back to /auth/callback with a
-    // ?code= — the same PKCE code-exchange route the email magic link
-    // already uses, so no changes needed there.
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (error) {
-      setGoogleLoading(false);
-      setStatus("error");
-      setErrorMessage(error.message);
+    // Navigates away (invitation, onboarding or Chat); only returns on error.
+    const result = await finishSignIn();
+    if (result?.error) {
+      verifyingRef.current = false;
+      setVerifying(false);
+      setError(result.error);
     }
   }
+
+  const sentLabel = channel === "phone" ? formatPhone(sentTo) : sentTo;
 
   return (
     <div
@@ -68,129 +131,149 @@ function LoginForm({ reviewerLoginEnabled }: { reviewerLoginEnabled: boolean }) 
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="w-full max-w-sm">
-        <Image
-          src="/logos/cheke-icon-blue.png"
-          alt="Cheke"
-          width={64}
-          height={75}
-          className="mx-auto mb-4"
-        />
+        <Image src="/logos/cheke-icon-blue.png" alt="Cheke" width={64} height={75} className="mx-auto mb-4" />
         <h1 className="text-display text-center font-heading text-2xl font-semibold text-white">
           Entrar a <span className="text-accent">cheke</span>
         </h1>
-        <p className="mt-1 text-center text-sm text-white/70">
-          Te enviamos un enlace mágico a tu correo, sin contraseña.
-        </p>
+        <p className="mt-1 text-center text-sm text-white/70">Te enviamos un código para entrar, sin contraseña.</p>
 
         <motion.div
           initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={
-            prefersReducedMotion
-              ? { duration: 0.15 }
-              : { type: "spring", bounce: 0, duration: 0.4 }
-          }
-          className="mt-6 rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_60px_rgba(0,16,55,0.25)]"
+          transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.4 }}
+          className="mt-6 overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_60px_rgba(0,16,55,0.25)]"
         >
-          {status === "sent" ? (
-            <motion.div
-              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={
-                prefersReducedMotion
-                  ? { duration: 0.15 }
-                  : { type: "spring", bounce: 0, duration: 0.35 }
-              }
-              className="rounded-lg border border-accent bg-accent-tint px-4 py-3 text-sm text-brand-dark"
-            >
-              Revisa tu correo <strong>{email}</strong> y haz clic en el enlace para
-              entrar.
-            </motion.div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {callbackFailed && (
-                <div className="rounded-lg border border-danger-border bg-danger-tint px-3 py-2.5 text-[12.5px] text-danger">
-                  No se pudo iniciar sesión. Intenta de nuevo.
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={googleLoading}
-                className="flex items-center justify-center gap-2.5 rounded-lg border border-border bg-surface py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-surface-2 disabled:opacity-60"
-              >
-                <GoogleIcon className="h-[18px] w-[18px] shrink-0" />
-                {googleLoading ? "Conectando…" : "Continuar con Google"}
-              </button>
-
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[11.5px] uppercase tracking-wide text-ink-soft">o con tu correo</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-
-              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-                <label className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                  Correo electrónico
+          <motion.div
+            // Steps move forward to the right and back to the left.
+            key={`${channel}-${step}`}
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: step === "code" ? 24 : -24 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={spring}
+          >
+            {step === "enter" ? (
+              <form onSubmit={handleSend} noValidate className="flex flex-col gap-3">
+                <label htmlFor={channel === "phone" ? "login-phone" : "login-email"} className="font-heading text-[15px] font-semibold text-ink">
+                  {channel === "phone" ? "Tu número de celular" : "Tu correo"}
                 </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tu@negocio.com"
-                  className="rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand-tint"
-                />
-                {status === "error" && (
-                  <p className="text-sm text-danger">{errorMessage}</p>
+                {channel === "phone" ? (
+                  <PhoneInput
+                    id="login-phone"
+                    value={phone}
+                    onChange={(v) => {
+                      setPhone(v);
+                      if (error) setError("");
+                    }}
+                    invalid={Boolean(error)}
+                    autoFocus
+                  />
+                ) : (
+                  <input
+                    id="login-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoFocus
+                    placeholder="tu@negocio.com"
+                    value={email}
+                    aria-invalid={Boolean(error) || undefined}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (error) setError("");
+                    }}
+                    className={`${FIELD} ${error ? "border-danger" : ""}`}
+                  />
+                )}
+                {error && (
+                  <p role="alert" className="text-[13px] leading-snug text-danger">
+                    {error}{" "}
+                    {suggestEmail && (
+                      <button type="button" onClick={() => switchChannel("email")} className="font-semibold text-brand underline underline-offset-2">
+                        Usar mi correo
+                      </button>
+                    )}
+                  </p>
                 )}
                 <button
                   type="submit"
-                  disabled={status === "sending"}
-                  className="mt-1 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                  disabled={sending}
+                  className="mt-1 min-h-12 rounded-lg bg-brand px-4 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
-                  {status === "sending" ? "Enviando…" : "Enviar enlace mágico"}
+                  {sending ? "Enviando…" : "Enviarme el código"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchChannel(channel === "phone" ? "email" : "phone")}
+                  className="mt-1 self-center py-1 text-[13.5px] text-ink-muted underline underline-offset-2 hover:text-ink"
+                >
+                  {channel === "phone" ? "Prefiero usar mi correo" : "Prefiero usar mi celular"}
                 </button>
               </form>
-            </div>
-          )}
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void verify(code);
+                }}
+                className="flex flex-col gap-3"
+              >
+                <label htmlFor="login-code" className="font-heading text-[15px] font-semibold text-ink">
+                  Escribe el código
+                </label>
+                <p className="-mt-1.5 text-[13.5px] leading-snug text-ink-muted">
+                  Te lo enviamos {channel === "phone" ? "por mensaje de texto a" : "a tu correo"}{" "}
+                  <strong className="whitespace-nowrap font-semibold text-ink">{sentLabel}</strong>.
+                </p>
+                <CodeInput
+                  id="login-code"
+                  value={code}
+                  onChange={(v) => {
+                    setCode(v);
+                    if (error) setError("");
+                  }}
+                  onComplete={(c) => void verify(c)}
+                  disabled={verifying}
+                  invalid={Boolean(error)}
+                  listenForSms={channel === "phone"}
+                />
+                {error && (
+                  <p role="alert" className="text-[13px] leading-snug text-danger">
+                    {error}
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={verifying || code.length !== CODE_LENGTH}
+                  className="mt-1 min-h-12 rounded-lg bg-brand px-4 text-[15px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {verifying ? "Entrando…" : "Entrar"}
+                </button>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("enter");
+                      setError("");
+                    }}
+                    className="py-1 text-[13.5px] text-ink-muted underline underline-offset-2 hover:text-ink"
+                  >
+                    {channel === "phone" ? "Cambiar número" : "Cambiar correo"}
+                  </button>
+                  <ResendButton secondsLeft={cooldown.secondsLeft} busy={sending} onResend={() => void sendCode(sentTo)} />
+                </div>
+              </form>
+            )}
+          </motion.div>
         </motion.div>
 
-        {/* App Store / Google Play reviewers can't open an inbox; they get
+        {/* App Store / Google Play reviewers can't receive a code; they get
             a fixed demo login (only when REVIEWER_EMAIL/PASSWORD are set). */}
         {reviewerLoginEnabled && (
-          <Link
-            href="/login/revisores"
-            className="mt-5 block text-center text-[12.5px] text-white/60 underline underline-offset-2"
-          >
+          <Link href="/login/revisores" className="mt-5 block text-center text-[12.5px] text-white/60 underline underline-offset-2">
             Acceso para revisores
           </Link>
         )}
       </div>
     </div>
-  );
-}
-
-function GoogleIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <path
-        fill="#FFC107"
-        d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
-      />
-      <path
-        fill="#FF3D00"
-        d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
-      />
-      <path
-        fill="#4CAF50"
-        d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
-      />
-      <path
-        fill="#1976D2"
-        d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
-      />
-    </svg>
   );
 }
