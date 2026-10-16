@@ -10,7 +10,7 @@ The approved UI lives in `/design` as static HTML mockups (sample data only). Ma
 
 | Screen | File |
 |---|---|
-| Chekeo (kanban de ventas) | design/Main.html |
+| chekeo (kanban de ventas) | design/Main.html |
 | Chat (bandeja unificada) | design/Inbox.html |
 | Contactos | design/Contacts.html |
 | Comentarios | design/Comments.html |
@@ -21,6 +21,8 @@ The approved UI lives in `/design` as static HTML mockups (sample data only). Ma
 | Analítica | design/Analytics.html |
 
 Brand: dark blue #001037, intense blue #0043F8, mint #52EBBB, white. Fonts: Space Grotesk (headings), Work Sans (body). Channel colors: WhatsApp #25D366, Instagram #C1387B, Facebook #1877F2. Logos in `design/assets/`.
+
+Brand names are always lowercase in copy: cheke, chekeo, chekelin.
 
 ## Stack
 
@@ -34,7 +36,7 @@ Brand: dark blue #001037, intense blue #0043F8, mint #52EBBB, white. Fonts: Spac
 
 House style for anything that moves, distilled from an Apple-style interface
 design skill (WWDC "Designing Fluid Interfaces" translated to the web). This
-matters most from Phase 7 onward (Chekeo drag-and-drop, Chat send/swipe,
+matters most from Phase 7 onward (chekeo drag-and-drop, Chat send/swipe,
 sheets), but the rules apply anywhere something animates.
 
 - **Respond on press, not on release.** A button dims/scales the instant it's
@@ -47,7 +49,7 @@ sheets), but the rules apply anywhere something animates.
   momentum (a drag release, a flick) — never on something that just faded
   or slid in on its own.
 - **Never lock input during a transition, and never animate from the target
-  value.** If a user can interrupt something mid-motion (dragging a Chekeo
+  value.** If a user can interrupt something mid-motion (dragging a chekeo
   card, dismissing a sheet), the next animation must start from the live
   on-screen position, not restart from zero.
 - **Spatial consistency.** Things enter and exit along the same path. A
@@ -123,9 +125,9 @@ concepts). In this repo they **refine, never replace**:
    - "Importar catálogo": bulk import from a spreadsheet or photos, for businesses rebuilding the catalog they had in the WhatsApp Business app.
    - Sync products to the business's Meta catalog with the Catalog API (create the catalog if missing, connect it to their WhatsApp Business Account, enable cart and catalog visibility for the number). The business never has to open Commerce Manager.
    - In Chat, an "Enviar producto" button: send the full catalog message, a single product, a multi-product list (max 30 items), or a carousel. Use template versions outside the 24h window.
-   - Handle incoming cart orders from the webhook: create an `orders` row, add the deal to Chekeo, and reply with a payment link (payment provider to be decided; keep it pluggable).
+   - Handle incoming cart orders from the webhook: create an `orders` row, add the deal to chekeo, and reply with a payment link (payment provider to be decided; keep it pluggable).
    - Leave a hook for AI-enhanced product photos during import (built later).
-7. Later: Instagram + Facebook Messenger, Comentarios (comment-to-DM), Plantillas, Chekeo kanban, Equipo, Notificaciones, Analítica, bot first-line replies with human handoff.
+7. Later: Instagram + Facebook Messenger, Comentarios (comment-to-DM), Plantillas, chekeo kanban, Equipo, Notificaciones, Analítica, bot first-line replies with human handoff.
 
 Before starting a phase, show me a short plan. After finishing, tell me how to test it myself.
 

@@ -126,7 +126,7 @@ export function AnalyticsView({
             Analítica de ventas
             <BrandMark />
           </h1>
-          <p className="hidden text-[13.5px] text-ink-muted sm:block">Cómo avanza tu Chekeo de ventas, canal por canal</p>
+          <p className="hidden text-[13.5px] text-ink-muted sm:block">Cómo avanza tu chekeo de ventas, canal por canal</p>
         </div>
         {/* Equal-width segmented row on phones, compact pills on desktop. */}
         <div className="grid grid-cols-3 gap-1.5 lg:flex">
@@ -223,7 +223,7 @@ export function AnalyticsView({
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.3fr_1fr] lg:gap-4">
             <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Embudo por etapa</div>
-              <div className="mb-4 text-[13px] text-ink-muted">Cuántos contactos hay en cada etapa del Chekeo</div>
+              <div className="mb-4 text-[13px] text-ink-muted">Cuántos contactos hay en cada etapa del chekeo</div>
               <div className="flex flex-col gap-3">
                 {funnel.map((f) => (
                   <div key={f.stage} className="flex items-center gap-2.5">

@@ -57,7 +57,7 @@ export function StoresView({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
         <div className="mx-auto flex max-w-[640px] flex-col gap-4 lg:gap-5">
           <p className="px-1 text-[13.5px] leading-relaxed text-ink-muted">
-            Cada tienda tiene sus propios canales, catálogo y Chekeo, y su equipo solo ve sus conversaciones. Los
+            Cada tienda tiene sus propios canales, catálogo y chekeo, y su equipo solo ve sus conversaciones. Los
             contactos y las plantillas se comparten entre todas.
           </p>
 

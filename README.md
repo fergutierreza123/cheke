@@ -28,7 +28,7 @@ interacción/animación.
   recibe y guarda), y lo que respondes desde el Chat se envía de verdad por
   WhatsApp (`sendWhatsAppMessage` en `src/lib/whatsapp.ts`). Ver la sección
   de abajo para conectar tu propio número de prueba.
-- **Chekeo** conectado a datos reales: tablero kanban con las 6 etapas de
+- **chekeo** conectado a datos reales: tablero kanban con las 6 etapas de
   venta, arrastra contactos entre columnas (o usa las flechas), valor del
   negocio en Lempiras, tasa de cierre, aviso de contactos sin respuesta en
   24h. Comparte los mismos datos que Chat — mover la etapa desde cualquiera
@@ -63,7 +63,7 @@ interacción/animación.
   catálogo y tus plantillas reales como referencia. Se puede activar o
   pausar por conversación desde el Chat. Necesita una clave de Anthropic —
   ver la sección "chekelin" más abajo. Todavía no cambia la etapa del
-  Chekeo automáticamente — eso es la siguiente fase.
+  chekeo automáticamente — eso es la siguiente fase.
 - Reglas de interacción y movimiento documentadas en `CLAUDE.md` — de ahí
   sale el estilo de las animaciones (resortes, no curvas de tiempo fijas;
   feedback al presionar, no al soltar; `prefers-reduced-motion` respetado).
@@ -151,13 +151,13 @@ design/                mockups aprobados (no editar — son la referencia)
    cuenta en dos pestañas/navegadores y envía un mensaje en una — debería
    aparecer en la otra al instante, sin recargar.
 
-## Cómo probar Chekeo, Catálogo, Plantillas, Equipo, Analítica y Notificaciones
+## Cómo probar chekeo, Catálogo, Plantillas, Equipo, Analítica y Notificaciones
 
 Antes de nada, corre las migraciones `0003` a `0009` en el SQL Editor de
-Supabase (ver la sección de migraciones más abajo) — si no, Chekeo,
+Supabase (ver la sección de migraciones más abajo) — si no, chekeo,
 Plantillas, Equipo y el Catálogo (fotos) no van a guardar cambios de verdad.
 
-- **Chekeo**: arrastra una tarjeta entre columnas, o usa las flechas ‹ › en
+- **chekeo**: arrastra una tarjeta entre columnas, o usa las flechas ‹ › en
   cada tarjeta. Haz clic en una tarjeta para ver/editar el valor del
   negocio y cambiar la etapa desde ahí también. "Nuevo contacto" agrega un
   lead sin necesidad de que te haya escrito primero.
@@ -175,7 +175,7 @@ Plantillas, Equipo y el Catálogo (fotos) no van a guardar cambios de verdad.
   mira los números moverse — todo sale de tus conversaciones
   reales, no hay datos inventados.
 - **Notificaciones**: aparecen solas según lo que ya tengas en Chat y
-  Chekeo (mensajes recientes, contactos fríos, ventas
+  chekeo (mensajes recientes, contactos fríos, ventas
   cerradas). Cada notificación tiene su propio botón ✓ para marcarla leída
   (no hay "marcar todas" — se quitó a propósito).
 
@@ -350,7 +350,7 @@ Fase 5 en `CLAUDE.md`: Embedded Signup — que cada negocio pueda conectar su
 propio WhatsApp existente desde un botón en la app, sin tocar SQL a mano.
 
 Después de eso: que chekelin, además de responder, también elija
-automáticamente la etapa del Chekeo según la conversación (hoy la etapa
+automáticamente la etapa del chekeo según la conversación (hoy la etapa
 sigue siendo manual).
 
 ## App móvil (iPhone / Android) y notificaciones push

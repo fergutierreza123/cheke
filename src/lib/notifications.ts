@@ -102,7 +102,7 @@ function pushWarnings(
       id: `warning-stale-${storeId}`,
       kind: "warning",
       title: `${staleLeads.length} contacto${staleLeads.length === 1 ? "" : "s"} requiere${staleLeads.length === 1 ? "" : "n"} seguimiento`,
-      description: "Llevan más de un día sin respuesta en tu Chekeo — revísalos antes de que se enfríen.",
+      description: "Llevan más de un día sin respuesta en tu chekeo — revísalos antes de que se enfríen.",
       time: new Date().toISOString(),
       link: "/chekeo",
       storeId,
