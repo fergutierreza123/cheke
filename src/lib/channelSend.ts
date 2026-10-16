@@ -1,6 +1,6 @@
 import type { ChannelType } from "@/lib/types";
-import { credentialsForChannel, sendWhatsAppMessage } from "@/lib/whatsapp";
-import { metaCredentialsForChannel, sendMetaMessage } from "@/lib/metaMessaging";
+import { credentialsForChannel, sendWhatsAppMessage, sendWhatsAppTyping } from "@/lib/whatsapp";
+import { metaCredentialsForChannel, sendMetaMessage, sendMetaTyping } from "@/lib/metaMessaging";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 
 // Server-only. Sends one outgoing message on whatever channel the
@@ -33,6 +33,26 @@ export type SendResult = {
   // on that network): the message only lives in cheke, as before.
   notSent?: true;
 };
+
+// chekelin's "escribiendo…" while it waits before replying. WhatsApp needs
+// the id of the customer's message (it is also marked as read); Instagram
+// and Messenger only the customer. Only while the 24 h window is open.
+export async function showTyping(input: {
+  channel: SendChannel | null | undefined;
+  contact: SendContact | null | undefined;
+  windowExpiresAt: string | null;
+  inboundMessageId: string | null | undefined;
+}): Promise<void> {
+  const { channel, contact } = input;
+  if (!channel || !contact) return;
+  if (replyWindow(channel.type, input.windowExpiresAt, Date.now()) !== "open") return;
+  if (channel.type === "whatsapp") {
+    if (input.inboundMessageId) await sendWhatsAppTyping(credentialsForChannel(channel), input.inboundMessageId);
+    return;
+  }
+  const recipientId = channel.type === "instagram" ? contact.ig_id : contact.fb_psid;
+  if (recipientId) await sendMetaTyping(recipientId, metaCredentialsForChannel(channel));
+}
 
 export async function sendOnChannel(input: {
   channel: SendChannel | null | undefined;

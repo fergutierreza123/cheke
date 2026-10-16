@@ -70,6 +70,28 @@ export function credentialsForChannel(channel: ChannelRow): WhatsAppCredentials 
   return null;
 }
 
+// Marks the customer's message as read and shows "escribiendo…" in their
+// WhatsApp until our next message (or up to 25 seconds). Best effort: a
+// failure here never matters.
+export async function sendWhatsAppTyping(credentials: WhatsAppCredentials | null, messageId: string): Promise<void> {
+  if (!credentials || !messageId) return;
+  try {
+    await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${credentials.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: messageId,
+        typing_indicator: { type: "text" },
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+  } catch {
+    // ignore
+  }
+}
+
 // Sends a WhatsApp message (text, or an image with the text as its caption
 // when `mediaUrl` is given) through the given business's number.
 export async function sendWhatsAppMessage(

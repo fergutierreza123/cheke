@@ -56,13 +56,18 @@ export async function POST(request: NextRequest) {
   if (saved.length > 0) {
     after(async () => {
       const supabase = createAdminClient();
-      // chekelin answers or hands off; otherwise the chat goes to a person
-      // and only they are alerted (src/lib/bot.ts).
-      for (const item of saved) {
-        await handleInboundMessage(supabase, item.conversationId, { preview: item.body }).catch((error) =>
-          console.error("inbound handling error", error),
-        );
-      }
+      // chekelin answers (after a natural 3–10 s pause with "escribiendo…")
+      // or hands off; otherwise the chat goes to a person and only they are
+      // alerted (src/lib/bot.ts). Once per conversation — chekelin reads the
+      // whole conversation, so several messages in a row get one answer —
+      // and conversations in parallel, to stay well inside maxDuration.
+      await Promise.all(
+        latestPerConversation(saved).map((item) =>
+          handleInboundMessage(supabase, item.conversationId, { preview: item.body }).catch((error) =>
+            console.error("inbound handling error", error),
+          ),
+        ),
+      );
     });
   }
 
@@ -76,6 +81,13 @@ type SavedMessage = {
   contactName: string;
   body: string | null;
 };
+
+// The last saved message of each conversation, in arrival order.
+function latestPerConversation(saved: SavedMessage[]): SavedMessage[] {
+  const last = new Map<string, SavedMessage>();
+  for (const item of saved) last.set(item.conversationId, item);
+  return [...last.values()];
+}
 
 type Admin = ReturnType<typeof createAdminClient>;
 // A channel belongs to one Tienda: its conversations (and their messages)

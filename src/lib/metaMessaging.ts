@@ -81,6 +81,13 @@ export async function sendMetaMessage(
   return postMessage(credentials, { recipient, ...routing, message: { text } });
 }
 
+// Shows "escribiendo…" to the customer on Messenger / Instagram (sender
+// action typing_on). Best effort: a failure here never matters.
+export async function sendMetaTyping(recipientId: string, credentials: MetaCredentials | null): Promise<void> {
+  if (!credentials || !recipientId) return;
+  await postMessage(credentials, { recipient: { id: recipientId }, sender_action: "typing_on" }).catch(() => undefined);
+}
+
 // The customer's name (and Instagram username) for a new contact. Best
 // effort: Meta only shares it while the conversation is active, and the
 // contact is created anyway with a generic name if this fails.

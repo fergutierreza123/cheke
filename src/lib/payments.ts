@@ -43,6 +43,17 @@ export function formatAmount(amountHnl: number): string {
   return "L " + new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amountHnl);
 }
 
+// One line of an order (orders.items).
+export type OrderItem = { name: string; quantity: number; price_hnl: number; details?: string };
+
+// "Sandalias de cuero (negro, talla 38), Blusa de lino x2 + envío"
+export function orderConcept(items: OrderItem[], shippingHnl = 0): string {
+  const list = items
+    .map((i) => `${i.name}${i.details ? ` (${i.details})` : ""}${i.quantity > 1 ? ` x${i.quantity}` : ""}`)
+    .join(", ");
+  return shippingHnl > 0 ? `${list} + envío` : list;
+}
+
 // The chat message the customer receives. WhatsApp renders *bold*.
 export function buildPaymentMessage({ concept, amountHnl, link, instructions }: PaymentRequest): string {
   const lines = ["💳 *Pago pendiente*", `Concepto: ${concept.trim()}`, `Total: *${formatAmount(amountHnl)}*`];

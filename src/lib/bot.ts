@@ -1,6 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decideChekelin, type HandoffReason } from "@/lib/ai";
-import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS, type SendChannel, type SendContact } from "@/lib/channelSend";
+import {
+  decideSeller,
+  decideSimpleFact,
+  productRefs,
+  type HandoffReason,
+  type OrderDraft,
+  type ProductRef,
+  type SellerDecision,
+} from "@/lib/ai";
+import {
+  sendOnChannel,
+  showTyping,
+  SEND_CHANNEL_COLUMNS,
+  SEND_CONTACT_COLUMNS,
+  type SendChannel,
+  type SendContact,
+} from "@/lib/channelSend";
 import { replyWindow } from "@/lib/messagingWindow";
 import { markMessageFailed } from "@/lib/whatsappErrors";
 import { notifyConversation, sendPushToPeople } from "@/lib/push";
@@ -9,14 +24,21 @@ import {
   chekelinChatState,
   firstNameOf,
   handoffLine,
-  introLine,
+  humanDelayMs,
+  paymentConfirmedLine,
+  secondMessageDelayMs,
   simpleFactEnding,
   waitNoticeLine,
 } from "@/lib/chekelinState";
-import type { Message } from "@/lib/types";
+import { buildPaymentMessage, orderConcept, type OrderItem } from "@/lib/payments";
+import { productMessageText } from "@/lib/format";
+import { recordPaymentRequest } from "@/lib/orders";
+import { EMPTY_CHEKELIN_INFO, type ChekelinInfo, type Message, type Template } from "@/lib/types";
 
-// chekelin as first responder, the Traspaso (handoff) to a person, routing
-// and the 5 / 10 minute timers. Design: issue #28 (closing comment).
+// chekelin sells on its own (answers, photos, order, payment details,
+// receipt), hands the chat to a person when it should (Traspaso), handles
+// Quejas, and runs the 5 / 10 minute timers. Design: issues #28 and #40
+// (closing comments), built in #30 and #42.
 //
 // Server-only, and always with the service-role client (the webhooks, the
 // timers cron job, or a server action after it checked the person's access):
@@ -28,15 +50,22 @@ import type { Message } from "@/lib/types";
 
 type Admin = SupabaseClient;
 
-const CONVERSATION_COLUMNS = `id, business_id, store_id, bot_enabled, handed_off_at, chekelin_replies, assigned_to, window_expires_at, last_inbound_at, awaiting_since, contact:contacts(name, ${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(chekelin_off_until), business:businesses(name, plan, is_demo)`;
+// "About 15 chekelin messages without reaching an order": then a person takes it.
+const SALE_CAP = 15;
+
+const CONVERSATION_COLUMNS = `id, business_id, store_id, contact_id, stage, bot_enabled, handed_off_at, chekelin_replies, chekelin_order_at, complaint_open_at, assigned_to, window_expires_at, last_inbound_at, awaiting_since, contact:contacts(name, ${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(chekelin_off_until), business:businesses(name, plan, is_demo)`;
 
 type LoadedConversation = {
   id: string;
   businessId: string;
   storeId: string;
+  contactId: string;
+  stage: string | null;
   botEnabled: boolean;
   handedOffAt: string | null;
   chekelinReplies: number;
+  chekelinOrderAt: string | null;
+  complaintOpenAt: string | null;
   assignedTo: string | null;
   windowExpiresAt: string | null;
   lastInboundAt: string | null;
@@ -64,9 +93,13 @@ async function loadConversation(supabase: Admin, conversationId: string): Promis
     id: data.id,
     businessId: data.business_id,
     storeId: data.store_id,
+    contactId: data.contact_id,
+    stage: data.stage ?? null,
     botEnabled: data.bot_enabled,
     handedOffAt: data.handed_off_at,
     chekelinReplies: data.chekelin_replies ?? 0,
+    chekelinOrderAt: data.chekelin_order_at ?? null,
+    complaintOpenAt: data.complaint_open_at ?? null,
     assignedTo: data.assigned_to,
     windowExpiresAt: data.window_expires_at,
     lastInboundAt: data.last_inbound_at,
@@ -87,15 +120,18 @@ function stateOf(conv: LoadedConversation) {
     storeOffUntil: conv.storeOffUntil,
     botEnabled: conv.botEnabled,
     handedOffAt: conv.handedOffAt,
+    complaintOpenAt: conv.complaintOpenAt,
     nowMs: Date.now(),
   });
 }
 
 // An automation (chekelin, the 5-minute notice) may only write while the
-// customer's reply window is open.
+// customer's reply window is open (no chekelin outside 24 h).
 function automationMayWrite(conv: LoadedConversation, sendExternally: boolean): boolean {
   return !sendExternally || replyWindow(conv.channel?.type, conv.windowExpiresAt, Date.now()) === "open";
 }
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The first name a customer sees ("Te paso con María"), from the person's
 // sign-in profile. Null when they never set a name.
@@ -117,10 +153,19 @@ async function sendAutomated(
   conv: LoadedConversation,
   text: string,
   sendExternally: boolean,
+  mediaUrl?: string | null,
 ): Promise<Message | null> {
   const { data: message, error } = await supabase
     .from("messages")
-    .insert({ conversation_id: conv.id, business_id: conv.businessId, direction: "out", body: text, is_bot: true, status: "sent" })
+    .insert({
+      conversation_id: conv.id,
+      business_id: conv.businessId,
+      direction: "out",
+      body: text,
+      media_url: mediaUrl ?? null,
+      is_bot: true,
+      status: "sent",
+    })
     .select("*")
     .single();
   if (error || !message) {
@@ -135,6 +180,7 @@ async function sendAutomated(
       contact: conv.contact,
       windowExpiresAt: conv.windowExpiresAt,
       text,
+      mediaUrl,
       author: "bot",
     });
     if (result.error) {
@@ -160,31 +206,89 @@ export async function routeConversation(supabase: Admin, conversationId: string)
 async function recentHistory(supabase: Admin, conversationId: string) {
   const { data } = await supabase
     .from("messages")
-    .select("direction, body")
+    .select("direction, body, external_message_id, created_at")
     .eq("conversation_id", conversationId)
-    // newest 20, reversed below
+    // newest 30, reversed below
     .order("created_at", { ascending: false })
-    .limit(20);
-  return (data ?? []).reverse();
+    .limit(30);
+  return (data ?? []).reverse() as Array<Pick<Message, "direction" | "body" | "created_at"> & { external_message_id: string | null }>;
 }
 
-async function businessInfo(supabase: Admin, conv: LoadedConversation) {
-  const [{ data: products }, { data: templates }] = await Promise.all([
-    // The catalog of the conversation's own Tienda; templates are Negocio-wide.
-    supabase.from("products").select("*").eq("store_id", conv.storeId).eq("visible", true),
+type PendingOrder = { id: string; concept: string; totalHnl: number; receiptSent: boolean };
+
+type Knowledge = {
+  info: ChekelinInfo;
+  refs: ProductRef[];
+  templates: Template[];
+  pendingOrder: PendingOrder | null;
+};
+
+// What chekelin knows: "Lo que chekelin sabe" of the Tienda, its Catálogo,
+// the Negocio's Plantillas, and an order of this chat waiting for payment.
+async function loadKnowledge(supabase: Admin, conv: LoadedConversation): Promise<Knowledge> {
+  const [{ data: products }, { data: templates }, { data: info }, { data: orders }] = await Promise.all([
+    supabase.from("products").select("*").eq("store_id", conv.storeId).eq("visible", true).order("created_at"),
     supabase.from("templates").select("*").eq("business_id", conv.businessId),
+    supabase
+      .from("store_chekelin_info")
+      .select("payment_methods, shipping, delivery_hours, returns_policy, faq, address_form")
+      .eq("store_id", conv.storeId)
+      .maybeSingle(),
+    supabase
+      .from("orders")
+      .select("id, items, total_hnl, receipt_at")
+      .eq("conversation_id", conv.id)
+      .eq("status", "awaiting_payment")
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
-  return { products: products ?? [], templates: templates ?? [] };
+  const order = orders?.[0];
+  return {
+    info: { ...EMPTY_CHEKELIN_INFO, ...(info ?? {}) } as ChekelinInfo,
+    refs: productRefs(products ?? []),
+    templates: (templates ?? []) as Template[],
+    pendingOrder: order
+      ? {
+          id: order.id,
+          concept: orderConcept((order.items ?? []) as OrderItem[]),
+          totalHnl: Number(order.total_hnl),
+          receiptSent: Boolean(order.receipt_at),
+        }
+      : null,
+  };
 }
 
-export const HANDOFF_REASON_LABEL: Record<HandoffReason | "tres_respuestas" | "chekelin_apagado", string> = {
+// The Tienda's Gerentes; the Dueños when it has none.
+async function managersOf(supabase: Admin, businessId: string, storeId: string): Promise<string[]> {
+  const [{ data: members }, { data: storeRows }] = await Promise.all([
+    supabase.from("members").select("user_id, role, created_at").eq("business_id", businessId).order("created_at"),
+    supabase.from("store_members").select("user_id").eq("store_id", storeId),
+  ]);
+  const inStore = new Set((storeRows ?? []).map((r) => r.user_id as string));
+  const managers = (members ?? []).filter((m) => m.role === "manager" && inStore.has(m.user_id)).map((m) => m.user_id as string);
+  if (managers.length > 0) return managers;
+  return (members ?? []).filter((m) => m.role === "owner").map((m) => m.user_id as string);
+}
+
+// Dueños who turned on "avisarme de todo".
+async function notifyAllOwners(supabase: Admin, businessId: string): Promise<string[]> {
+  const { data } = await supabase.from("members").select("user_id").eq("business_id", businessId).eq("role", "owner").eq("notify_all", true);
+  return (data ?? []).map((m) => m.user_id as string);
+}
+
+export const HANDOFF_REASON_LABEL: Record<
+  HandoffReason | "tope" | "chekelin_apagado" | "total" | "sin_formas_pago" | "comprobante_sin_cobro",
+  string
+> = {
   pide_persona: "Pidió hablar con una persona",
-  quiere_comprar: "Quiere comprar, pedir o pagar",
   falta_info: "chekelin no tenía la información",
-  molesto: "El cliente está molesto o se quejó",
-  ninguna: "chekelin ya respondió 3 veces",
-  tres_respuestas: "chekelin ya respondió 3 veces",
+  descuento: "Pide descuento, precio especial o un pedido especial",
+  ninguna: "chekelin pasó el chat a una persona",
+  tope: "chekelin ya mandó 15 mensajes sin llegar a un pedido",
   chekelin_apagado: "chekelin se apagó en la tienda",
+  total: "El total del pedido no cuadró: revísalo antes de cobrar",
+  sin_formas_pago: 'Falta llenar "Formas de pago" en Lo que chekelin sabe',
+  comprobante_sin_cobro: "Dice que ya pagó, pero no hay un cobro pendiente en cheKe",
 };
 
 // The Traspaso: assign a person, tell the customer who will help them, leave
@@ -192,7 +296,7 @@ export const HANDOFF_REASON_LABEL: Record<HandoffReason | "tres_respuestas" | "c
 async function handOff(
   supabase: Admin,
   conv: LoadedConversation,
-  input: { summary: string; reason: string; intro: boolean; sendExternally: boolean },
+  input: { summary: string; reason: string; lineKind?: "default" | "confirm"; sendExternally: boolean; pace?: boolean },
 ): Promise<Message | null> {
   const assignee = await routeConversation(supabase, conv.id);
   const name = await firstNameForUser(supabase, assignee);
@@ -221,7 +325,8 @@ async function handOff(
 
   let message: Message | null = null;
   if (automationMayWrite(conv, input.sendExternally)) {
-    const text = `${input.intro ? `${introLine(conv.businessName)} ` : ""}${handoffLine(name)}`;
+    const text = handoffLine(name, input.lineKind);
+    if (input.pace) await sleep(secondMessageDelayMs(text));
     message = await sendAutomated(supabase, conv, text, input.sendExternally);
   }
 
@@ -233,10 +338,10 @@ async function handOff(
   return message;
 }
 
-// A customer message was just saved. chekelin answers it or hands it off;
-// when chekelin isn't the first responder here (handed off, paused, off in
-// the Tienda, not in the plan), the conversation goes to a person and they
-// are notified.
+// A customer message was just saved. chekelin answers and sells, or hands
+// the chat off; when chekelin isn't handling it here (handed off, open Queja,
+// paused, off in the Tienda, not in the plan), the conversation goes to a
+// person and they are notified.
 //
 // sendExternally = false for Chat's "modo prueba": nothing goes to the real
 // customer.
@@ -250,11 +355,11 @@ export async function handleInboundMessage(
   const state = stateOf(conv);
 
   if (state === "active" && automationMayWrite(conv, sendExternally)) {
-    const result = await runFirstResponder(supabase, conv, sendExternally, preview);
+    const result = await runSeller(supabase, conv, sendExternally, preview);
     if (!result.error) return result;
     // chekelin couldn't answer (no API key, an outage…): a person takes it,
     // without saying anything to the customer.
-    console.error("chekelin first responder error", result.error);
+    console.error("chekelin seller error", result.error);
     const assignee = await routeConversation(supabase, conv.id);
     await notifyConversation(
       supabase,
@@ -268,66 +373,317 @@ export async function handleInboundMessage(
   await notifyConversation(
     supabase,
     { businessId: conv.businessId, storeId: conv.storeId, assignedTo: assignee },
-    { title: conv.contactName, body: preview ?? "Nuevo mensaje", conversationId: conv.id },
+    {
+      title: state === "complaint" ? `🔴 ${conv.contactName} (queja abierta)` : conv.contactName,
+      body: preview ?? "Nuevo mensaje",
+      conversationId: conv.id,
+    },
   );
   return {};
 }
 
-async function runFirstResponder(
+// What chekelin does with its decision, after the safety checks.
+type Plan =
+  | { kind: "reply" }
+  | { kind: "handoff"; reason: string; lineKind: "default" | "confirm"; dropMessages: boolean }
+  | { kind: "complaint" }
+  | { kind: "order"; order: OrderDraft }
+  | { kind: "receipt"; orderId: string };
+
+function planFor(decision: SellerDecision, conv: LoadedConversation, know: Knowledge): Plan {
+  switch (decision.action) {
+    case "complaint":
+      return { kind: "complaint" };
+    case "handoff": {
+      const reason = decision.handoffReason === "ninguna" ? "pide_persona" : decision.handoffReason;
+      return {
+        kind: "handoff",
+        reason: HANDOFF_REASON_LABEL[reason],
+        lineKind: reason === "falta_info" ? "confirm" : "default",
+        dropMessages: false,
+      };
+    }
+    case "order_ready": {
+      if (!know.info.payment_methods.trim()) {
+        return { kind: "handoff", reason: HANDOFF_REASON_LABEL.sin_formas_pago, lineKind: "default", dropMessages: true };
+      }
+      // Never charge a total that doesn't add up: a person checks it.
+      const order = decision.order;
+      const sum = order.items.reduce((acc, i) => acc + i.quantity * i.unit_price_hnl, 0) + order.shipping_hnl;
+      if (order.items.length === 0 || order.total_hnl <= 0 || Math.abs(sum - order.total_hnl) > 1) {
+        return { kind: "handoff", reason: HANDOFF_REASON_LABEL.total, lineKind: "default", dropMessages: true };
+      }
+      return { kind: "order", order };
+    }
+    case "payment_receipt":
+      if (!know.pendingOrder) {
+        return { kind: "handoff", reason: HANDOFF_REASON_LABEL.comprobante_sin_cobro, lineKind: "default", dropMessages: false };
+      }
+      return { kind: "receipt", orderId: know.pendingOrder.id };
+    default:
+      // Safety cap: about 15 messages without reaching an order.
+      if (conv.chekelinReplies >= SALE_CAP && !conv.chekelinOrderAt) {
+        return { kind: "handoff", reason: HANDOFF_REASON_LABEL.tope, lineKind: "default", dropMessages: true };
+      }
+      if (decision.messages.length === 0) {
+        return { kind: "handoff", reason: HANDOFF_REASON_LABEL.ninguna, lineKind: "default", dropMessages: true };
+      }
+      return { kind: "reply" };
+  }
+}
+
+async function runSeller(
   supabase: Admin,
   conv: LoadedConversation,
   sendExternally: boolean,
   preview: string | null | undefined,
 ): Promise<{ message?: Message; error?: string }> {
-  const [history, info] = await Promise.all([recentHistory(supabase, conv.id), businessInfo(supabase, conv)]);
-  const isFirstReply = conv.chekelinReplies === 0;
-  const { decision, error } = await decideChekelin({
-    mode: "first_responder",
+  const started = Date.now();
+  const [history, know, managers] = await Promise.all([
+    recentHistory(supabase, conv.id),
+    loadKnowledge(supabase, conv),
+    managersOf(supabase, conv.businessId, conv.storeId),
+  ]);
+  const managerName = await firstNameForUser(supabase, managers[0] ?? null);
+
+  const { decision, error } = await decideSeller({
     businessName: conv.businessName,
-    products: info.products,
-    templates: info.templates,
+    info: know.info,
+    refs: know.refs,
+    templates: know.templates,
+    managerName,
+    pendingOrder: know.pendingOrder,
     history,
-    isFirstReply,
   });
   if (!decision) return { error };
 
-  // After 3 replies chekelin always passes the chat to a person.
-  const tooMany = conv.chekelinReplies >= 3;
-  if (decision.handoff || tooMany || !decision.reply) {
-    const reasonKey = decision.handoff ? decision.reason : "tres_respuestas";
-    const message = await handOff(supabase, conv, {
-      summary: decision.summary,
-      reason: HANDOFF_REASON_LABEL[reasonKey],
-      intro: isFirstReply,
-      sendExternally,
-    });
-    return message ? { message } : {};
+  const plan = planFor(decision, conv, know);
+  const texts = plan.kind === "handoff" && plan.dropMessages ? [] : decision.messages;
+  const products = plan.kind === "reply" ? decision.productRefs.map((r) => know.refs.find((x) => x.ref === r)?.product).filter((p) => p !== undefined) : [];
+
+  // Like a person: "escribiendo…", then a pause that grows with the reply.
+  const live = sendExternally && !conv.isDemo;
+  const lastInbound = [...history].reverse().find((m) => m.direction === "in");
+  const typing = () =>
+    live
+      ? showTyping({
+          channel: conv.channel,
+          contact: conv.contact,
+          windowExpiresAt: conv.windowExpiresAt,
+          inboundMessageId: lastInbound?.external_message_id,
+        })
+      : Promise.resolve();
+  await typing();
+  await sleep(humanDelayMs(texts[0] ?? handoffLine(null), Date.now() - started));
+
+  // The customer wrote again meanwhile, or a person took over: drop this
+  // reply (the newer message gets its own, with the whole conversation).
+  const now = await loadConversation(supabase, conv.id);
+  if (!now || stateOf(now) !== "active" || now.lastInboundAt !== conv.lastInboundAt || !automationMayWrite(now, sendExternally)) {
+    return {};
   }
 
-  let text = decision.reply;
-  if (isFirstReply && !/chekelin/i.test(text)) text = `${introLine(conv.businessName)} ${text}`;
-  const message = await sendAutomated(supabase, conv, text, sendExternally);
+  const sent: Message[] = [];
+  const say = async (text: string, mediaUrl?: string | null) => {
+    const message = await sendAutomated(supabase, now, text, sendExternally, mediaUrl);
+    if (message) sent.push(message);
+  };
 
-  // chekelin answered: the customer isn't waiting on a person (unless they
-  // wrote again meanwhile).
-  let clear = supabase
-    .from("conversations")
-    .update({ chekelin_replies: conv.chekelinReplies + 1, awaiting_since: null, simple_fact_checked_at: conv.lastInboundAt })
-    .eq("id", conv.id);
-  clear = conv.lastInboundAt ? clear.eq("last_inbound_at", conv.lastInboundAt) : clear;
-  const { data: cleared } = await clear.select("id");
-  if (!cleared?.length) {
-    await supabase.from("conversations").update({ chekelin_replies: conv.chekelinReplies + 1 }).eq("id", conv.id);
+  if (texts[0]) await say(texts[0]);
+  // Product photos with name, price and details (same text as "Enviar producto").
+  for (const product of products) {
+    if (product.image_url) await say(productMessageText(product), product.image_url);
+    else await say(productMessageText(product));
+  }
+  if (texts[1]) {
+    await typing();
+    await sleep(secondMessageDelayMs(texts[1]));
+    await say(texts[1]);
   }
 
+  switch (plan.kind) {
+    case "handoff": {
+      const message = await handOff(supabase, now, {
+        summary: decision.teamSummary,
+        reason: plan.reason,
+        lineKind: plan.lineKind,
+        sendExternally,
+        pace: sent.length > 0,
+      });
+      const shown = sent[0] ?? message;
+      return shown ? { message: shown } : {};
+    }
+    case "complaint":
+      await openComplaint(supabase, now, decision.teamSummary, managers);
+      return sent[0] ? { message: sent[0] } : {};
+    case "order": {
+      await sleep(1_500);
+      await sendPaymentDetails(supabase, now, plan.order, know.info, sendExternally, say);
+      break;
+    }
+    case "receipt":
+      await receiptReceived(supabase, now, plan.orderId, decision.teamSummary);
+      break;
+  }
+
+  await chekelinSpoke(supabase, now, sent.filter((m) => !m.media_url).length);
   // Nobody is interrupted while chekelin handles it, except Dueños with
   // "avisarme de todo".
   await notifyConversation(
     supabase,
-    { businessId: conv.businessId, storeId: conv.storeId, assignedTo: null, chekelinHandling: true },
-    { title: conv.contactName, body: preview ?? "Nuevo mensaje", conversationId: conv.id },
+    { businessId: now.businessId, storeId: now.storeId, assignedTo: null, chekelinHandling: true },
+    { title: now.contactName, body: preview ?? "Nuevo mensaje", conversationId: now.id },
   );
-  return message ? { message } : {};
+  return sent[0] ? { message: sent[0] } : {};
+}
+
+// chekelin answered: count its messages, and the customer isn't waiting on a
+// person (unless they wrote again meanwhile).
+async function chekelinSpoke(supabase: Admin, conv: LoadedConversation, count: number): Promise<void> {
+  const replies = conv.chekelinReplies + Math.max(1, count);
+  let clear = supabase
+    .from("conversations")
+    .update({ chekelin_replies: replies, awaiting_since: null, simple_fact_checked_at: conv.lastInboundAt })
+    .eq("id", conv.id);
+  clear = conv.lastInboundAt ? clear.eq("last_inbound_at", conv.lastInboundAt) : clear;
+  const { data: cleared } = await clear.select("id");
+  if (!cleared?.length) {
+    await supabase.from("conversations").update({ chekelin_replies: replies }).eq("id", conv.id);
+  }
+}
+
+// The order is confirmed: send the payment details the "Cobrar" way (the
+// Tienda's Formas de pago) and record the order awaiting payment.
+async function sendPaymentDetails(
+  supabase: Admin,
+  conv: LoadedConversation,
+  order: OrderDraft,
+  info: ChekelinInfo,
+  sendExternally: boolean,
+  say: (text: string) => Promise<void>,
+): Promise<void> {
+  const items: OrderItem[] = order.items.map((i) => ({
+    name: i.product,
+    details: i.details || undefined,
+    quantity: i.quantity,
+    price_hnl: i.unit_price_hnl,
+  }));
+  const concept = orderConcept(items, order.shipping_hnl);
+  await say(buildPaymentMessage({ concept, amountHnl: order.total_hnl, instructions: info.payment_methods }));
+  await recordPaymentRequest(supabase, {
+    conversationId: conv.id,
+    businessId: conv.businessId,
+    contactId: conv.contactId,
+    stage: conv.stage,
+    items,
+    totalHnl: order.total_hnl,
+    source: "chekelin",
+    details: {
+      customer_name: order.customer_name,
+      city: order.city,
+      address: order.address,
+      delivery_method: order.delivery_method,
+      shipping_hnl: order.shipping_hnl,
+      // Taken in Chat's modo prueba: confirming it never writes to the customer.
+      ...(sendExternally ? {} : { test: true }),
+    },
+  });
+  await supabase.from("conversations").update({ chekelin_order_at: new Date().toISOString() }).eq("id", conv.id);
+}
+
+// The customer sent a receipt (or says they paid). chekelin already thanked
+// them; the responsible people get a one-tap "Confirmar pago". This is not a
+// Traspaso: chekelin keeps the chat.
+async function receiptReceived(supabase: Admin, conv: LoadedConversation, orderId: string, summary: string): Promise<void> {
+  const { data: order } = await supabase
+    .from("orders")
+    .update({ receipt_at: new Date().toISOString() })
+    .eq("id", orderId)
+    .select("total_hnl")
+    .maybeSingle();
+  const total = order ? `L ${Number(order.total_hnl).toLocaleString("es-HN")}` : "";
+
+  await supabase.from("conversation_notes").insert({
+    business_id: conv.businessId,
+    store_id: conv.storeId,
+    conversation_id: conv.id,
+    kind: "payment",
+    summary: summary || "El cliente dice que ya pagó.",
+    reason: `Comprobante recibido${total ? ` · ${total}` : ""}: revisa tu cuenta y toca "Confirmar pago"`,
+  });
+
+  const people = new Set([...(conv.assignedTo ? [conv.assignedTo] : []), ...(await managersOf(supabase, conv.businessId, conv.storeId))]);
+  for (const owner of await notifyAllOwners(supabase, conv.businessId)) people.add(owner);
+  await sendPushToPeople(supabase, conv.businessId, conv.storeId, [...people], {
+    title: `💳 ${conv.contactName} mandó su comprobante${total ? ` (${total})` : ""}`,
+    body: "Revisa que el dinero entró y toca para confirmar el pago.",
+    conversationId: conv.id,
+    linkExtra: `confirmar=${orderId}`,
+  });
+}
+
+// A Queja: chekelin already answered with empathy and named the Gerente. The
+// chat gets the red Queja tag, chekelin goes silent until a person marks it
+// resolved, and the Tienda's Gerente (else the Dueño) gets an urgent alert.
+async function openComplaint(supabase: Admin, conv: LoadedConversation, summary: string, managers: string[]): Promise<void> {
+  const now = new Date().toISOString();
+  await supabase
+    .from("conversations")
+    .update({
+      complaint_open_at: now,
+      complaint_resolved_at: null,
+      handed_off_at: conv.handedOffAt ?? now,
+      awaiting_since: now,
+      wait_notice_sent_at: null,
+      escalated_at: null,
+      simple_fact_checked_at: conv.lastInboundAt,
+      // The Gerente (or Dueño) owns a Queja, unless someone already has the chat.
+      ...(conv.assignedTo || !managers[0] ? {} : { assigned_to: managers[0], assigned_at: now, last_assigned_to: managers[0] }),
+    })
+    .eq("id", conv.id);
+
+  await supabase.from("conversation_notes").insert({
+    business_id: conv.businessId,
+    store_id: conv.storeId,
+    conversation_id: conv.id,
+    kind: "complaint",
+    summary: summary || "El cliente tiene una queja.",
+    reason: "Queja: chekelin no responde hasta que alguien la marque resuelta",
+  });
+
+  const people = new Set(managers);
+  for (const owner of await notifyAllOwners(supabase, conv.businessId)) people.add(owner);
+  await sendPushToPeople(supabase, conv.businessId, conv.storeId, [...people], {
+    title: `🔴 Queja de ${conv.contactName}`,
+    body: summary || "Un cliente tiene una queja. Atiéndelo lo antes posible.",
+    conversationId: conv.id,
+  });
+}
+
+// "Confirmar pago" was tapped (the order is already marked paid by the
+// caller, who checked access). The deal is won; on an order chekelin took,
+// chekelin tells the customer. Returns whether the customer was told.
+export async function afterPaymentConfirmed(
+  supabase: Admin,
+  orderId: string,
+): Promise<{ told: boolean }> {
+  const { data: order } = await supabase.from("orders").select("conversation_id, source, details").eq("id", orderId).maybeSingle();
+  if (!order?.conversation_id) return { told: false };
+  await supabase
+    .from("conversations")
+    // A new sale starts the 15-message count again.
+    .update({ stage: "ganado", chekelin_replies: 0, chekelin_order_at: null })
+    .eq("id", order.conversation_id);
+
+  if (order.source !== "chekelin") return { told: false };
+  const conv = await loadConversation(supabase, order.conversation_id);
+  if (!conv) return { told: false };
+  const state = stateOf(conv);
+  if (state === "off" || state === "complaint" || state === "paused") return { told: false };
+  const sendExternally = !(order.details as { test?: boolean } | null)?.test;
+  if (!automationMayWrite(conv, sendExternally)) return { told: false };
+  const message = await sendAutomated(supabase, conv, paymentConfirmedLine(), sendExternally);
+  return { told: Boolean(message) };
 }
 
 // chekelin was switched off in a Tienda: the chats it was handling go to a
@@ -359,7 +715,6 @@ export async function handOffActiveChats(supabase: Admin, storeId: string): Prom
       await handOff(supabase, conv, {
         summary: last?.body ? `Último mensaje del cliente: "${last.body}"` : "",
         reason: HANDOFF_REASON_LABEL.chekelin_apagado,
-        intro: false,
         sendExternally: true,
       });
     } catch (error) {
@@ -405,8 +760,8 @@ async function runDue(supabase: Admin, item: Due): Promise<void> {
   let factSent = false;
 
   // Simple facts: handed off, the person hasn't replied 5 minutes after the
-  // customer's last message. Only price, stock, colors, sizes, shipping,
-  // payment methods.
+  // customer's last message. Only price, colors, sizes, shipping, payment
+  // methods. Never while a Queja is open (stateOf → "complaint").
   if (item.facts_due && conv.lastInboundAt) {
     const { data: claimed } = await supabase
       .from("conversations")
@@ -415,12 +770,12 @@ async function runDue(supabase: Admin, item: Due): Promise<void> {
       .or(`simple_fact_checked_at.is.null,simple_fact_checked_at.lt."${conv.lastInboundAt}"`)
       .select("id");
     if (claimed?.length && stateOf(conv) === "silent" && fresh(conv.lastInboundAt, nowMs) && automationMayWrite(conv, true)) {
-      const [history, info] = await Promise.all([recentHistory(supabase, conv.id), businessInfo(supabase, conv)]);
-      const { decision } = await decideChekelin({
-        mode: "simple_facts",
+      const [history, know] = await Promise.all([recentHistory(supabase, conv.id), loadKnowledge(supabase, conv)]);
+      const { decision } = await decideSimpleFact({
         businessName: conv.businessName,
-        products: info.products,
-        templates: info.templates,
+        info: know.info,
+        refs: know.refs,
+        templates: know.templates,
         history,
       });
       if (decision?.simpleFact && decision.reply) {
