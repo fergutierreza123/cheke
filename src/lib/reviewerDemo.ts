@@ -220,13 +220,13 @@ const DEMO_CONVERSATIONS: Array<{
   },
 ];
 
-const DEMO_PRODUCTS: Array<[string, string, number, number]> = [
-  ["Guitarra acústica", "Instrumentos", 4500, 3],
-  ["Ukelele soprano", "Instrumentos", 1800, 8],
-  ["Cuerdas D'Addario", "Accesorios", 350, 2],
-  ["Correa de cuero", "Accesorios", 280, 15],
-  ["Afinador digital", "Accesorios", 220, 0],
-  ["Estuche rígido", "Accesorios", 950, 6],
+const DEMO_PRODUCTS: Array<[string, string, number]> = [
+  ["Guitarra acústica", "Instrumentos", 4500],
+  ["Ukelele soprano", "Instrumentos", 1800],
+  ["Cuerdas D'Addario", "Accesorios", 350],
+  ["Correa de cuero", "Accesorios", 280],
+  ["Afinador digital", "Accesorios", 220],
+  ["Estuche rígido", "Accesorios", 950],
 ];
 
 const DEMO_TEMPLATES: Array<[string, TemplateCategory, string]> = [
@@ -322,14 +322,13 @@ async function seedDemoBusiness(admin: Admin, businessId: string): Promise<void>
 
   if ((await count(admin, "products", businessId)) === 0) {
     const { error } = await admin.from("products").insert(
-      DEMO_PRODUCTS.map(([name, category, price, stock], i) => ({
+      DEMO_PRODUCTS.map(([name, category, price], i) => ({
         business_id: businessId,
         retailer_id: `demo-${i + 1}`,
         name,
         category,
         description: "Disponible en negro y café.",
         price_hnl: price,
-        stock,
         visible: true,
       })),
     );

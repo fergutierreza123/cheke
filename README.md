@@ -35,7 +35,8 @@ interacción/animación.
   de las dos pantallas se refleja en la otra.
 - **Catálogo** (antes "Inventario") conectado a datos reales: productos con
   foto (sube una imagen por producto, se guarda en Supabase Storage),
-  categoría, precio en Lempiras, stock, aviso de poco inventario, botón
+  categoría, descripción (colores, tallas, materiales), precio en Lempiras,
+  interruptor de visible/oculto para lo que no esté disponible, botón
   "Enviar por chat". También se puede enviar un producto directo desde el
   ícono de caja en el cuadro de texto del Chat, sin salir de la
   conversación — incluye la foto y la descripción si las tiene.
@@ -49,10 +50,10 @@ interacción/animación.
   `supabase/migrations/0007_team_management.sql`.
 - **Analítica** conectado a datos reales: KPIs (ventas cerradas, tasa de
   conversión, contactos nuevos, activos), embudo por etapa, conversaciones
-  por canal, tendencia de 7 días, productos con más valor en existencia —
+  por canal, tendencia de 7 días —
   con selector de semana/mes/trimestre.
 - **Notificaciones** conectado a datos reales: mensajes nuevos, contactos
-  fríos, poco inventario, ventas cerradas recientes — calculado en vivo en
+  fríos, ventas cerradas recientes — calculado en vivo en
   cada carga (no hay tabla de notificaciones todavía, así que "marcar como
   leída" no persiste entre sesiones).
 - **Comentarios** es la única pantalla que sigue en "próximamente" —
@@ -171,10 +172,10 @@ Plantillas, Equipo y el Catálogo (fotos) no van a guardar cambios de verdad.
   cuenta de correo (o pide a alguien que lo use). Si eres dueño, puedes
   cambiar roles o quitar gente.
 - **Analítica**: cambia entre "Esta semana / Este mes / Este trimestre" y
-  mira los números moverse — todo sale de tus conversaciones y productos
+  mira los números moverse — todo sale de tus conversaciones
   reales, no hay datos inventados.
-- **Notificaciones**: aparecen solas según lo que ya tengas en Chat/Chekeo/
-  Catálogo (mensajes recientes, contactos fríos, poco stock, ventas
+- **Notificaciones**: aparecen solas según lo que ya tengas en Chat y
+  Chekeo (mensajes recientes, contactos fríos, ventas
   cerradas). Cada notificación tiene su propio botón ✓ para marcarla leída
   (no hay "marcar todas" — se quitó a propósito).
 

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatLempiras } from "@/lib/format";
-import type { ConversationWithContact, Product } from "@/lib/types";
+import type { ConversationWithContact } from "@/lib/types";
 
 export type NotificationKind = "message" | "warning" | "success";
 
@@ -16,7 +16,6 @@ export type NotificationItem = {
 };
 
 const STALE_MS = 24 * 60 * 60 * 1000;
-const LOW_STOCK_THRESHOLD = 3;
 
 // Built live from real data every time the page loads, instead of a
 // persisted notifications table — there's no "mark as read" that survives
@@ -25,12 +24,11 @@ const LOW_STOCK_THRESHOLD = 3;
 // matter more than the simplicity.
 //
 // `storeIds` are the Tiendas on screen. With more than one, the follow-up
-// and low-stock warnings come one per Tienda so each carries its tag.
+// warnings come one per Tienda so each carries its tag.
 export async function getNotifications(
   businessId: string,
   storeIds: string[],
   conversations: ConversationWithContact[],
-  products: Product[],
 ): Promise<NotificationItem[]> {
   if (storeIds.length === 0) return [];
   const supabase = await createClient();
@@ -64,7 +62,6 @@ export async function getNotifications(
     pushWarnings(
       items,
       several ? conversations.filter((c) => c.store_id === storeId) : conversations,
-      several ? products.filter((p) => p.store_id === storeId) : products,
       storeId,
     );
   }
@@ -91,7 +88,6 @@ export async function getNotifications(
 function pushWarnings(
   items: NotificationItem[],
   conversations: ConversationWithContact[],
-  products: Product[],
   storeId: string,
 ) {
   const staleLeads = conversations.filter(
@@ -130,16 +126,4 @@ function pushWarnings(
     });
   }
 
-  const lowStock = products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD);
-  if (lowStock.length > 0) {
-    items.push({
-      id: `warning-stock-${storeId}`,
-      kind: "warning",
-      title: "Poco inventario",
-      description: lowStock.map((p) => `"${p.name}"`).join(", ") + " están por agotarse.",
-      time: new Date().toISOString(),
-      link: "/inventory",
-      storeId,
-    });
-  }
 }

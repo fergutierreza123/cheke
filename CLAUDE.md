@@ -15,7 +15,7 @@ The approved UI lives in `/design` as static HTML mockups (sample data only). Ma
 | Contactos | design/Contacts.html |
 | Comentarios | design/Comments.html |
 | Plantillas | design/Templates.html |
-| Inventario | design/Inventory.html |
+| Catálogo (route /inventory) | design/Inventory.html |
 | Equipo | design/Team.html |
 | Notificaciones | design/Notifications.html |
 | Analítica | design/Analytics.html |
@@ -103,7 +103,7 @@ concepts). In this repo they **refine, never replace**:
 - `messages` (conversation_id, business_id, direction: in | out, body, media_url, external_message_id unique, status: sent | delivered | read | failed, created_at)
 
 - `catalogs` (business_id, meta_catalog_id, status, last_synced_at)
-- `products` (business_id, retailer_id unique per Tienda, name, description, price_hnl, image_url, stock, visible, meta_sync_status)
+- `products` (business_id, retailer_id unique per Tienda, name, category, description, price_hnl, image_url, visible, meta_sync_status). Products are informative only (photo, name, category, description, price, visible on/off), no stock management; the old `stock` column stays in the DB but is never read or written.
 - `orders` (business_id, conversation_id, contact_id, items json, total_hnl, status: new | awaiting_payment | paid | delivered | cancelled, payment_link)
 
 `window_expires_at` = last inbound message + 24h. Outside the window only approved templates can be sent; the UI must show this.
@@ -118,8 +118,8 @@ concepts). In this repo they **refine, never replace**:
    - `POST /api/whatsapp/webhook`: validate `X-Hub-Signature-256` with the app secret, save inbound messages and status updates, dedupe by `external_message_id`, respond 200 fast.
    - `sendWhatsAppMessage()`: server function calling the Graph API messages endpoint; send text inside the 24h window, templates outside it.
 5. **Embedded Signup + Coexistence**: "Conectar WhatsApp" button so each business connects its existing WhatsApp Business app number; store its WABA id, phone_number_id, and token in `channels`. Handle the history/contacts sync webhooks.
-6. **Inventario + WhatsApp catalog**:
-   - Inventario screen (design/Inventory.html) with real products: create, edit, photos, price in Lempiras, stock, visible on/off.
+6. **Catálogo + WhatsApp catalog**:
+   - Catálogo screen (design/Inventory.html) with real products: create, edit, photos, description, price in Lempiras, visible on/off (no stock).
    - "Importar catálogo": bulk import from a spreadsheet or photos, for businesses rebuilding the catalog they had in the WhatsApp Business app.
    - Sync products to the business's Meta catalog with the Catalog API (create the catalog if missing, connect it to their WhatsApp Business Account, enable cart and catalog visibility for the number). The business never has to open Commerce Manager.
    - In Chat, an "Enviar producto" button: send the full catalog message, a single product, a multi-product list (max 30 items), or a carousel. Use template versions outside the 24h window.

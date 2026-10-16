@@ -250,7 +250,7 @@ export async function processProductPhoto(input: Buffer, provider: BackgroundRem
 }
 
 /**
- * Used by the Inventario upload. Never throws: on any problem it returns an
+ * Used by the Catálogo upload. Never throws: on any problem it returns an
  * `error` and the caller keeps the original photo as uploaded.
  */
 export async function removeBackgroundToWhite(file: File): Promise<{ blob?: Blob; error?: string }> {

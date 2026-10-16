@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { STAGE_META, STAGE_ORDER, CHANNEL_META, formatLempiras } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
-import type { ChannelType, ConversationWithContact, Product } from "@/lib/types";
+import type { ChannelType, ConversationWithContact } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
 import type { StoreNames } from "@/components/StoreTag";
 
@@ -15,12 +15,10 @@ const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
 export function AnalyticsView({
   conversations,
-  products,
   storeNames = null,
   people = [],
 }: {
   conversations: ConversationWithContact[];
-  products: Product[];
   // "Todas las tiendas": the totals above plus a Tienda-by-Tienda comparison.
   storeNames?: StoreNames | null;
   // Teammates, only passed once conversations are assigned to someone.
@@ -119,13 +117,6 @@ export function AnalyticsView({
       .filter((p) => p.won > 0)
       .sort((a, b) => b.revenue - a.revenue);
   }, [people, inRange]);
-
-  const topProducts = useMemo(() => {
-    return [...products]
-      .map((p) => ({ ...p, totalValue: p.price_hnl * p.stock }))
-      .sort((a, b) => b.totalValue - a.totalValue)
-      .slice(0, 5);
-  }, [products]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -267,7 +258,7 @@ export function AnalyticsView({
               </div>
             </div>
 
-            <div className="flex flex-col rounded-2xl border border-border bg-surface p-4 lg:p-5">
+            <div className="flex flex-col rounded-2xl border border-border bg-surface p-4 lg:col-span-2 lg:p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Nuevas conversaciones — últimos 7 días</div>
               <div className="mb-4.5 text-[13px] text-ink-muted">Mensajes entrantes de los tres canales combinados</div>
               <div className="flex h-[140px] items-end gap-2 px-1 lg:gap-4">
@@ -279,40 +270,6 @@ export function AnalyticsView({
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="flex flex-col rounded-2xl border border-border bg-surface p-4 lg:p-5">
-              <div className="font-heading text-[15.5px] font-semibold text-ink">Productos con más valor en existencia</div>
-              <div className="mb-3.5 text-[13px] text-ink-muted">Precio × stock — para saber dónde está tu capital</div>
-              {/* flex-1 + justify-center — this card is stretched to match
-                  its sibling's height (the chart), but a short product list
-                  has nowhere near as much natural content, so center it in
-                  the available space instead of leaving it pinned to the
-                  top with a dead gap trailing below. */}
-              {topProducts.length === 0 ? (
-                <div className="flex flex-1 items-center justify-center text-center text-[13px] text-ink-soft">
-                  Todavía no tienes productos en el catálogo.
-                </div>
-              ) : (
-                <div className="flex flex-1 flex-col justify-center">
-                  <div className="flex justify-between border-b border-border py-2 text-[12px] uppercase tracking-wide text-ink-soft">
-                    <div>Producto</div>
-                    <div className="flex gap-7">
-                      <div>Stock</div>
-                      <div className="w-16 text-right">Valor</div>
-                    </div>
-                  </div>
-                  {topProducts.map((p) => (
-                    <div key={p.id} className="flex justify-between border-b border-border py-2.5 text-[13.5px] text-ink last:border-b-0">
-                      <div className="truncate pr-2">{p.name}</div>
-                      <div className="flex shrink-0 gap-7">
-                        <div className="w-5 text-center text-ink-muted">{p.stock}</div>
-                        <div className="w-16 text-right font-semibold">{formatLempiras(p.totalValue)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>

@@ -68,14 +68,14 @@ export function buildDemoData(now: number) {
 
   const products: Product[] = (
     [
-      ["Guitarra acústica", "Instrumentos", 4500, 3],
-      ["Ukelele soprano", "Instrumentos", 1800, 8],
-      ["Cuerdas D'Addario", "Accesorios", 350, 2],
-      ["Correa de cuero", "Accesorios", 280, 15],
-      ["Afinador digital", "Accesorios", 220, 0],
-      ["Estuche rígido", "Accesorios", 950, 6],
-    ] as Array<[string, string, number, number]>
-  ).map(([name, category, price, stock], i) => ({
+      ["Guitarra acústica", "Instrumentos", 4500],
+      ["Ukelele soprano", "Instrumentos", 1800],
+      ["Cuerdas D'Addario", "Accesorios", 350],
+      ["Correa de cuero", "Accesorios", 280],
+      ["Afinador digital", "Accesorios", 220],
+      ["Estuche rígido", "Accesorios", 950],
+    ] as Array<[string, string, number]>
+  ).map(([name, category, price], i) => ({
     id: `p${i}`,
     business_id: "demo",
     store_id: DEMO_STORE.id,
@@ -85,7 +85,6 @@ export function buildDemoData(now: number) {
     category,
     price_hnl: price,
     image_url: null,
-    stock,
     visible: true,
     meta_sync_status: "pending",
     created_at: iso(i * H),
@@ -133,7 +132,6 @@ export function buildDemoData(now: number) {
   const notifications: NotificationItem[] = [
     { id: "n1", kind: "message", title: "Juan Pérez", description: "Sí, cuánto sale el envío a Choluteca?", time: iso(0.2 * H), link: `${DEMO_BASE}/chat` },
     { id: "n2", kind: "warning", title: "Fátima Reyes lleva 3 días sin respuesta", description: "Requiere seguimiento antes de que se enfríe.", time: iso(2 * H), link: `${DEMO_BASE}/chekeo` },
-    { id: "n3", kind: "warning", title: "Poco inventario: Cuerdas D'Addario", description: "Quedan 2 unidades.", time: iso(5 * H), link: `${DEMO_BASE}/inventory` },
     { id: "n4", kind: "success", title: "Venta cerrada: Ana Mejía", description: "L 3,200 ganados.", time: iso(26 * H), link: `${DEMO_BASE}/chekeo` },
   ];
 

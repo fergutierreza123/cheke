@@ -405,7 +405,7 @@ async function runDue(supabase: Admin, item: Due): Promise<void> {
   let factSent = false;
 
   // Simple facts: handed off, the person hasn't replied 5 minutes after the
-  // customer's last message. Only price, stock, colors, sizes, shipping,
+  // customer's last message. Only price, colors, sizes, shipping,
   // payment methods.
   if (item.facts_due && conv.lastInboundAt) {
     const { data: claimed } = await supabase

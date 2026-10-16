@@ -26,7 +26,7 @@ function businessInfo(products: Product[], templates: Template[]): string {
     .filter((p) => p.visible)
     .slice(0, 25)
     .map((p) => {
-      const line = `- ${p.name}${p.category ? ` (${p.category})` : ""}: ${formatLempiras(p.price_hnl)}${p.stock <= 0 ? " (agotado)" : ` (hay ${p.stock})`}`;
+      const line = `- ${p.name}${p.category ? ` (${p.category})` : ""}: ${formatLempiras(p.price_hnl)}`;
       // The description field is where colors, sizes, materials, etc. live
       // today (there's no dedicated variant schema yet).
       return p.description ? `${line}\n  Detalles: ${p.description}` : line;
@@ -59,7 +59,7 @@ export type ChekelinDecision = {
   reason: HandoffReason;
   // For the team only: what the customer wants.
   summary: string;
-  // The customer's latest question is only a simple fact (price, stock,
+  // The customer's latest question is only a simple fact (price,
   // colors, sizes, shipping cost, payment methods) answerable from the info.
   simpleFact: boolean;
 };
@@ -81,7 +81,7 @@ function firstResponderPrompt(businessName: string, info: string, isFirstReply: 
   return [
     `Eres "chekelin", el asistente virtual de "${businessName}", un negocio hondureño que vende por WhatsApp, Instagram y Facebook.`,
     "Eres solo el primero en responder: contestas dudas sencillas mientras una persona del equipo toma la conversación.",
-    "Usa SOLO la información de abajo. Nunca inventes precios, productos, existencias ni fechas.",
+    "Usa SOLO la información de abajo. Nunca inventes precios, productos ni fechas.",
     "",
     "Pon handoff = true (y reply vacío) en cuanto pase cualquiera de estas cosas:",
     '- el cliente pide hablar con una persona ("reason": "pide_persona");',
@@ -96,7 +96,7 @@ function firstResponderPrompt(businessName: string, info: string, isFirstReply: 
       : "Ya te presentaste antes: no te vuelvas a presentar.",
     "",
     "summary es solo para el equipo (el cliente nunca lo ve): qué quiere el cliente (productos, cantidades, colores, tallas, ciudad…), en 1 o 2 oraciones. Llénalo siempre.",
-    "simple_fact = true si la última pregunta del cliente es solo un dato simple: precio, existencias, colores, tallas, costo de envío o formas de pago.",
+    "simple_fact = true si la última pregunta del cliente es solo un dato simple: precio, colores, tallas, costo de envío o formas de pago.",
     "",
     info,
   ].join("\n");
@@ -106,7 +106,7 @@ function simpleFactsPrompt(businessName: string, info: string): string {
   return [
     `Eres "chekelin", el asistente virtual de "${businessName}", un negocio hondureño.`,
     "Una persona del equipo ya tiene esta conversación y todavía no responde. Solo puedes ayudar con datos simples.",
-    "Responde (simple_fact = true) SOLO si los últimos mensajes del cliente preguntan un dato simple —precio, existencias, colores, tallas, costo de envío o formas de pago— y la respuesta está en la información de abajo.",
+    "Responde (simple_fact = true) SOLO si los últimos mensajes del cliente preguntan un dato simple —precio, colores, tallas, costo de envío o formas de pago— y la respuesta está en la información de abajo.",
     "Nunca tomes pedidos, confirmes pagos, des descuentos ni prometas fechas o tiempos de entrega. Si preguntan algo de eso, o cualquier otra cosa, pon simple_fact = false y reply vacío.",
     "reply: el dato, en 1 o 2 oraciones cortas, español de Honduras, sin despedirte y sin decir que alguien lo va a atender (eso lo agregamos nosotros). No te presentes.",
     'Pon siempre handoff = false y reason = "ninguna". summary: qué quiere el cliente, en una oración, para el equipo.',

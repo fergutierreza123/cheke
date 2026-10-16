@@ -49,7 +49,7 @@ export default async function DemoScreen({
         messaging={null}
       />
     ),
-    analytics: <AnalyticsView conversations={d.conversations} products={d.products} />,
+    analytics: <AnalyticsView conversations={d.conversations} />,
     account: (
       <AccountView
         user={{ name: "Fernando Gutiérrez", email: "fernando@cheke.io", phone: "+504 9999-0000" }}
