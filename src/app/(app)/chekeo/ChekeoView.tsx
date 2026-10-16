@@ -139,7 +139,7 @@ export function ChekeoView({
       <div className="flex shrink-0 flex-col gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
           <h1 className="flex items-center justify-between gap-2 font-heading text-xl font-semibold text-ink">
-            Chekeo de ventas
+            chekeo de ventas
             <BrandMark />
           </h1>
           <p className="hidden text-[13.5px] text-ink-muted lg:block">
@@ -256,7 +256,7 @@ export function ChekeoView({
               );
             })}
           {conversations.length === 0 && (
-            <div className="py-10 text-center text-[13.5px] text-ink-soft">Todavía no hay contactos en el Chekeo.</div>
+            <div className="py-10 text-center text-[13.5px] text-ink-soft">Todavía no hay contactos en el chekeo.</div>
           )}
         </div>
       </div>
@@ -576,7 +576,7 @@ export function ChekeoView({
                     disabled={saving}
                     className="flex-1 rounded-[10px] bg-brand py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
-                    {saving ? "Guardando…" : "Agregar al Chekeo"}
+                    {saving ? "Guardando…" : "Agregar al chekeo"}
                   </button>
                 </div>
               </form>

@@ -12,7 +12,7 @@ import { StoreSwitcher, type StoreSwitcherProps } from "@/components/StoreSwitch
 
 export const DEFAULT_NAV_ITEMS = [
   { href: "/chat", label: "Chat", icon: ChatIcon },
-  { href: "/chekeo", label: "Chekeo", icon: KanbanIcon },
+  { href: "/chekeo", label: "chekeo", icon: KanbanIcon },
   { href: "/contacts", label: "Contactos", icon: UsersIcon },
   { href: "/comments", label: "Comentarios", icon: CommentIcon },
   { href: "/templates", label: "Plantillas", icon: TemplateIcon },

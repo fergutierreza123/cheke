@@ -136,7 +136,7 @@ export type Product = {
   category: string | null;
   price_hnl: number;
   image_url: string | null;
-  stock: number;
+  // The DB still has a `stock` column, unused: products are informative only.
   visible: boolean;
   meta_sync_status: string;
   created_at: string;
