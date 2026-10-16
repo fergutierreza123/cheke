@@ -53,8 +53,20 @@ The sales board where each Conversación sits in a stage, from nuevo to ganado o
 _Avoid_: Pipeline, CRM
 
 **chekelin**:
-cheKe's AI assistant that answers customers from the Tienda's own catalog and templates until a person replies.
+cheKe's AI assistant that answers customers and sells on its own (photos, order, payment details, receipt) from what the Tienda gave it, and hands the chat to a person when it should.
 _Avoid_: Bot, chatbot
+
+**Lo que chekelin sabe**:
+A Tienda's short answers that chekelin uses to sell: Formas de pago, Envíos, Horario de entregas, Cambios y devoluciones, Otras preguntas frecuentes, and how it addresses customers (tú, vos, usted). Edited by the Dueño or the Tienda's Gerente.
+_Avoid_: Base de conocimiento, FAQ (as the page name)
+
+**Queja**:
+A customer complaint in a Conversación. It gets a red tag, alerts the Tienda's Gerente (or the Dueño), and keeps chekelin silent until a person marks it resolved.
+_Avoid_: Reclamo, ticket, incidencia
+
+**Confirmar pago**:
+A person checking that a customer's payment arrived; it moves the deal to Ganado. chekelin can't see bank accounts, so it never confirms a payment itself.
+_Avoid_: Marcar pagado, validar pago
 
 **Traspaso**:
 The moment chekelin hands a Conversación to a person, telling the customer who will help them.

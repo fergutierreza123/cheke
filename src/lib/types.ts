@@ -46,6 +46,8 @@ export type Conversation = {
   chekelin_replies?: number;
   // Customer waiting for a person since then (the 5 / 10 minute timers).
   awaiting_since?: string | null;
+  // An open Queja (migration 0022): red tag, chekelin silent until resolved.
+  complaint_open_at?: string | null;
 };
 
 export type Message = {
@@ -69,13 +71,13 @@ export type Message = {
   created_at: string;
 };
 
-// A team-only note on a conversation (chekelin's Traspaso summary). Never
-// sent to the customer.
+// A team-only note on a conversation: chekelin's Traspaso summary, a Queja
+// or a payment receipt. Never sent to the customer.
 export type ConversationNote = {
   id: string;
   conversation_id: string;
   store_id: string;
-  kind: "handoff";
+  kind: "handoff" | "complaint" | "payment";
   summary: string;
   reason: string | null;
   created_at: string;
@@ -138,4 +140,27 @@ export type Product = {
   visible: boolean;
   meta_sync_status: string;
   created_at: string;
+};
+
+// "Lo que chekelin sabe de tu negocio" (migration 0022): one per Tienda.
+// address_form "mirror" = talk to each customer the way they write
+// (tú / vos / usted).
+export type AddressForm = "mirror" | "tu" | "vos" | "usted";
+
+export type ChekelinInfo = {
+  payment_methods: string;
+  shipping: string;
+  delivery_hours: string;
+  returns_policy: string;
+  faq: string;
+  address_form: AddressForm;
+};
+
+export const EMPTY_CHEKELIN_INFO: ChekelinInfo = {
+  payment_methods: "",
+  shipping: "",
+  delivery_hours: "",
+  returns_policy: "",
+  faq: "",
+  address_form: "mirror",
 };

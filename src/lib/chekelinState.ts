@@ -49,22 +49,38 @@ export function chekelinOffLabel(offUntil: string, nowMs: number): string {
 }
 
 // What chekelin is doing in one conversation:
-// - "active": answers the customer (first responder)
+// - "active": answers and sells (takes orders, sends payment details)
 // - "silent": handed the chat to a person; only simple facts after 5 min
+// - "complaint": an open Queja; fully silent until a person marks it resolved
 // - "paused": paused by hand in this chat
 // - "off": off in the Tienda, or not in the Negocio's plan
-export type ChekelinChatState = "active" | "silent" | "paused" | "off";
+export type ChekelinChatState = "active" | "silent" | "complaint" | "paused" | "off";
 
 export function chekelinChatState(input: {
   available: boolean;
   storeOffUntil: string | null | undefined;
   botEnabled: boolean;
   handedOffAt: string | null | undefined;
+  complaintOpenAt?: string | null;
   nowMs: number;
 }): ChekelinChatState {
   if (!input.available || isChekelinOff(input.storeOffUntil, input.nowMs)) return "off";
+  if (input.complaintOpenAt) return "complaint";
   if (!input.botEnabled) return "paused";
   return input.handedOffAt ? "silent" : "active";
+}
+
+// chekelin "types" like a person before each message: 3 to 10 seconds,
+// longer for longer replies (issue #40). `alreadyMs` is the time already
+// spent (thinking the reply), so the customer never waits more than needed.
+export function humanDelayMs(text: string, alreadyMs = 0): number {
+  const target = Math.min(10_000, Math.max(3_000, 2_000 + text.length * 45));
+  return Math.max(0, target - alreadyMs);
+}
+
+// The short pause before a second message (a long answer split in two).
+export function secondMessageDelayMs(text: string): number {
+  return Math.min(4_000, Math.max(1_500, text.length * 30));
 }
 
 // The name a customer sees ("Te paso con María"): the first word of the
@@ -81,8 +97,20 @@ export function displayNameOf(person: { name?: string | null; email: string }): 
 }
 
 // Customer-facing lines, in one place.
-export function handoffLine(firstName: string | null): string {
-  return `Te paso con ${firstName ?? "alguien del equipo"}, que te va a ayudar con esto. Te escribe en un momento 🙌`;
+//
+// The Traspaso. chekelin's own words (if any) go first; this line names who
+// takes over. "confirm" = chekelin didn't have the information and said it
+// would confirm it.
+export function handoffLine(firstName: string | null, kind: "default" | "confirm" = "default"): string {
+  const who = firstName ?? "alguien del equipo";
+  return kind === "confirm"
+    ? `${firstName ?? "Alguien del equipo"} te escribe en un momento para confirmarte 🙌`
+    : `Te paso con ${who}, que te va a ayudar con esto. Te escribe en un momento 🙌`;
+}
+
+// After a person taps "Confirmar pago" on an order chekelin took.
+export function paymentConfirmedLine(): string {
+  return "¡Listo, ya confirmamos tu pago! Muchas gracias por tu compra 🙌 Te avisamos por aquí cuando tu pedido vaya en camino.";
 }
 
 export function waitNoticeLine(firstName: string | null): string {
@@ -93,8 +121,4 @@ export function waitNoticeLine(firstName: string | null): string {
 
 export function simpleFactEnding(firstName: string | null): string {
   return `${firstName ?? "Alguien del equipo"} te atiende enseguida…`;
-}
-
-export function introLine(businessName: string): string {
-  return `Hola, soy chekelin, el asistente de ${businessName}.`;
 }
