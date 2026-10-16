@@ -2,8 +2,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyWebhookSignature } from "@/lib/whatsapp";
 import { fetchMetaProfile, metaCredentialsForChannel } from "@/lib/metaMessaging";
-import { runChekelinReply } from "@/lib/bot";
-import { sendPushToStore } from "@/lib/push";
+import { handleInboundMessage } from "@/lib/bot";
 
 // Instagram DMs and Facebook Messenger webhook (Messenger Platform), one URL
 // for every business: Meta tells us which Page (object "page") or Instagram
@@ -56,14 +55,11 @@ export async function POST(request: NextRequest) {
   if (result.saved.length > 0 || result.echoes.length > 0) {
     after(async () => {
       const supabase = createAdminClient();
+      // chekelin answers or hands off; otherwise the chat goes to a person
+      // and only they are alerted (src/lib/bot.ts).
       for (const item of result.saved) {
-        await sendPushToStore(supabase, item.businessId, item.storeId, {
-          title: item.contactName,
-          body: item.body ?? "Nuevo mensaje",
-          conversationId: item.conversationId,
-        }).catch((error) => console.error("push error", error));
-        await runChekelinReply(supabase, item.conversationId).catch((error) =>
-          console.error("chekelin reply error", error),
+        await handleInboundMessage(supabase, item.conversationId, { preview: item.body }).catch((error) =>
+          console.error("inbound handling error", error),
         );
       }
 
@@ -207,8 +203,9 @@ async function saveInboundMessage(
 }
 
 // A reply the business wrote outside cheke (Instagram app, Meta Business
-// Suite, the Page inbox). Shown in the chat like any reply, and — like a
-// reply typed in cheke — it pauses chekelin for that chat. It doesn't touch
+// Suite, the Page inbox). Shown in the chat like any reply, and it counts as
+// a person replying: chekelin goes silent, the timers stop and an unassigned
+// chat goes to the Dueño (database trigger, migration 0019). It doesn't touch
 // the reply window: only the customer's messages open it.
 async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho) {
   const message = event.message;
@@ -240,7 +237,7 @@ async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho)
 
   await supabase
     .from("conversations")
-    .update({ last_message_at: later(conversation.last_message_at, sentAt), bot_enabled: false })
+    .update({ last_message_at: later(conversation.last_message_at, sentAt) })
     .eq("id", conversation.id);
 }
 

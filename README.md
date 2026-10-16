@@ -271,13 +271,36 @@ respondas desde ahí debería llegarte de verdad a WhatsApp.
 
 ## chekelin (asistente de IA)
 
-chekelin responde automáticamente el primer mensaje de un cliente (y los
-siguientes, mientras ningún agente humano haya respondido a mano todavía)
-usando tu Catálogo y tus Plantillas como referencia — nunca inventa precios
-que no estén ahí. En cuanto tú o un agente responde algo manualmente desde
-el Chat, chekelin se pausa solo para esa conversación ("handoff"): no se
-pisan las respuestas. Se puede volver a activar o pausar a mano con el
-botón "chekelin activo/pausado" en la cabecera del Chat.
+chekelin es el primero en responder (planes cheKe Plus y Pro): se presenta,
+contesta dudas sencillas con tu Catálogo y tus Plantillas, y le pasa el chat
+a una persona ("Te paso con María…") en cuanto el cliente pide una persona,
+quiere comprar o pagar, chekelin no sabe algo, el cliente está molesto, o
+chekelin ya respondió 3 veces. Deja una nota solo para el equipo arriba del
+chat con lo que quiere el cliente. Después se queda callado, salvo datos
+simples (precio, tallas, envío…) si la persona no responde en 5 minutos.
+Vuelve cuando el chat se gana, se pierde o se cierra, o tras 7 días sin
+mensajes. Si tú respondes (en cheKe, en el celular o en la app de
+Instagram), chekelin se calla en ese chat. Se apaga por tienda con el botón
+"chekelin encendido" arriba de la lista del Chat, y se pausa por chat con el
+botón de la cabecera.
+
+### Avisos de 5 y 10 minutos (Vercel Cron + `CRON_SECRET`)
+
+Los avisos "ya le avisamos a María" (5 min), el segundo aviso al celular y
+la alerta al gerente (10 min) los revisa un reloj que corre cada minuto en
+Vercel (`vercel.json` → `/api/cron/chekelin`). Las "Sugerencias de chekelin"
+de Plantillas corren una vez al día (`/api/cron/suggestions`, cada negocio
+una vez por semana).
+
+1. Crea un secreto: corre `openssl rand -hex 32` en tu terminal.
+2. En Vercel → **Settings → Environment Variables**, agrega `CRON_SECRET`
+   con ese valor (Production). Vercel lo manda solo al llamar al reloj; sin
+   él, las rutas del reloj no hacen nada.
+3. Redeploy. En **Settings → Cron Jobs** deberías ver los dos relojes.
+
+Ojo: el reloj de cada minuto necesita el plan **Pro** de Vercel (el plan
+gratis solo permite relojes una vez al día). Sin Pro, los avisos de 5 y 10
+minutos no salen; todo lo demás sí funciona.
 
 ### 1. Obtener una clave de Anthropic
 

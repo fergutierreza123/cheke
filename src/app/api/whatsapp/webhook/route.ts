@@ -1,8 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { samePhone, verifyWebhookSignature } from "@/lib/whatsapp";
-import { runChekelinReply } from "@/lib/bot";
-import { sendPushToStore } from "@/lib/push";
+import { handleInboundMessage } from "@/lib/bot";
 import { describeMessage, type WhatsAppMessage } from "@/lib/whatsappMessages";
 import { explainWhatsAppError } from "@/lib/whatsappErrors";
 
@@ -57,14 +56,11 @@ export async function POST(request: NextRequest) {
   if (saved.length > 0) {
     after(async () => {
       const supabase = createAdminClient();
+      // chekelin answers or hands off; otherwise the chat goes to a person
+      // and only they are alerted (src/lib/bot.ts).
       for (const item of saved) {
-        await sendPushToStore(supabase, item.businessId, item.storeId, {
-          title: item.contactName,
-          body: item.body ?? "Nuevo mensaje",
-          conversationId: item.conversationId,
-        }).catch((error) => console.error("push error", error));
-        await runChekelinReply(supabase, item.conversationId).catch((error) =>
-          console.error("chekelin reply error", error),
+        await handleInboundMessage(supabase, item.conversationId, { preview: item.body }).catch((error) =>
+          console.error("inbound handling error", error),
         );
       }
     });
@@ -206,9 +202,10 @@ async function saveInboundMessage(
 }
 
 // A message the business sent from the WhatsApp Business app on its phone
-// (coexistence). It shows in the chat like any reply, and — like a reply
-// typed in cheke — a person answering pauses chekelin for that chat. It
-// doesn't touch the 24-hour window: only the customer's messages open it.
+// (coexistence). It shows in the chat like any reply and counts as a person
+// replying: chekelin goes silent, the timers stop and an unassigned chat goes
+// to the Dueño (database trigger, migration 0019). It doesn't touch the
+// 24-hour window: only the customer's messages open it.
 async function saveEchoMessage(supabase: Admin, book: ContactBook, channel: Channel, echo: WhatsAppEcho) {
   const body = describeMessage(echo);
   if (body === null || !echo.to) return;
@@ -232,14 +229,14 @@ async function saveEchoMessage(supabase: Admin, book: ContactBook, channel: Chan
 
   await supabase
     .from("conversations")
-    .update({ last_message_at: later(conversation.last_message_at, sentAt), bot_enabled: false })
+    .update({ last_message_at: later(conversation.last_message_at, sentAt) })
     .eq("id", conversation.id);
 }
 
 // Coexistence history import: Meta sends the phone's last 6 months of 1:1
 // chats in chunks (possibly out of order), one thread per customer. Saved
 // as past messages: they don't open the 24-hour window or trigger chekelin,
-// and a chat where the business already answered starts with chekelin paused.
+// and a chat where the business already answered starts handed to a person (chekelin comes back after 7 days of silence).
 async function saveHistory(supabase: Admin, book: ContactBook, channel: Channel, value: WhatsAppValue) {
   for (const chunk of value.history ?? []) {
     if (chunk.errors?.length) {
@@ -308,7 +305,7 @@ async function saveHistoryThread(supabase: Admin, book: ContactBook, channel: Ch
   const newest = rows.reduce((max, { m }) => later(max, messageTime(m.timestamp, fallback)), conversation.last_message_at);
   await supabase
     .from("conversations")
-    .update({ last_message_at: newest, ...(rows.some((r) => r.out) ? { bot_enabled: false } : {}) })
+    .update({ last_message_at: newest, ...(rows.some((r) => r.out) ? { handed_off_at: newest } : {}) })
     .eq("id", conversation.id);
 }
 
