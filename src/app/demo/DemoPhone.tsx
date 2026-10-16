@@ -9,7 +9,7 @@ const BASE = "/demo/app";
 const IOS_FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const SCREENS = [
   { id: "chat", label: "Chat" },
-  { id: "chekeo", label: "Chekeo" },
+  { id: "chekeo", label: "chekeo" },
   { id: "contacts", label: "Contactos" },
   { id: "inventory", label: "Catálogo" },
   { id: "templates", label: "Plantillas" },

@@ -150,7 +150,7 @@ export async function reopenStore(storeId: string): Promise<{ error?: string }> 
 }
 
 // Catálogo's "Copiar a otra tienda": the same product (photo included) in
-// another Tienda's catalog, as an independent copy with its own stock.
+// another Tienda's catalog, as an independent copy.
 export async function copyProductToStore(productId: string, targetStoreId: string): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
@@ -159,7 +159,7 @@ export async function copyProductToStore(productId: string, targetStoreId: strin
   const supabase = await createClient();
   const { data: product } = await supabase
     .from("products")
-    .select("store_id, retailer_id, name, description, category, price_hnl, image_url, stock, visible")
+    .select("store_id, retailer_id, name, description, category, price_hnl, image_url, visible")
     .eq("id", productId)
     .eq("business_id", business.id)
     .maybeSingle();

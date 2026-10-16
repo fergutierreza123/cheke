@@ -29,7 +29,6 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   // Math.round() here was silently discarding decimals entirely.
   const priceRaw = Number(formData.get("price") ?? 0);
   const price = Math.max(0, Number.isFinite(priceRaw) ? Math.round(priceRaw * 100) / 100 : 0);
-  const stock = Math.max(0, Math.round(Number(formData.get("stock") ?? 0)) || 0);
   const visible = formData.get("visible") === "on";
   const existingImageUrl = String(formData.get("existingImageUrl") ?? "").trim() || null;
 
@@ -83,7 +82,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   if (id) {
     const { error } = await supabase
       .from("products")
-      .update({ name, category, description, price_hnl: price, stock, visible, image_url: imageUrl })
+      .update({ name, category, description, price_hnl: price, visible, image_url: imageUrl })
       .eq("id", id)
       .eq("business_id", business.id);
     if (error) return { error: error.message };
@@ -96,7 +95,6 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
       category,
       description,
       price_hnl: price,
-      stock,
       visible,
       image_url: imageUrl,
     });

@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentBusiness } from "@/lib/business";
 import { getConversations } from "@/lib/conversations";
-import { getProducts } from "@/lib/products";
 import { getNotifications } from "@/lib/notifications";
 import { AppShell } from "@/components/AppShell";
 import { PushRegistrar } from "@/components/PushRegistrar";
@@ -26,11 +25,8 @@ export default async function AppLayout({
   // Same live computation NotificationsView uses — no persisted read
   // state, so this is "how many would show up right now", not a stored
   // unread count. Good enough for a sidebar badge; see src/lib/notifications.ts.
-  const [conversations, products] = await Promise.all([
-    getConversations(business.id, business.scopeStoreIds),
-    getProducts(business.id, business.scopeStoreIds),
-  ]);
-  const notifications = await getNotifications(business.id, business.scopeStoreIds, conversations, products);
+  const conversations = await getConversations(business.id, business.scopeStoreIds);
+  const notifications = await getNotifications(business.id, business.scopeStoreIds, conversations);
 
   // People in 2+ Tiendas get the store selector; everyone else sees the
   // app exactly as a single-Tienda Negocio always has.

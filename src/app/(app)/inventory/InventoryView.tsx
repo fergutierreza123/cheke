@@ -12,8 +12,6 @@ import type { ConversationWithContact, Product } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhoto";
 
-const LOW_STOCK_THRESHOLD = 3;
-
 const TILE_PALETTE = [
   { bg: "var(--color-brand-tint)", text: "var(--color-brand-dark)" },
   { bg: "var(--color-accent-tint)", text: "var(--color-brand-dark)" },
@@ -26,7 +24,6 @@ type Draft = {
   name: string;
   category: string;
   price: string;
-  stock: string;
   visible: boolean;
   imageUrl: string | null;
   description: string;
@@ -36,7 +33,6 @@ const EMPTY_DRAFT: Draft = {
   name: "",
   category: "",
   price: "",
-  stock: "",
   visible: true,
   imageUrl: null,
   description: "",
@@ -94,8 +90,7 @@ export function InventoryView({
   }, [products, query]);
 
   const sendMenuProduct = sendMenuId ? products.find((p) => p.id === sendMenuId) : undefined;
-  const totalValue =products.reduce((sum, p) => sum + p.price_hnl * p.stock, 0);
-  const lowStockCount = products.filter((p) => p.stock <= LOW_STOCK_THRESHOLD).length;
+  const visibleCount = products.filter((p) => p.visible).length;
 
   async function handleSave(formData: FormData) {
     setSaving(true);
@@ -201,8 +196,8 @@ export function InventoryView({
 
       <div className="flex shrink-0 items-stretch gap-2 px-4 pb-1 pt-3 lg:items-center lg:gap-3 lg:px-8 lg:pt-3.5">
         <StatCard value={String(products.length)} label="productos en catálogo" />
-        <StatCard value={formatLempiras(totalValue)} label="valor total en existencia" />
-        <StatCard value={String(lowStockCount)} label="con poco inventario" danger={lowStockCount > 0} />
+        <StatCard value={String(visibleCount)} label="visibles para clientes" />
+        <StatCard value={String(products.length - visibleCount)} label="ocultos" />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8 lg:pt-4">
@@ -220,7 +215,6 @@ export function InventoryView({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:flex lg:flex-wrap lg:gap-3.5">
             {filtered.map((p, idx) => {
               const tile = TILE_PALETTE[idx % TILE_PALETTE.length];
-              const lowStock = p.stock <= LOW_STOCK_THRESHOLD;
               return (
                 <div key={p.id} className="flex min-w-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface lg:w-[236px]">
                   <div
@@ -242,11 +236,6 @@ export function InventoryView({
                         {initialsFor(p.name)}
                       </span>
                     )}
-                    {lowStock && (
-                      <div className="absolute right-2 top-2 rounded-md bg-danger px-2 py-[3px] text-[10.5px] font-bold text-white">
-                        Poco stock
-                      </div>
-                    )}
                     {!p.visible && (
                       <div className="absolute left-2 top-2 rounded-md bg-ink/70 px-2 py-[3px] text-[10.5px] font-bold text-white">
                         Oculto
@@ -260,7 +249,6 @@ export function InventoryView({
                           name: p.name,
                           category: p.category ?? "",
                           price: String(p.price_hnl),
-                          stock: String(p.stock),
                           visible: p.visible,
                           imageUrl: p.image_url,
                           description: p.description ?? "",
@@ -277,13 +265,10 @@ export function InventoryView({
                       <div className="truncate text-[11px] uppercase tracking-wide text-ink-soft">{p.category}</div>
                     )}
                     <div className="text-[13.5px] font-semibold leading-tight text-ink">{p.name}</div>
-                    {/* Narrow 2-column phone cards: stock wraps under the price
-                        instead of squeezing it. */}
                     <div className="mt-auto flex flex-wrap items-baseline justify-between gap-x-2 pt-0.5 lg:mt-0.5 lg:flex-nowrap lg:gap-x-0 lg:pt-0">
                       <div className="font-heading text-[16px] font-bold text-brand-dark lg:text-[17px]">
                         {formatLempiras(p.price_hnl)}
                       </div>
-                      <div className="text-[11.5px] text-ink-muted">{p.stock} en stock</div>
                     </div>
                     <div className="relative mt-1.5">
                       <button
@@ -438,8 +423,7 @@ export function InventoryView({
                   </div>
                 </Field>
 
-                {/* On narrow phones name/category take a full row each;
-                    price and stock stay side by side. */}
+                {/* On narrow phones name/category take a full row each. */}
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Nombre" className="col-span-2 sm:col-span-1">
                     <input
@@ -459,16 +443,6 @@ export function InventoryView({
                   </Field>
                   <Field label="Precio (Lempiras)">
                     <PriceInput key={draft.id ?? "new"} defaultValue={draft.price} />
-                  </Field>
-                  <Field label="Stock disponible">
-                    <input
-                      name="stock"
-                      type="number"
-                      min={0}
-                      defaultValue={draft.stock}
-                      placeholder="0"
-                      className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
-                    />
                   </Field>
                 </div>
 
@@ -493,7 +467,7 @@ export function InventoryView({
                   <div className="rounded-lg bg-surface-2 px-3 py-2.5">
                     <div className="text-[12.5px] font-semibold text-ink">Copiar a otra tienda</div>
                     <p className="mb-2 text-[11.5px] text-ink-soft">
-                      Se crea igual en esa tienda, con su propio stock. Los cambios que no guardaste no se copian.
+                      Se crea igual en esa tienda. Los cambios que no guardaste no se copian.
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {otherStores.map((s) => (

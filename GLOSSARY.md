@@ -9,7 +9,7 @@ The top-level customer of cheKe: what is created, owns the plan and is billed. C
 _Avoid_: Empresa, organización, cuenta, business (in UI copy)
 
 **Tienda**:
-One branch of a Negocio, with its own channels, catalog, Chekeo and analytics. A Negocio with a single Tienda never sees the word.
+One branch of a Negocio, with its own channels, catalog, chekeo and analytics. A Negocio with a single Tienda never sees the word.
 _Avoid_: Sucursal, local, store (in UI copy)
 
 ## People
@@ -48,7 +48,7 @@ _Avoid_: Integración, red
 The thread between one Contacto and one Canal. It belongs to that Canal's Tienda and is visible only to that Tienda's people and the Dueños.
 _Avoid_: Chat (fine as the screen name), ticket
 
-**Chekeo**:
+**chekeo**:
 The sales board where each Conversación sits in a stage, from nuevo to ganado or perdido.
 _Avoid_: Pipeline, CRM
 
