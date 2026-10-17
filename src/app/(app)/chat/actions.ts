@@ -1,7 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { sendOnChannel, SEND_CHANNEL_COLUMNS, SEND_CONTACT_COLUMNS, type SendResult } from "@/lib/channelSend";
+import {
+  markReadOnChannel,
+  reactionsAllowed,
+  reactOnChannel,
+  sendOnChannel,
+  SEND_CHANNEL_COLUMNS,
+  SEND_CONTACT_COLUMNS,
+  type SendResult,
+} from "@/lib/channelSend";
+import { INSTAGRAM_REACTION } from "@/lib/messageEvents";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { markMessageFailed } from "@/lib/whatsappErrors";
 import { afterPaymentConfirmed, handleInboundMessage } from "@/lib/bot";
@@ -34,6 +43,8 @@ export async function sendChatMessage(
   conversationId: string,
   body: string,
   mediaUrl?: string | null,
+  // "Responder": the message of this chat being answered (quoted).
+  replyToId?: string | null,
 ): Promise<{ message?: Message; error?: string; sendError?: string }> {
   const text = body.trim();
   if (!text) return { error: "Escribe un mensaje." };
@@ -61,6 +72,18 @@ export async function sendChatMessage(
     return { error: windowClosedMessage(channel?.type) };
   }
 
+  // The quoted message must be in this same conversation.
+  let quoted: { id: string; external_message_id: string | null } | null = null;
+  if (replyToId) {
+    const { data } = await supabase
+      .from("messages")
+      .select("id, external_message_id")
+      .eq("id", replyToId)
+      .eq("conversation_id", conversationId)
+      .maybeSingle();
+    quoted = data;
+  }
+
   const { data: message, error: insertError } = await supabase
     .from("messages")
     .insert({
@@ -69,6 +92,7 @@ export async function sendChatMessage(
       direction: "out",
       body: text,
       media_url: mediaUrl ?? null,
+      ...(quoted ? { reply_to_id: quoted.id } : {}),
     })
     .select("*")
     .single();
@@ -98,6 +122,7 @@ export async function sendChatMessage(
     text,
     mediaUrl,
     author: "human",
+    replyToExternalId: quoted?.external_message_id ?? null,
   });
   if (result.error) {
     const failed = await markMessageFailed(supabase, message.id, result);
@@ -111,6 +136,85 @@ export async function sendChatMessage(
   }
 
   return { message };
+}
+
+// The business reacts to a message (WhatsApp: any emoji; Instagram: a
+// heart). The same emoji again, or null, takes the reaction back.
+export async function reactToMessage(messageId: string, emoji: string | null): Promise<{ error?: string; reaction?: string | null }> {
+  const supabase = await createClient();
+  const { data: message } = await supabase
+    .from("messages")
+    .select(
+      `id, business_id, external_message_id, reaction_out, deleted_at, conversation:conversations(window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}))`,
+    )
+    .eq("id", messageId)
+    .maybeSingle();
+  if (!message) return { error: "No se encontró el mensaje." };
+  if (message.deleted_at) return { error: "Ese mensaje fue eliminado." };
+
+  const conversation = Array.isArray(message.conversation) ? message.conversation[0] : message.conversation;
+  const contact = Array.isArray(conversation?.contact) ? conversation.contact[0] : conversation?.contact;
+  const channel = Array.isArray(conversation?.channel) ? conversation.channel[0] : conversation?.channel;
+
+  const allowed = channel ? reactionsAllowed(channel.type) : "any";
+  if (allowed === "none") return { error: "Facebook Messenger no permite reaccionar desde cheke." };
+  let next = emoji && emoji === message.reaction_out ? null : emoji;
+  if (next && allowed === "heart") next = INSTAGRAM_REACTION;
+
+  if (!(await isDemoBusiness(supabase, message.business_id))) {
+    const result = await reactOnChannel({
+      channel,
+      contact,
+      windowExpiresAt: conversation?.window_expires_at ?? null,
+      externalMessageId: message.external_message_id,
+      emoji: next,
+    });
+    if (result.error) return { error: result.error };
+  }
+
+  const { error } = await supabase.from("messages").update({ reaction_out: next }).eq("id", messageId);
+  if (error) return { error: error.message };
+  return { reaction: next };
+}
+
+// Someone on the team opened the chat: the customer's messages show as read
+// on their phone (blue ticks / "Visto"), and are marked read in cheke so the
+// next open doesn't send it again.
+export async function markConversationRead(conversationId: string): Promise<void> {
+  const supabase = await createClient();
+  const { data: unread } = await supabase
+    .from("messages")
+    .select("id, external_message_id")
+    .eq("conversation_id", conversationId)
+    .eq("direction", "in")
+    .neq("status", "read")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (!unread?.length) return;
+
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select(`business_id, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`)
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (!conversation) return;
+
+  await supabase
+    .from("messages")
+    .update({ status: "read" })
+    .in(
+      "id",
+      unread.map((m) => m.id),
+    );
+
+  if (await isDemoBusiness(supabase, conversation.business_id)) return;
+  const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
+  const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
+  await markReadOnChannel({
+    channel,
+    contact,
+    latestInboundId: unread.find((m) => m.external_message_id)?.external_message_id ?? null,
+  });
 }
 
 // Demo/testing only (no real WhatsApp message involved): lets the founder

@@ -76,6 +76,14 @@ export type Message = {
   // AAC/M4A copy of a voice note, for Safari and iPhone.
   media_m4a_path?: string | null;
   media_info?: MediaInfo | null;
+  // Replies, reactions, edits and deletes (migration 0026). Optional so
+  // demo data without them still type-checks.
+  reply_to_id?: string | null;
+  external_message_id?: string | null;
+  reaction_in?: string | null;
+  reaction_out?: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
   created_at: string;
 };
 
