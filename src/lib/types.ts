@@ -76,6 +76,10 @@ export type Message = {
   // AAC/M4A copy of a voice note, for Safari and iPhone.
   media_m4a_path?: string | null;
   media_info?: MediaInfo | null;
+  // A customer's voice note in words (migration 0025): shown under the audio
+  // and read by chekelin. Status null = not transcribed (yet, or no API key).
+  transcription?: string | null;
+  transcription_status?: "done" | "failed" | null;
   created_at: string;
 };
 
