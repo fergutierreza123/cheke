@@ -160,6 +160,18 @@ describe("Negocio isolation", () => {
     expect(r.rows?.[0]).toEqual({ business_id: ids.biz, store_id: ids.storeA });
   });
 
+  it("a quoted reply only keeps a quote from its own conversation", async () => {
+    const reply = (user: string | null, quoted: string) =>
+      t.as(user, `insert into messages (conversation_id, business_id, direction, body, reply_to_id) values ($1, $2, 'out', 'x', $3) returning reply_to_id`, [ids.convA, ids.biz, quoted]);
+    expect((await reply(OWNER, ids.msgA)).rows?.[0].reply_to_id).toBe(ids.msgA);
+    // Same Negocio, other conversation; another Negocio; and via the webhook's service role.
+    expect((await reply(OWNER, ids.msgB)).rows?.[0].reply_to_id).toBeNull();
+    expect((await reply(OWNER, ids.msg2)).rows?.[0].reply_to_id).toBeNull();
+    expect((await reply(null, ids.msg2)).rows?.[0].reply_to_id).toBeNull();
+    const moved = await t.as(OWNER, `update messages set reply_to_id = $1 where id = $2 returning reply_to_id`, [ids.msgB, ids.msgA]);
+    expect(moved.rows?.[0].reply_to_id).toBeNull();
+  });
+
   it("nobody can change their Negocio's plan or join another Negocio by hand", async () => {
     expect((await t.as(OWNER, `update businesses set plan = 'pro' where id = $1 returning id`, [ids.biz])).rows).toEqual([]);
     expect((await t.as(NOBODY, `insert into members (business_id, user_id, role) values ($1, $2, 'owner')`, [ids.biz, NOBODY])).error).toBeDefined();
