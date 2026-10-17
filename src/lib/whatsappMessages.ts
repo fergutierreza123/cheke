@@ -18,6 +18,11 @@ export type WhatsAppMessage = {
   contacts?: Array<{ name?: { formatted_name?: string }; phones?: Array<{ phone?: string; wa_id?: string }> }>;
   button?: { text?: string };
   interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } };
+  // A quoted reply (or a forward) — src/lib/messageEvents.ts.
+  context?: { id?: string; from?: string; forwarded?: boolean; frequently_forwarded?: boolean };
+  reaction?: { message_id?: string; emoji?: string };
+  edit?: { original_message_id?: string; message?: Partial<WhatsAppMessage> & { type?: string } };
+  revoke?: { original_message_id?: string };
 };
 
 // The text saved as the message's body: what the chat list, chekelin and
@@ -53,7 +58,10 @@ export function describeMessage(message: WhatsAppMessage): string | null {
     case "media_placeholder":
       // Imported chat history: photos, audio and files come as placeholders.
       return "📎 Archivo del historial";
+    // These change a message already in the chat (src/lib/messageEvents.ts).
     case "reaction":
+    case "edit":
+    case "revoke":
       return null;
     default:
       return "Mensaje de un tipo que cheke todavía no puede mostrar";

@@ -33,6 +33,8 @@ import {
 import { buildPaymentMessage, orderConcept, type OrderItem } from "@/lib/payments";
 import { productMessageText } from "@/lib/format";
 import { recordPaymentRequest } from "@/lib/orders";
+import { textForChekelin } from "@/lib/transcription";
+import { waitForVoiceTranscription } from "@/lib/voiceTranscription";
 import { EMPTY_CHEKELIN_INFO, type ChekelinInfo, type Message, type Template } from "@/lib/types";
 
 // chekelin sells on its own (answers, photos, order, payment details,
@@ -206,12 +208,18 @@ export async function routeConversation(supabase: Admin, conversationId: string)
 async function recentHistory(supabase: Admin, conversationId: string) {
   const { data } = await supabase
     .from("messages")
-    .select("direction, body, external_message_id, created_at")
+    .select("direction, body, transcription, external_message_id, created_at")
     .eq("conversation_id", conversationId)
     // newest 30, reversed below
     .order("created_at", { ascending: false })
     .limit(30);
-  return (data ?? []).reverse() as Array<Pick<Message, "direction" | "body" | "created_at"> & { external_message_id: string | null }>;
+  // A transcribed voice note reads as what the customer said (issue #49).
+  return (data ?? []).reverse().map((m) => ({
+    direction: m.direction as Message["direction"],
+    body: textForChekelin(m),
+    external_message_id: m.external_message_id as string | null,
+    created_at: m.created_at as string,
+  }));
 }
 
 type PendingOrder = { id: string; concept: string; totalHnl: number; receiptSent: boolean };
@@ -439,6 +447,9 @@ async function runSeller(
   preview: string | null | undefined,
 ): Promise<{ message?: Message; error?: string }> {
   const started = Date.now();
+  // A voice note that just arrived is still being transcribed: wait for its
+  // words (counts toward the natural pause below).
+  await waitForVoiceTranscription(supabase, conv.id);
   const [history, know, managers] = await Promise.all([
     recentHistory(supabase, conv.id),
     loadKnowledge(supabase, conv),

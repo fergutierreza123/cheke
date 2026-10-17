@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "compare-photos": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/compare-photo-providers.mjs",
+    "bakeoff:transcribe": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/bakeoff-transcribe.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
