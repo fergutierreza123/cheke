@@ -14,6 +14,8 @@ import {
   reassignConversation,
   listConversationNotes,
   resolveComplaint,
+  reactToMessage,
+  markConversationRead,
   type OpenOrder,
 } from "./actions";
 import { setChekelinOff } from "../actions";
@@ -28,6 +30,7 @@ import {
 import type { Role } from "@/lib/stores";
 import type { QuickReply } from "@/lib/quickReplies";
 import { useQuickReplyPicker } from "./QuickReplyPicker";
+import { useComposerMedia, type MediaSendResult } from "./ComposerMedia";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
 export type ChekelinStore = { id: string; name: string; offUntil: string | null; canManage: boolean };
@@ -51,6 +54,15 @@ import { parseAmount, formatAmount, orderConcept, type OrderItem } from "@/lib/p
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { MessageMedia, mediaReplacesBody } from "./MessageMedia";
+import {
+  DeletedBody,
+  MessageMenu,
+  QuotedMessage,
+  ReactionChips,
+  ReplyBar,
+  SwipeToReply,
+  reactionChoices,
+} from "./MessageExtras";
 import { BrandMark } from "@/components/BrandMark";
 import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
@@ -185,6 +197,22 @@ export function ChatView({
   const [showDetail, setShowDetail] = useState(false);
   // The failed message whose reason is expanded (tap "No entregado").
   const [openFailureId, setOpenFailureId] = useState<string | null>(null);
+  // "Responder": the message the next send quotes, and the bubble whose
+  // menu (reactions + Responder) is open.
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  // The bubble just jumped to from a quote, briefly highlighted.
+  const [flashId, setFlashId] = useState<string | null>(null);
+  // Touch screens swipe/hold a bubble; mouse screens get a hover button.
+  const [touchScreen, setTouchScreen] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(pointer: coarse)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from an external source (media query) on mount
+    setTouchScreen(query.matches);
+    const onChange = (e: MediaQueryListEvent) => setTouchScreen(e.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
   const prefersReducedMotion = useReducedMotion();
 
   // Restore the panel width the viewer left it at last time (per-browser
@@ -253,6 +281,17 @@ export function ChatView({
     disabled: !selected || sendBlocked || simulateMode,
     canManage: canManageQuickReplies,
   });
+  // Voice notes (mic, while the box is empty) and documents (clip): issue #50.
+  const composerMedia = useComposerMedia({
+    conversationId: selected?.id ?? null,
+    channelType: selected?.channel?.type,
+    disabled: !selected || sendBlocked || simulateMode,
+    demo: businessId === "demo",
+    replyToId: replyTo && replyTo.conversation_id === selected?.id ? replyTo.id : null,
+    onSendStart: () => setReplyTo(null),
+    onResult: handleMediaResult,
+    onError: setSendError,
+  });
   // The composer grows with multi-line text (up to ~6 lines), then scrolls.
   useEffect(() => {
     const el = draftInputRef.current;
@@ -264,6 +303,53 @@ export function ChatView({
     () => (selectedId ? (messagesByConversation[selectedId] ?? []) : []),
     [selectedId, messagesByConversation],
   );
+  const messagesById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+
+  // A person opened the chat (and is looking at it): the customer sees their
+  // messages as read. Again whenever a new one arrives while it's open.
+  const unreadInboundId = useMemo(
+    () => [...messages].reverse().find((m) => m.direction === "in" && m.status !== "read")?.id ?? null,
+    [messages],
+  );
+  useEffect(() => {
+    if (!selectedId || !unreadInboundId || businessId === "demo" || simulateMode) return;
+    // Phones open on the list: the selected chat isn't on screen until tapped.
+    const threadOnScreen = mobileView === "thread" || window.matchMedia("(min-width: 1024px)").matches;
+    if (!threadOnScreen || document.visibilityState !== "visible") return;
+    const timer = setTimeout(() => {
+      markConversationRead(selectedId).catch(() => {});
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [selectedId, unreadInboundId, mobileView, businessId, simulateMode]);
+
+  function jumpToMessage(id: string) {
+    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "center" });
+    setFlashId(id);
+    setTimeout(() => setFlashId((current) => (current === id ? null : current)), 1200);
+  }
+
+  function startReply(m: Message) {
+    setMenuFor(null);
+    setReplyTo(m);
+    draftInputRef.current?.focus();
+  }
+
+  // The business's reaction, shown at once and undone if Meta refuses it.
+  async function handleReact(m: Message, emoji: string | null) {
+    setMenuFor(null);
+    const previous = m.reaction_out ?? null;
+    const next = emoji && emoji === previous ? null : emoji;
+    patchMessage({ ...m, reaction_out: next });
+    // The public demo has no account behind it: the reaction stays on screen only.
+    if (businessId === "demo") return;
+    const result = await reactToMessage(m.id, next);
+    if (result.error) {
+      patchMessage({ ...m, reaction_out: previous });
+      setSendError(result.error);
+    } else if (result.reaction !== next) {
+      patchMessage({ ...m, reaction_out: result.reaction ?? null });
+    }
+  }
 
   // chekelin and Asignación for the open conversation.
   const selectedStore = selected ? stores.find((s) => s.id === selected.store_id) : undefined;
@@ -653,7 +739,9 @@ export function ChatView({
       return;
     }
 
-    const result = await sendChatMessage(selected.id, text);
+    const quoting = replyTo && replyTo.conversation_id === selected.id ? replyTo : null;
+    setReplyTo(null);
+    const result = await sendChatMessage(selected.id, text, null, quoting?.id ?? null);
 
     if (result.message) {
       appendMessage(result.message);
@@ -677,6 +765,29 @@ export function ChatView({
     }
     if (result.sendError) setSendError(result.sendError);
     else if (result.error) setSendError(result.error);
+  }
+
+  // A voice note or document went out (or failed): same follow-up as a text
+  // reply — show it, move the chat up, and the person now owns the chat.
+  function handleMediaResult(result: MediaSendResult) {
+    const msg = result.message;
+    if (msg) {
+      appendMessage(msg);
+      bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === msg.conversation_id
+            ? {
+                ...c,
+                handed_off_at: c.handed_off_at ?? msg.created_at,
+                assigned_to: c.assigned_to ?? currentUserId,
+                awaiting_since: null,
+              }
+            : c,
+        ),
+      );
+    }
+    setSendError(result.sendError ?? result.error ?? null);
   }
 
   async function handleSetStage(stage: ConversationStage) {
@@ -916,6 +1027,8 @@ export function ChatView({
                 key={c.id}
                 onClick={() => {
                   setSelectedId(c.id);
+                  if (c.id !== selectedId) setReplyTo(null);
+                  setMenuFor(null);
                   setMobileView("thread");
                   setSendError(null);
                   setShowDetail(false);
@@ -1170,16 +1283,35 @@ export function ChatView({
               className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#EFEAE2] px-3 py-3 lg:px-[6%] lg:py-4"
               style={{ fontFamily: WHATSAPP_FONT }}
             >
+              {/* An open bubble menu closes on any tap outside it. */}
+              {menuFor && (
+                <div
+                  className="fixed inset-0 z-20"
+                  onClick={() => setMenuFor(null)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenuFor(null);
+                  }}
+                />
+              )}
               {messages.map((m, i) => {
                 const out = m.direction === "out";
                 const prev = messages[i - 1];
                 // Bubbles from the same side in a row are tight (2px) and only
                 // the first gets the pointed corner, like WhatsApp's tail.
                 const firstInRun = !prev || prev.direction !== m.direction;
+                const deleted = Boolean(m.deleted_at);
+                const hasReaction = !deleted && Boolean(m.reaction_in || m.reaction_out);
+                // Only while the composer can send (not in test mode).
+                const canAnswer = !sendBlocked && !simulateMode;
+                const emojis = simulateMode ? [] : reactionChoices(selected.channel?.type);
                 return (
                   <div
                     key={m.id}
-                    className={`flex flex-col ${out ? "items-end" : "items-start"} ${i === 0 ? "" : firstInRun ? "mt-2" : "mt-[2px]"}`}
+                    id={`msg-${m.id}`}
+                    className={`flex flex-col ${out ? "items-end" : "items-start"} ${i === 0 ? "" : firstInRun ? "mt-2" : "mt-[2px]"} ${
+                      menuFor === m.id ? "relative z-30" : ""
+                    }`}
                   >
                     {m.is_bot && !(prev && prev.is_bot) && (
                       <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
@@ -1196,11 +1328,64 @@ export function ChatView({
                         {selected.channel?.type === "instagram" ? "Desde Instagram" : "Desde Facebook"}
                       </div>
                     )}
-                    <div
-                      className={`relative max-w-[82%] rounded-[7.5px] px-[9px] pb-[7px] pt-[6px] text-[14.2px] leading-[19px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] lg:max-w-[65%] ${
-                        out ? "bg-[#D9FDD3]" : "bg-white"
-                      } ${firstInRun ? (out ? "rounded-tr-none" : "rounded-tl-none") : ""}`}
+                    <SwipeToReply
+                      enabled={touchScreen && !deleted && canAnswer}
+                      onReply={() => startReply(m)}
+                      onLongPress={() => setMenuFor(m.id)}
+                      className={`group max-w-[82%] lg:max-w-[65%] ${hasReaction ? "mb-[18px]" : ""}`}
                     >
+                    <div
+                      onContextMenu={(e) => {
+                        if (deleted || touchScreen) return;
+                        e.preventDefault();
+                        setMenuFor(m.id);
+                      }}
+                      className={`relative max-w-full rounded-[7.5px] px-[9px] pb-[7px] pt-[6px] text-[14.2px] leading-[19px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] transition-shadow ${
+                        out ? "bg-[#D9FDD3]" : "bg-white"
+                      } ${firstInRun ? (out ? "rounded-tr-none" : "rounded-tl-none") : ""} ${
+                        flashId === m.id ? "ring-2 ring-[#53BDEB]" : ""
+                      }`}
+                    >
+                      {/* Mouse screens: a small arrow on hover opens the menu. */}
+                      {!touchScreen && !deleted && (canAnswer || emojis.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => setMenuFor(m.id)}
+                          aria-label="Opciones del mensaje"
+                          className={`absolute right-1 top-1 z-[1] flex h-5 w-5 items-center justify-center rounded-full ${
+                            out ? "bg-[#D9FDD3]" : "bg-white"
+                          } text-[#667781] opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100`}
+                        >
+                          <ChevronDownIcon className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <MessageMenu
+                        open={menuFor === m.id}
+                        out={out}
+                        below={i < 2}
+                        emojis={sendBlocked ? [] : emojis}
+                        current={m.reaction_out}
+                        canReply={canAnswer}
+                        onReply={() => startReply(m)}
+                        onReact={(emoji) => handleReact(m, emoji)}
+                        onClose={() => setMenuFor(null)}
+                      />
+                      {deleted ? (
+                        <div className="flow-root">
+                          <DeletedBody />
+                          <span className="float-right -mb-[3px] ml-2 mt-[5px] select-none text-[11px] leading-[15px] text-[#667781]">
+                            {formatMessageTime(m.created_at)}
+                          </span>
+                        </div>
+                      ) : (
+                      <>
+                      {m.reply_to_id && (
+                        <QuotedMessage
+                          quoted={messagesById.get(m.reply_to_id)}
+                          contactName={selected.contact.name}
+                          onJump={jumpToMessage}
+                        />
+                      )}
                       {m.media_url && !m.media_kind && (
                         // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL sent as part of a product message
                         <img
@@ -1216,11 +1401,19 @@ export function ChatView({
                             room it drops below — that's what keeps short
                             messages in a short bubble. */}
                         <span className="float-right -mb-[3px] ml-2 mt-[5px] inline-flex select-none items-center gap-[3px] text-[11px] leading-[15px] text-[#667781]">
+                          {m.edited_at && <span>Editado</span>}
                           {formatMessageTime(m.created_at)}
                           {out && <MessageStatusIcon status={effectiveStatus(m)} />}
                         </span>
                       </div>
+                      </>
+                      )}
+                      <ReactionChips
+                        message={m}
+                        onRemoveOwn={emojis.length > 0 && !sendBlocked ? () => handleReact(m, null) : undefined}
+                      />
                     </div>
+                    </SwipeToReply>
                     {out && m.status === "failed" && (
                       <FailedNotice
                         message={m}
@@ -1338,8 +1531,20 @@ export function ChatView({
                 </div>
               </div>
             ))}
-            <div className="relative flex shrink-0 items-end gap-2 border-t border-border bg-surface px-3 py-2.5 lg:px-6 lg:py-3.5">
+            <AnimatePresence initial={false}>
+              {replyTo && replyTo.conversation_id === selected.id && !sendBlocked && !simulateMode && (
+                <ReplyBar
+                  key="reply"
+                  message={replyTo}
+                  contactName={selected.contact.name}
+                  onCancel={() => setReplyTo(null)}
+                />
+              )}
+            </AnimatePresence>
+            {composerMedia.strip}
+            <div className="relative flex shrink-0 items-end gap-1.5 border-t border-border bg-surface px-3 py-2.5 sm:gap-2 lg:px-6 lg:py-3.5">
               {quickReplyPicker.picker}
+              {composerMedia.attachButton}
               <div className="relative">
                 <button
                   onClick={() => setShowProductPicker((v) => !v)}
@@ -1494,7 +1699,9 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
-              <div className="relative">
+              {/* Phones have emoji on their own keyboard: the button only takes
+                  room the message box needs. */}
+              <div className="relative hidden sm:block">
                 <button
                   onClick={() => setShowEmojiPicker((v) => !v)}
                   title="Emoji"
@@ -1557,14 +1764,19 @@ export function ChatView({
                 }
                 className="max-h-[140px] min-w-0 flex-1 resize-none rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-[18px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
               />
-              <button
-                onClick={handleSend}
-                disabled={botTyping || sendingProduct || sendBlocked}
-                aria-label="Enviar"
-                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-60"
-              >
-                <SendIcon className="h-4 w-4" />
-              </button>
+              {/* WhatsApp-style: the mic takes Send's place while the box is empty. */}
+              {composerMedia.recording || (!draft.trim() && !pendingProduct && !simulateMode && !sendBlocked) ? (
+                composerMedia.micButton
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={botTyping || sendingProduct || sendBlocked}
+                  aria-label="Enviar"
+                  className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-60"
+                >
+                  <SendIcon className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </>
         ) : (

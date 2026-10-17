@@ -76,6 +76,18 @@ export type Message = {
   // AAC/M4A copy of a voice note, for Safari and iPhone.
   media_m4a_path?: string | null;
   media_info?: MediaInfo | null;
+  // Replies, reactions, edits and deletes (migration 0026). Optional so
+  // demo data without them still type-checks.
+  reply_to_id?: string | null;
+  external_message_id?: string | null;
+  reaction_in?: string | null;
+  reaction_out?: string | null;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  // A customer's voice note in words (migration 0025): shown under the audio
+  // and read by chekelin. Status null = not transcribed (yet, or no API key).
+  transcription?: string | null;
+  transcription_status?: "done" | "failed" | null;
   created_at: string;
 };
 
@@ -95,6 +107,8 @@ export type MediaInfo = {
   address?: string;
   // Contact cards
   contacts?: Array<{ name: string; phones: string[] }>;
+  // Voice notes sent from Chat: length in seconds.
+  duration?: number;
 };
 
 // A team-only note on a conversation: chekelin's Traspaso summary, a Queja
