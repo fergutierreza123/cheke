@@ -259,7 +259,7 @@ async function loadKnowledge(supabase: Admin, conv: LoadedConversation): Promise
 }
 
 // The Tienda's Gerentes; the Dueños when it has none.
-async function managersOf(supabase: Admin, businessId: string, storeId: string): Promise<string[]> {
+export async function managersOf(supabase: Admin, businessId: string, storeId: string): Promise<string[]> {
   const [{ data: members }, { data: storeRows }] = await Promise.all([
     supabase.from("members").select("user_id, role, created_at").eq("business_id", businessId).order("created_at"),
     supabase.from("store_members").select("user_id").eq("store_id", storeId),
@@ -271,7 +271,7 @@ async function managersOf(supabase: Admin, businessId: string, storeId: string):
 }
 
 // Dueños who turned on "avisarme de todo".
-async function notifyAllOwners(supabase: Admin, businessId: string): Promise<string[]> {
+export async function notifyAllOwners(supabase: Admin, businessId: string): Promise<string[]> {
   const { data } = await supabase.from("members").select("user_id").eq("business_id", businessId).eq("role", "owner").eq("notify_all", true);
   return (data ?? []).map((m) => m.user_id as string);
 }
@@ -625,7 +625,13 @@ async function receiptReceived(supabase: Admin, conv: LoadedConversation, orderI
 // A Queja: chekelin already answered with empathy and named the Gerente. The
 // chat gets the red Queja tag, chekelin goes silent until a person marks it
 // resolved, and the Tienda's Gerente (else the Dueño) gets an urgent alert.
-async function openComplaint(supabase: Admin, conv: LoadedConversation, summary: string, managers: string[]): Promise<void> {
+async function openComplaint(
+  supabase: Admin,
+  conv: LoadedConversation,
+  summary: string,
+  managers: string[],
+  { alert = true }: { alert?: boolean } = {},
+): Promise<void> {
   const now = new Date().toISOString();
   await supabase
     .from("conversations")
@@ -651,6 +657,7 @@ async function openComplaint(supabase: Admin, conv: LoadedConversation, summary:
     reason: "Queja: chekelin no responde hasta que alguien la marque resuelta",
   });
 
+  if (!alert) return;
   const people = new Set(managers);
   for (const owner of await notifyAllOwners(supabase, conv.businessId)) people.add(owner);
   await sendPushToPeople(supabase, conv.businessId, conv.storeId, [...people], {
@@ -658,6 +665,22 @@ async function openComplaint(supabase: Admin, conv: LoadedConversation, summary:
     body: summary || "Un cliente tiene una queja. Atiéndelo lo antes posible.",
     conversationId: conv.id,
   });
+}
+
+// A negative comment under a post moved to a private chat (Comentarios,
+// issue #43): the chekelin private reply already did the empathetic part, so
+// the chat gets the Queja straight away. `alert` = false when the Gerente was
+// already alerted about the comment itself.
+export async function openComplaintFromComment(
+  supabase: Admin,
+  conversationId: string,
+  summary: string,
+  { alert }: { alert: boolean },
+): Promise<void> {
+  const conv = await loadConversation(supabase, conversationId);
+  if (!conv || conv.complaintOpenAt) return;
+  const managers = await managersOf(supabase, conv.businessId, conv.storeId);
+  await openComplaint(supabase, conv, summary, managers, { alert });
 }
 
 // "Confirmar pago" was tapped (the order is already marked paid by the

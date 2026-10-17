@@ -106,6 +106,7 @@ concepts). In this repo they **refine, never replace**:
 
 - `catalogs` (business_id, meta_catalog_id, status, last_synced_at)
 - `products` (business_id, retailer_id unique per Tienda, name, category, description, price_hnl, image_url, visible, meta_sync_status). Products are informative only (photo, name, category, description, price, visible on/off), no stock management; the old `stock` column stays in the DB but is never read or written.
+- `post_comments` (migration 0027, issue #43): comments under the Tienda's Instagram / Facebook posts (webhook fields `comments` and `feed`), chekelin's reading (`kind`: price | complaint | other), the public reply and the private-reply queue (Meta: 750 per hour per account; drained by /api/cron/comments). Never hidden or deleted. Code: src/lib/comments.ts (pure) and src/lib/commentsServer.ts.
 - `orders` (business_id, conversation_id, contact_id, items json, total_hnl, status: new | awaiting_payment | paid | delivered | cancelled, payment_link)
 
 `window_expires_at` = last inbound message + 24h. Outside the window only approved templates can be sent; the UI must show this.
