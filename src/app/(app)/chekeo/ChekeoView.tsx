@@ -31,8 +31,11 @@ const EMPTY_DRAFT: Draft = { name: "", phone: "", ig_handle: "", fb_id: "" };
 export function ChekeoView({
   conversations: initialConversations,
   storeNames = null,
+  demo = false,
 }: {
   conversations: ConversationWithContact[];
+  // The public /demo: moves stay on screen only (nothing to save to).
+  demo?: boolean;
   // "Todas las tiendas": a tag per card, a store filter, and the new-contact
   // form asks which Tienda. null with one Tienda in view.
   storeNames?: StoreNames | null;
@@ -48,6 +51,7 @@ export function ChekeoView({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [leadError, setLeadError] = useState<string | null>(null);
+  const [boardError, setBoardError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<ConversationStage | null>(null);
   // The card that just changed stage — pinned to the top of its new column
@@ -66,13 +70,23 @@ export function ChekeoView({
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   }
 
+  // Moves show right away; if saving fails the card goes back and the board
+  // says so (before, a failed save left the board showing a move that never
+  // happened).
   async function handleSetStage(id: string, stage: ConversationStage) {
+    const previous = conversations.find((c) => c.id === id)?.stage;
+    setBoardError(null);
     updateLocal(id, { stage });
     setJustMovedId(id);
     window.setTimeout(() => {
       setJustMovedId((current) => (current === id ? null : current));
     }, 2000);
-    await setConversationStage(id, stage);
+    if (demo) return;
+    const result = await setConversationStage(id, stage);
+    if (result.error) {
+      updateLocal(id, { stage: previous });
+      setBoardError(result.error);
+    }
   }
 
   function openNewLead() {
@@ -84,8 +98,15 @@ export function ChekeoView({
     const trimmed = raw.trim();
     const value = trimmed ? Number(trimmed) : null;
     if (value !== null && Number.isNaN(value)) return;
+    const previous = conversations.find((c) => c.id === id)?.value_hnl ?? null;
+    setBoardError(null);
     updateLocal(id, { value_hnl: value });
-    await setConversationValue(id, value);
+    if (demo) return;
+    const result = await setConversationValue(id, value);
+    if (result.error) {
+      updateLocal(id, { value_hnl: previous });
+      setBoardError(result.error);
+    }
   }
 
   const columns = useMemo(() => {
@@ -170,6 +191,18 @@ export function ChekeoView({
       >
         <PlusIcon className="h-6 w-6" />
       </button>
+
+      {boardError && (
+        <div
+          role="alert"
+          className="mx-4 mt-3 flex items-start justify-between gap-3 rounded-lg border border-danger-border bg-danger-tint px-3 py-2.5 text-[12.5px] text-danger lg:mx-8"
+        >
+          <span>{boardError}</span>
+          <button type="button" onClick={() => setBoardError(null)} className="shrink-0 font-semibold underline-offset-2 hover:underline">
+            Cerrar
+          </button>
+        </div>
+      )}
 
       {storeNames && (
         <div className="px-4 pt-3 lg:px-8 lg:pt-4">
