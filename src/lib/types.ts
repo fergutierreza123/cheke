@@ -95,6 +95,8 @@ export type MediaInfo = {
   address?: string;
   // Contact cards
   contacts?: Array<{ name: string; phones: string[] }>;
+  // Voice notes sent from Chat: length in seconds.
+  duration?: number;
 };
 
 // A team-only note on a conversation: chekelin's Traspaso summary, a Queja

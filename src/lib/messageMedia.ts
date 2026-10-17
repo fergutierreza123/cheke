@@ -148,7 +148,7 @@ const run = promisify(execFile);
 
 // ffmpeg (bundled by ffmpeg-static, see next.config.ts) in a temp folder:
 // a 20-second voice note converts in well under a second.
-async function toM4a(input: Buffer): Promise<Buffer | null> {
+export async function toM4a(input: Buffer): Promise<Buffer | null> {
   if (!ffmpegPath) return null;
   const dir = await mkdtemp(join(tmpdir(), "cheke-audio-"));
   try {

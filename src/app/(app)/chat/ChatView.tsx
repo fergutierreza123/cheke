@@ -28,6 +28,7 @@ import {
 import type { Role } from "@/lib/stores";
 import type { QuickReply } from "@/lib/quickReplies";
 import { useQuickReplyPicker } from "./QuickReplyPicker";
+import { useComposerMedia, type MediaSendResult } from "./ComposerMedia";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
 export type ChekelinStore = { id: string; name: string; offUntil: string | null; canManage: boolean };
@@ -252,6 +253,15 @@ export function ChatView({
     inputRef: draftInputRef,
     disabled: !selected || sendBlocked || simulateMode,
     canManage: canManageQuickReplies,
+  });
+  // Voice notes (mic, while the box is empty) and documents (clip): issue #50.
+  const composerMedia = useComposerMedia({
+    conversationId: selected?.id ?? null,
+    channelType: selected?.channel?.type,
+    disabled: !selected || sendBlocked || simulateMode,
+    demo: businessId === "demo",
+    onResult: handleMediaResult,
+    onError: setSendError,
   });
   // The composer grows with multi-line text (up to ~6 lines), then scrolls.
   useEffect(() => {
@@ -677,6 +687,29 @@ export function ChatView({
     }
     if (result.sendError) setSendError(result.sendError);
     else if (result.error) setSendError(result.error);
+  }
+
+  // A voice note or document went out (or failed): same follow-up as a text
+  // reply — show it, move the chat up, and the person now owns the chat.
+  function handleMediaResult(result: MediaSendResult) {
+    const msg = result.message;
+    if (msg) {
+      appendMessage(msg);
+      bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === msg.conversation_id
+            ? {
+                ...c,
+                handed_off_at: c.handed_off_at ?? msg.created_at,
+                assigned_to: c.assigned_to ?? currentUserId,
+                awaiting_since: null,
+              }
+            : c,
+        ),
+      );
+    }
+    setSendError(result.sendError ?? result.error ?? null);
   }
 
   async function handleSetStage(stage: ConversationStage) {
@@ -1338,8 +1371,10 @@ export function ChatView({
                 </div>
               </div>
             ))}
-            <div className="relative flex shrink-0 items-end gap-2 border-t border-border bg-surface px-3 py-2.5 lg:px-6 lg:py-3.5">
+            {composerMedia.strip}
+            <div className="relative flex shrink-0 items-end gap-1.5 border-t border-border bg-surface px-3 py-2.5 sm:gap-2 lg:px-6 lg:py-3.5">
               {quickReplyPicker.picker}
+              {composerMedia.attachButton}
               <div className="relative">
                 <button
                   onClick={() => setShowProductPicker((v) => !v)}
@@ -1494,7 +1529,9 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
-              <div className="relative">
+              {/* Phones have emoji on their own keyboard: the button only takes
+                  room the message box needs. */}
+              <div className="relative hidden sm:block">
                 <button
                   onClick={() => setShowEmojiPicker((v) => !v)}
                   title="Emoji"
@@ -1557,14 +1594,19 @@ export function ChatView({
                 }
                 className="max-h-[140px] min-w-0 flex-1 resize-none rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-[18px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
               />
-              <button
-                onClick={handleSend}
-                disabled={botTyping || sendingProduct || sendBlocked}
-                aria-label="Enviar"
-                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-60"
-              >
-                <SendIcon className="h-4 w-4" />
-              </button>
+              {/* WhatsApp-style: the mic takes Send's place while the box is empty. */}
+              {composerMedia.recording || (!draft.trim() && !pendingProduct && !simulateMode && !sendBlocked) ? (
+                composerMedia.micButton
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={botTyping || sendingProduct || sendBlocked}
+                  aria-label="Enviar"
+                  className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-60"
+                >
+                  <SendIcon className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </>
         ) : (

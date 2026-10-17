@@ -33,7 +33,7 @@ export function metaCredentialsForChannel(channel: ChannelRow): MetaCredentials 
   }
 }
 
-async function postMessage(
+export async function postMessage(
   credentials: MetaCredentials,
   body: Record<string, unknown>,
 ): Promise<{ externalMessageId?: string; error?: string }> {
