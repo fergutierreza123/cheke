@@ -84,6 +84,10 @@ export type Message = {
   reaction_out?: string | null;
   edited_at?: string | null;
   deleted_at?: string | null;
+  // A customer's voice note in words (migration 0025): shown under the audio
+  // and read by chekelin. Status null = not transcribed (yet, or no API key).
+  transcription?: string | null;
+  transcription_status?: "done" | "failed" | null;
   created_at: string;
 };
 
