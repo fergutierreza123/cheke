@@ -37,6 +37,8 @@ export function useComposerMedia({
   channelType,
   disabled,
   demo = false,
+  replyToId = null,
+  onSendStart,
   onResult,
   onError,
 }: {
@@ -46,6 +48,10 @@ export function useComposerMedia({
   // The public demo (/demo): nothing is uploaded or sent; the bubble only
   // shows in the screen.
   demo?: boolean;
+  // "Responder": the message being quoted, sent along with the file.
+  replyToId?: string | null;
+  // Called as a send starts (Chat clears the reply bar).
+  onSendStart?: () => void;
   onResult: (result: MediaSendResult) => void;
   onError: (message: string | null) => void;
 }) {
@@ -72,15 +78,21 @@ export function useComposerMedia({
   // Latest callbacks, for async code that outlives a render.
   const onResultRef = useRef(onResult);
   const onErrorRef = useRef(onError);
+  const onSendStartRef = useRef(onSendStart);
+  const replyToIdRef = useRef(replyToId);
   useEffect(() => {
     onResultRef.current = onResult;
     onErrorRef.current = onError;
-  }, [onResult, onError]);
+    onSendStartRef.current = onSendStart;
+    replyToIdRef.current = replyToId;
+  }, [onResult, onError, onSendStart, replyToId]);
 
   const upload = useCallback(
     async (targetId: string, kind: OutgoingKind, blob: Blob, extra: { filename?: string; duration?: number }) => {
       setBusy(kind === "voice" ? "Enviando nota de voz…" : `Enviando ${extra.filename ?? "documento"}…`);
       onErrorRef.current(null);
+      const quoted = replyToIdRef.current;
+      onSendStartRef.current?.();
       try {
         if (demo) {
           await new Promise((resolve) => setTimeout(resolve, 600));
@@ -113,7 +125,7 @@ export function useComposerMedia({
         const res = await fetch("/api/chat/media", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId: targetId, kind, path: prep.path, ...extra }),
+          body: JSON.stringify({ conversationId: targetId, kind, path: prep.path, replyToId: quoted, ...extra }),
         });
         const result = (await res.json().catch(() => null)) as MediaSendResult | null;
         onResultRef.current(result ?? { error: "No se pudo enviar. Inténtalo de nuevo." });

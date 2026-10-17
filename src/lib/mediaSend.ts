@@ -26,8 +26,10 @@ export async function sendMediaOnChannel(input: {
   contact: SendContact | null | undefined;
   windowExpiresAt: string | null;
   file: OutgoingFile;
+  // Meta's id of the message being answered ("Responder"), if any.
+  replyToExternalId?: string | null;
 }): Promise<SendResult> {
-  const { channel, contact, file } = input;
+  const { channel, contact, file, replyToExternalId } = input;
   if (!channel || !contact) return { notSent: true };
 
   const state = replyWindow(channel.type, input.windowExpiresAt, Date.now());
@@ -35,7 +37,7 @@ export async function sendMediaOnChannel(input: {
 
   if (channel.type === "whatsapp") {
     if (!contact.phone) return { notSent: true };
-    return sendWhatsAppFile(contact.phone, credentialsForChannel(channel), file);
+    return sendWhatsAppFile(contact.phone, credentialsForChannel(channel), file, replyToExternalId);
   }
 
   const recipientId = channel.type === "instagram" ? contact.ig_id : contact.fb_psid;
@@ -49,7 +51,17 @@ export async function sendMediaOnChannel(input: {
     file.kind === "voice"
       ? { type: "audio", payload: { url: file.m4aUrl, is_reusable: false } }
       : { type: "file", payload: { url: file.url, is_reusable: false } };
-  const result = await postMessage(credentials, { recipient: { id: recipientId }, ...routing, message: { attachment } });
+  const recipient = { id: recipientId };
+  if (replyToExternalId) {
+    const quotedSend = await postMessage(credentials, {
+      recipient,
+      ...routing,
+      message: { attachment, reply_to: { mid: replyToExternalId } },
+    });
+    // If Meta won't quote that message, still send the file on its own.
+    if (!quotedSend.error) return { externalMessageId: quotedSend.externalMessageId };
+  }
+  const result = await postMessage(credentials, { recipient, ...routing, message: { attachment } });
   return result.error ? { error: result.error } : { externalMessageId: result.externalMessageId };
 }
 
@@ -57,6 +69,7 @@ async function sendWhatsAppFile(
   toPhone: string,
   credentials: WhatsAppCredentials | null,
   file: OutgoingFile,
+  replyToId?: string | null,
 ): Promise<SendResult> {
   if (!credentials) return { error: "El canal de WhatsApp de este negocio no está conectado todavía." };
 
@@ -74,6 +87,7 @@ async function sendWhatsAppFile(
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to: toWhatsAppNumber(toPhone),
+    ...(replyToId ? { context: { message_id: replyToId } } : {}),
     ...content,
   });
 }

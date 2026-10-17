@@ -35,7 +35,14 @@ export const maxDuration = 60;
 const BUCKET = "message-media";
 const LINK_SECONDS = 60 * 60;
 
-type Body = { conversationId?: unknown; kind?: unknown; path?: unknown; filename?: unknown; duration?: unknown };
+type Body = {
+  conversationId?: unknown;
+  kind?: unknown;
+  path?: unknown;
+  filename?: unknown;
+  duration?: unknown;
+  replyToId?: unknown;
+};
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Body | null;
@@ -127,6 +134,18 @@ export async function POST(request: Request) {
     file = { kind: "document", bytes: raw, mime, filename, url: link?.signedUrl ?? "" };
   }
 
+  // "Responder": the quoted message must be in this same conversation.
+  let quoted: { id: string; external_message_id: string | null } | null = null;
+  if (typeof body?.replyToId === "string" && body.replyToId) {
+    const { data } = await supabase
+      .from("messages")
+      .select("id, external_message_id")
+      .eq("id", body.replyToId)
+      .eq("conversation_id", conversation.id)
+      .maybeSingle();
+    quoted = data;
+  }
+
   const { data: message, error: insertError } = await supabase
     .from("messages")
     .insert({
@@ -137,6 +156,7 @@ export async function POST(request: Request) {
       body: outgoingBody(kind, media.media_info.filename),
       media_kind: kind,
       ...media,
+      ...(quoted ? { reply_to_id: quoted.id } : {}),
     })
     .select("*")
     .single();
@@ -152,7 +172,13 @@ export async function POST(request: Request) {
   const { data: business } = await supabase.from("businesses").select("is_demo").eq("id", conversation.business_id).maybeSingle();
   const result: SendResult = business?.is_demo
     ? { notSent: true }
-    : await sendMediaOnChannel({ channel, contact, windowExpiresAt: conversation.window_expires_at, file });
+    : await sendMediaOnChannel({
+        channel,
+        contact,
+        windowExpiresAt: conversation.window_expires_at,
+        file,
+        replyToExternalId: quoted?.external_message_id ?? null,
+      });
 
   if (result.error) {
     const failed = await markMessageFailed(supabase, message.id, result);

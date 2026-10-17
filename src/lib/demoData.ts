@@ -62,8 +62,11 @@ export function buildDemoData(now: number) {
   const messages: Message[] = [
     msg("m1", "in", "Hola, quiero saber el precio de la guitarra", 30 * 60000, "read"),
     msg("m2", "out", "¡Hola Juan! La guitarra acústica cuesta L 4,500 y la tenemos en negro y café. ¿Te la enviamos?", 29 * 60000, "read", true),
-    msg("m3", "in", "Sí, cuánto sale el envío a Choluteca?", 12 * 60000, "read"),
-    msg("m4", "out", "El envío a Choluteca son L 120 y llega en 2 días.", 8 * 60000, "read"),
+    // A quoted reply, a reaction, an edited and a deleted message (issue #51).
+    { ...msg("m3", "in", "Sí, cuánto sale el envío a Choluteca?", 12 * 60000, "read"), reply_to_id: "m2" },
+    { ...msg("m4", "out", "El envío a Choluteca son L 120 y llega en 2 días.", 8 * 60000, "read"), reaction_in: "👍" },
+    { ...msg("m5", "in", "Mensaje eliminado", 6 * 60000, "read"), deleted_at: iso(5 * 60000) },
+    { ...msg("m6", "in", "Perfecto, me la apartan para el viernes?", 4 * 60000, "read"), edited_at: iso(3 * 60000) },
   ];
 
   const products: Product[] = (

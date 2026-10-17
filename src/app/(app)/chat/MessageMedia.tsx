@@ -34,8 +34,24 @@ export function MessageMedia({ message }: { message: Message }) {
     case "document":
       return <DocumentCard path={message.media_path!} filename={info.filename} size={info.size} fallback={message.body} />;
     default:
-      return <FileMedia message={message} />;
+      return (
+        <>
+          <FileMedia message={message} />
+          {message.transcription && <Transcription text={message.transcription} />}
+        </>
+      );
   }
+}
+
+// What the customer said in a voice note (issue #49): agents read faster
+// than they listen.
+function Transcription({ text }: { text: string }) {
+  return (
+    <div className="-mx-1 mb-1 max-w-[17rem] rounded-md bg-black/[0.04] px-2.5 py-1.5">
+      <span className="block text-[11.5px] font-semibold text-[#667781]">Transcripción</span>
+      <span className="block whitespace-pre-wrap break-words text-[13.5px] leading-snug">{text}</span>
+    </div>
+  );
 }
 
 function FileMedia({ message }: { message: Message }) {

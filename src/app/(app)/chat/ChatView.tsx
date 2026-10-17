@@ -14,6 +14,8 @@ import {
   reassignConversation,
   listConversationNotes,
   resolveComplaint,
+  reactToMessage,
+  markConversationRead,
   type OpenOrder,
 } from "./actions";
 import { setChekelinOff } from "../actions";
@@ -52,6 +54,15 @@ import { parseAmount, formatAmount, orderConcept, type OrderItem } from "@/lib/p
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { MessageMedia, mediaReplacesBody } from "./MessageMedia";
+import {
+  DeletedBody,
+  MessageMenu,
+  QuotedMessage,
+  ReactionChips,
+  ReplyBar,
+  SwipeToReply,
+  reactionChoices,
+} from "./MessageExtras";
 import { BrandMark } from "@/components/BrandMark";
 import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
@@ -186,6 +197,22 @@ export function ChatView({
   const [showDetail, setShowDetail] = useState(false);
   // The failed message whose reason is expanded (tap "No entregado").
   const [openFailureId, setOpenFailureId] = useState<string | null>(null);
+  // "Responder": the message the next send quotes, and the bubble whose
+  // menu (reactions + Responder) is open.
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  // The bubble just jumped to from a quote, briefly highlighted.
+  const [flashId, setFlashId] = useState<string | null>(null);
+  // Touch screens swipe/hold a bubble; mouse screens get a hover button.
+  const [touchScreen, setTouchScreen] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(pointer: coarse)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from an external source (media query) on mount
+    setTouchScreen(query.matches);
+    const onChange = (e: MediaQueryListEvent) => setTouchScreen(e.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
   const prefersReducedMotion = useReducedMotion();
 
   // Restore the panel width the viewer left it at last time (per-browser
@@ -260,6 +287,8 @@ export function ChatView({
     channelType: selected?.channel?.type,
     disabled: !selected || sendBlocked || simulateMode,
     demo: businessId === "demo",
+    replyToId: replyTo && replyTo.conversation_id === selected?.id ? replyTo.id : null,
+    onSendStart: () => setReplyTo(null),
     onResult: handleMediaResult,
     onError: setSendError,
   });
@@ -274,6 +303,53 @@ export function ChatView({
     () => (selectedId ? (messagesByConversation[selectedId] ?? []) : []),
     [selectedId, messagesByConversation],
   );
+  const messagesById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+
+  // A person opened the chat (and is looking at it): the customer sees their
+  // messages as read. Again whenever a new one arrives while it's open.
+  const unreadInboundId = useMemo(
+    () => [...messages].reverse().find((m) => m.direction === "in" && m.status !== "read")?.id ?? null,
+    [messages],
+  );
+  useEffect(() => {
+    if (!selectedId || !unreadInboundId || businessId === "demo" || simulateMode) return;
+    // Phones open on the list: the selected chat isn't on screen until tapped.
+    const threadOnScreen = mobileView === "thread" || window.matchMedia("(min-width: 1024px)").matches;
+    if (!threadOnScreen || document.visibilityState !== "visible") return;
+    const timer = setTimeout(() => {
+      markConversationRead(selectedId).catch(() => {});
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [selectedId, unreadInboundId, mobileView, businessId, simulateMode]);
+
+  function jumpToMessage(id: string) {
+    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "center" });
+    setFlashId(id);
+    setTimeout(() => setFlashId((current) => (current === id ? null : current)), 1200);
+  }
+
+  function startReply(m: Message) {
+    setMenuFor(null);
+    setReplyTo(m);
+    draftInputRef.current?.focus();
+  }
+
+  // The business's reaction, shown at once and undone if Meta refuses it.
+  async function handleReact(m: Message, emoji: string | null) {
+    setMenuFor(null);
+    const previous = m.reaction_out ?? null;
+    const next = emoji && emoji === previous ? null : emoji;
+    patchMessage({ ...m, reaction_out: next });
+    // The public demo has no account behind it: the reaction stays on screen only.
+    if (businessId === "demo") return;
+    const result = await reactToMessage(m.id, next);
+    if (result.error) {
+      patchMessage({ ...m, reaction_out: previous });
+      setSendError(result.error);
+    } else if (result.reaction !== next) {
+      patchMessage({ ...m, reaction_out: result.reaction ?? null });
+    }
+  }
 
   // chekelin and Asignación for the open conversation.
   const selectedStore = selected ? stores.find((s) => s.id === selected.store_id) : undefined;
@@ -663,7 +739,9 @@ export function ChatView({
       return;
     }
 
-    const result = await sendChatMessage(selected.id, text);
+    const quoting = replyTo && replyTo.conversation_id === selected.id ? replyTo : null;
+    setReplyTo(null);
+    const result = await sendChatMessage(selected.id, text, null, quoting?.id ?? null);
 
     if (result.message) {
       appendMessage(result.message);
@@ -949,6 +1027,8 @@ export function ChatView({
                 key={c.id}
                 onClick={() => {
                   setSelectedId(c.id);
+                  if (c.id !== selectedId) setReplyTo(null);
+                  setMenuFor(null);
                   setMobileView("thread");
                   setSendError(null);
                   setShowDetail(false);
@@ -1203,16 +1283,35 @@ export function ChatView({
               className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#EFEAE2] px-3 py-3 lg:px-[6%] lg:py-4"
               style={{ fontFamily: WHATSAPP_FONT }}
             >
+              {/* An open bubble menu closes on any tap outside it. */}
+              {menuFor && (
+                <div
+                  className="fixed inset-0 z-20"
+                  onClick={() => setMenuFor(null)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenuFor(null);
+                  }}
+                />
+              )}
               {messages.map((m, i) => {
                 const out = m.direction === "out";
                 const prev = messages[i - 1];
                 // Bubbles from the same side in a row are tight (2px) and only
                 // the first gets the pointed corner, like WhatsApp's tail.
                 const firstInRun = !prev || prev.direction !== m.direction;
+                const deleted = Boolean(m.deleted_at);
+                const hasReaction = !deleted && Boolean(m.reaction_in || m.reaction_out);
+                // Only while the composer can send (not in test mode).
+                const canAnswer = !sendBlocked && !simulateMode;
+                const emojis = simulateMode ? [] : reactionChoices(selected.channel?.type);
                 return (
                   <div
                     key={m.id}
-                    className={`flex flex-col ${out ? "items-end" : "items-start"} ${i === 0 ? "" : firstInRun ? "mt-2" : "mt-[2px]"}`}
+                    id={`msg-${m.id}`}
+                    className={`flex flex-col ${out ? "items-end" : "items-start"} ${i === 0 ? "" : firstInRun ? "mt-2" : "mt-[2px]"} ${
+                      menuFor === m.id ? "relative z-30" : ""
+                    }`}
                   >
                     {m.is_bot && !(prev && prev.is_bot) && (
                       <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
@@ -1229,11 +1328,64 @@ export function ChatView({
                         {selected.channel?.type === "instagram" ? "Desde Instagram" : "Desde Facebook"}
                       </div>
                     )}
-                    <div
-                      className={`relative max-w-[82%] rounded-[7.5px] px-[9px] pb-[7px] pt-[6px] text-[14.2px] leading-[19px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] lg:max-w-[65%] ${
-                        out ? "bg-[#D9FDD3]" : "bg-white"
-                      } ${firstInRun ? (out ? "rounded-tr-none" : "rounded-tl-none") : ""}`}
+                    <SwipeToReply
+                      enabled={touchScreen && !deleted && canAnswer}
+                      onReply={() => startReply(m)}
+                      onLongPress={() => setMenuFor(m.id)}
+                      className={`group max-w-[82%] lg:max-w-[65%] ${hasReaction ? "mb-[18px]" : ""}`}
                     >
+                    <div
+                      onContextMenu={(e) => {
+                        if (deleted || touchScreen) return;
+                        e.preventDefault();
+                        setMenuFor(m.id);
+                      }}
+                      className={`relative max-w-full rounded-[7.5px] px-[9px] pb-[7px] pt-[6px] text-[14.2px] leading-[19px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] transition-shadow ${
+                        out ? "bg-[#D9FDD3]" : "bg-white"
+                      } ${firstInRun ? (out ? "rounded-tr-none" : "rounded-tl-none") : ""} ${
+                        flashId === m.id ? "ring-2 ring-[#53BDEB]" : ""
+                      }`}
+                    >
+                      {/* Mouse screens: a small arrow on hover opens the menu. */}
+                      {!touchScreen && !deleted && (canAnswer || emojis.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => setMenuFor(m.id)}
+                          aria-label="Opciones del mensaje"
+                          className={`absolute right-1 top-1 z-[1] flex h-5 w-5 items-center justify-center rounded-full ${
+                            out ? "bg-[#D9FDD3]" : "bg-white"
+                          } text-[#667781] opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100`}
+                        >
+                          <ChevronDownIcon className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <MessageMenu
+                        open={menuFor === m.id}
+                        out={out}
+                        below={i < 2}
+                        emojis={sendBlocked ? [] : emojis}
+                        current={m.reaction_out}
+                        canReply={canAnswer}
+                        onReply={() => startReply(m)}
+                        onReact={(emoji) => handleReact(m, emoji)}
+                        onClose={() => setMenuFor(null)}
+                      />
+                      {deleted ? (
+                        <div className="flow-root">
+                          <DeletedBody />
+                          <span className="float-right -mb-[3px] ml-2 mt-[5px] select-none text-[11px] leading-[15px] text-[#667781]">
+                            {formatMessageTime(m.created_at)}
+                          </span>
+                        </div>
+                      ) : (
+                      <>
+                      {m.reply_to_id && (
+                        <QuotedMessage
+                          quoted={messagesById.get(m.reply_to_id)}
+                          contactName={selected.contact.name}
+                          onJump={jumpToMessage}
+                        />
+                      )}
                       {m.media_url && !m.media_kind && (
                         // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL sent as part of a product message
                         <img
@@ -1249,11 +1401,19 @@ export function ChatView({
                             room it drops below — that's what keeps short
                             messages in a short bubble. */}
                         <span className="float-right -mb-[3px] ml-2 mt-[5px] inline-flex select-none items-center gap-[3px] text-[11px] leading-[15px] text-[#667781]">
+                          {m.edited_at && <span>Editado</span>}
                           {formatMessageTime(m.created_at)}
                           {out && <MessageStatusIcon status={effectiveStatus(m)} />}
                         </span>
                       </div>
+                      </>
+                      )}
+                      <ReactionChips
+                        message={m}
+                        onRemoveOwn={emojis.length > 0 && !sendBlocked ? () => handleReact(m, null) : undefined}
+                      />
                     </div>
+                    </SwipeToReply>
                     {out && m.status === "failed" && (
                       <FailedNotice
                         message={m}
@@ -1371,6 +1531,16 @@ export function ChatView({
                 </div>
               </div>
             ))}
+            <AnimatePresence initial={false}>
+              {replyTo && replyTo.conversation_id === selected.id && !sendBlocked && !simulateMode && (
+                <ReplyBar
+                  key="reply"
+                  message={replyTo}
+                  contactName={selected.contact.name}
+                  onCancel={() => setReplyTo(null)}
+                />
+              )}
+            </AnimatePresence>
             {composerMedia.strip}
             <div className="relative flex shrink-0 items-end gap-1.5 border-t border-border bg-surface px-3 py-2.5 sm:gap-2 lg:px-6 lg:py-3.5">
               {quickReplyPicker.picker}
