@@ -13,6 +13,12 @@ import type { CapacitorConfig } from "@capacitor/cli";
 //   "cheke usa Face ID para que entres a tu cuenta sin esperar un código."
 // - android/app/src/main/AndroidManifest.xml:
 //   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+// And for voice notes in Chat (issue #50):
+// - Info.plist: NSMicrophoneUsageDescription =
+//   "cheke usa el micrófono para grabar notas de voz para tus clientes."
+// - AndroidManifest.xml:
+//   <uses-permission android:name="android.permission.RECORD_AUDIO" />
+//   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 // (Full steps in README.md → "App móvil".)
 const config: CapacitorConfig = {
   appId: "io.cheke.app",
