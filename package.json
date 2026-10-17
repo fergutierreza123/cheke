@@ -8,7 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "compare-photos": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/compare-photo-providers.mjs",
-    "bakeoff:transcribe": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/bakeoff-transcribe.mjs"
+    "bakeoff:transcribe": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/bakeoff-transcribe.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:db": "vitest run --config vitest.db.config.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -29,6 +33,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
+    "@electric-sql/pglite": "^0.3.16",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -36,6 +41,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12"
   }
 }
