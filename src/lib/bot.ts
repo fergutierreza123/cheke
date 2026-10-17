@@ -55,7 +55,7 @@ const SALE_CAP = 15;
 
 const CONVERSATION_COLUMNS = `id, business_id, store_id, contact_id, stage, bot_enabled, handed_off_at, chekelin_replies, chekelin_order_at, complaint_open_at, assigned_to, window_expires_at, last_inbound_at, awaiting_since, contact:contacts(name, ${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(chekelin_off_until), business:businesses(name, plan, is_demo)`;
 
-type LoadedConversation = {
+export type LoadedConversation = {
   id: string;
   businessId: string;
   storeId: string;
@@ -216,7 +216,7 @@ async function recentHistory(supabase: Admin, conversationId: string) {
 
 type PendingOrder = { id: string; concept: string; totalHnl: number; receiptSent: boolean };
 
-type Knowledge = {
+export type Knowledge = {
   info: ChekelinInfo;
   refs: ProductRef[];
   templates: Template[];
@@ -390,7 +390,7 @@ type Plan =
   | { kind: "order"; order: OrderDraft }
   | { kind: "receipt"; orderId: string };
 
-function planFor(decision: SellerDecision, conv: LoadedConversation, know: Knowledge): Plan {
+export function planFor(decision: SellerDecision, conv: LoadedConversation, know: Knowledge): Plan {
   switch (decision.action) {
     case "complaint":
       return { kind: "complaint" };
