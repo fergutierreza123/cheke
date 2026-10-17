@@ -27,3 +27,25 @@ comment on column messages.reaction_in is 'The customer''s reaction emoji on thi
 comment on column messages.reaction_out is 'The business''s reaction emoji on this message; null when none.';
 comment on column messages.edited_at is 'When the text was edited after sending (Chat shows "Editado").';
 comment on column messages.deleted_at is 'When it was deleted for everyone (Chat shows "Mensaje eliminado").';
+
+-- A quote must point at a message in the same conversation. Otherwise a
+-- webhook lookup or a hand-made request could link a message to one from
+-- another chat (or another Negocio) and Chat would show its text. Such a
+-- quote is dropped (set to null) rather than rejected, so the message
+-- itself is never lost.
+create or replace function keep_reply_in_conversation() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.reply_to_id is not null and not exists (
+    select 1 from messages q
+    where q.id = new.reply_to_id and q.conversation_id = new.conversation_id
+  ) then
+    new.reply_to_id := null;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists messages_reply_same_conversation on messages;
+create trigger messages_reply_same_conversation
+  before insert or update of reply_to_id, conversation_id on messages
+  for each row execute function keep_reply_in_conversation();
