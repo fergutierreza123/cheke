@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
+import { graphWithFallback, systemUserToken } from "@/lib/whatsapp";
 
 // Server-only helpers shared by the connect/disconnect actions and by
 // archiving a Tienda. Not server actions: nothing here is callable from the
@@ -39,7 +40,7 @@ export async function claimExternalId(
     }
     const { error } = await supabase
       .from("channels")
-      .update({ external_id: null, status: "disconnected", access_token_encrypted: null })
+      .update({ external_id: null, status: "disconnected", access_token_encrypted: null, credential_token_encrypted: null })
       .eq("id", row.id)
       .eq("business_id", businessId);
     if (error) return error.message;
@@ -47,14 +48,30 @@ export async function claimExternalId(
   return null;
 }
 
-// Best effort: stop Meta sending this number's messages here.
+// Best effort: stop Meta sending this number's messages here. Uses cheke's
+// system-user token first when set (the channel's own token may have
+// expired), then the channel's own.
 export async function unsubscribeWhatsApp(channel: { waba_id: string | null; access_token_encrypted: string | null }) {
   if (!channel.waba_id || !channel.access_token_encrypted) return;
   try {
-    await fetch(`${GRAPH}/${channel.waba_id}/subscribed_apps`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${decryptSecret(channel.access_token_encrypted)}` },
-    });
+    let own: string | undefined;
+    try {
+      own = decryptSecret(channel.access_token_encrypted);
+    } catch {
+      // unreadable: try the system user's token alone
+    }
+    const system = systemUserToken();
+    const first = system ?? own;
+    if (!first) return;
+    await graphWithFallback(
+      { accessToken: first, fallbackAccessToken: system ? own : undefined, usesSystemToken: Boolean(system) },
+      (token) =>
+        fetch(`${GRAPH}/${channel.waba_id}/subscribed_apps`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(10_000),
+        }),
+    );
   } catch (e) {
     console.error("channels: could not unsubscribe webhook", e);
   }

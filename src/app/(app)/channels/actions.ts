@@ -9,6 +9,7 @@ import { claimExternalId, unsubscribeWhatsApp } from "./channelHelpers";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
 import { requestCoexistenceSync } from "@/lib/coexistence";
+import { debugToken, freshConnectionFields } from "@/lib/channelHealth";
 
 const GRAPH = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
@@ -55,8 +56,13 @@ export async function connectWhatsAppChannel(input: {
   const accessToken: string | undefined = tokenData?.access_token;
   if (!accessToken) return { error: tokenData?.error?.message ?? "Meta no aceptó la autorización. Intenta de nuevo." };
   const encryptedToken = encryptSecret(accessToken);
+  // When this token ends (Embedded Signup's is 60 days today), so Canales
+  // can warn before it does. Onboarding below keeps using this token: the
+  // system user (META_SYSTEM_USER_TOKEN) may not see a just-shared account
+  // for a few seconds.
+  const tokenInfoPromise = debugToken(accessToken);
 
-  const auth = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
+  const auth ={ Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
 
   // Which number to connect, checked against the account's own list: the
   // browser could send any phone_number_id, and connecting a number this
@@ -137,6 +143,8 @@ export async function connectWhatsAppChannel(input: {
     history_sync_requested_at: null,
     history_sync_progress: null,
     history_sync_error: null,
+    // Token end dates + clears any "Reconectar" state (migration 0029).
+    ...freshConnectionFields(await tokenInfoPromise),
   };
 
   const supabase = await createClient();

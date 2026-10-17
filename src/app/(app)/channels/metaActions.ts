@@ -8,6 +8,8 @@ import { claimExternalId, unsubscribeMetaPage } from "./channelHelpers";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
 import { PAGE_SUBSCRIBED_FIELDS } from "@/lib/metaMessaging";
+import { debugToken, freshConnectionFields } from "@/lib/channelHealth";
+import { grantedPageIds } from "@/lib/metaTokens";
 
 const GRAPH = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
@@ -55,10 +57,36 @@ async function listPages(token: string, withTokens: boolean): Promise<{ pages?: 
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) return { error: data?.error?.message ?? "Meta no devolvió tus páginas de Facebook." };
-    return { pages: data?.data ?? [] };
+    const pages: MetaPage[] = data?.data ?? [];
+    if (pages.length > 0) return { pages };
+    return { pages: await grantedPages(token, fields) };
   } catch {
     return { error: "No se pudo contactar a Meta. Revisa tu conexión e intenta de nuevo." };
   }
+}
+
+// A System-user token ("General + System-user + Never" configuration) may
+// list no Pages under /me/accounts. It still says which Pages it was granted
+// (debug_token's granular_scopes), and each one can be read directly:
+// GET /<PAGE_ID>?fields=…,access_token.
+async function grantedPages(token: string, fields: string): Promise<MetaPage[]> {
+  const info = await debugToken(token);
+  const ids = grantedPageIds(info?.granularScopes).slice(0, 25);
+  const pages = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const res = await fetch(`${GRAPH}/${encodeURIComponent(id)}?fields=${encodeURIComponent(fields)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        const page = res.ok ? await res.json().catch(() => null) : null;
+        return page?.id ? (page as MetaPage) : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return pages.filter((p): p is MetaPage => p !== null);
 }
 
 export async function startMetaConnection(
@@ -88,7 +116,8 @@ export async function startMetaConnection(
   if (!token) return { error: tokenData?.error?.message ?? "Meta no aceptó la autorización. Intenta de nuevo." };
 
   // A long-lived user token gives Page tokens that never expire. A business
-  // (system user) token is already long-lived and Meta just rejects this.
+  // (system user) token, from the "General + System-user + Never"
+  // configuration, never expires on its own and Meta just rejects this.
   const longRes = await fetch(
     `${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(appId)}&client_secret=${encodeURIComponent(appSecret)}&fb_exchange_token=${encodeURIComponent(token)}`,
   ).catch(() => null);
@@ -148,11 +177,14 @@ export async function connectMetaPage(
   if (listError || !pages) return { error: listError };
   const page = pages.find((p) => p.id === pageId);
   if (!page) return { error: "Esa página no pertenece a tu cuenta de Facebook." };
-  if (!page.access_token) {
+  const pageToken = page.access_token ?? (await pageTokenFor(token, page.id));
+  if (!pageToken) {
     return { error: "Meta no dio permiso para responder mensajes de esa página. Revisa que seas administrador de la página." };
   }
-  const pageToken = page.access_token;
   const instagram = page.instagram_business_account ?? null;
+  // When the Page token ends: null ("never") for a Page token from a
+  // long-lived user token or a System-user token, which is what we want.
+  const tokenInfo = await debugToken(pageToken);
 
   // A Page / Instagram account can only belong to one business (the webhook
   // routes messages by its id). Admin client: RLS would hide other
@@ -188,8 +220,13 @@ export async function connectMetaPage(
   const common = {
     page_id: page.id,
     access_token_encrypted: encryptSecret(pageToken),
+    // The client's own token (long-lived user or System-user), kept
+    // encrypted so a Page token Meta stops accepting can be regenerated
+    // without asking the client to reconnect (src/lib/channelHealth.ts).
+    credential_token_encrypted: encryptSecret(token),
     status: "connected",
     connected_at: new Date().toISOString(),
+    ...freshConnectionFields(tokenInfo),
   };
 
   const facebookError = await saveChannel(supabase, business.id, storeId, "facebook", page.id, {
@@ -208,7 +245,7 @@ export async function connectMetaPage(
     // The Page no longer has an Instagram linked: stop using the old one.
     await supabase
       .from("channels")
-      .update({ status: "disconnected", access_token_encrypted: null })
+      .update({ status: "disconnected", access_token_encrypted: null, credential_token_encrypted: null })
       .eq("business_id", business.id)
       .eq("store_id", storeId)
       .eq("type", "instagram")
@@ -219,6 +256,21 @@ export async function connectMetaPage(
 
   revalidatePath("/channels");
   return { warning };
+}
+
+// A Page's token straight from the Page (GET /<PAGE_ID>?fields=access_token),
+// for when the Page list didn't include it.
+async function pageTokenFor(token: string, pageId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${GRAPH}/${encodeURIComponent(pageId)}?fields=access_token`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const data = res.ok ? await res.json().catch(() => null) : null;
+    return typeof data?.access_token === "string" ? data.access_token : null;
+  } catch {
+    return null;
+  }
 }
 
 async function saveChannel(
@@ -271,7 +323,7 @@ export async function disconnectMetaPage(pageId: string): Promise<{ error?: stri
 
   const { error } = await supabase
     .from("channels")
-    .update({ status: "disconnected", access_token_encrypted: null })
+    .update({ status: "disconnected", access_token_encrypted: null, credential_token_encrypted: null })
     .eq("business_id", business.id)
     .in("store_id", storeIds)
     .in("type", ["facebook", "instagram"])

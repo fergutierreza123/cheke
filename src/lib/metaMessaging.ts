@@ -36,7 +36,7 @@ export function metaCredentialsForChannel(channel: ChannelRow): MetaCredentials 
 async function postMessage(
   credentials: MetaCredentials,
   body: Record<string, unknown>,
-): Promise<{ externalMessageId?: string; error?: string }> {
+): Promise<MetaSendResult> {
   let res: Response;
   try {
     res = await fetch(`${GRAPH}/${encodeURIComponent(credentials.pageId)}/messages`, {
@@ -49,9 +49,22 @@ async function postMessage(
     return { error: "No se pudo contactar a Meta. Revisa tu conexión e inténtalo de nuevo." };
   }
   const data = await res.json().catch(() => null);
-  if (!res.ok) return { error: data?.error?.message ?? "Meta no aceptó el mensaje." };
+  if (!res.ok) {
+    const graphError = data?.error
+      ? { code: data.error.code, error_subcode: data.error.error_subcode, message: data.error.message }
+      : undefined;
+    return { error: data?.error?.message ?? "Meta no aceptó el mensaje.", graphError };
+  }
   return { externalMessageId: data?.message_id };
 }
+
+// `graphError` is Meta's own error (code / subcode), so the caller can tell
+// a broken connection ("Reconectar") from a normal refusal.
+export type MetaSendResult = {
+  externalMessageId?: string;
+  error?: string;
+  graphError?: { code?: number; error_subcode?: number; message?: string };
+};
 
 // Sends a text (and, before it, a photo when `mediaUrl` is given: Messenger
 // and Instagram have no photo captions). `humanAgent` marks a reply typed by
@@ -62,7 +75,7 @@ export async function sendMetaMessage(
   text: string,
   credentials: MetaCredentials | null,
   { mediaUrl, humanAgent = false }: { mediaUrl?: string | null; humanAgent?: boolean } = {},
-): Promise<{ externalMessageId?: string; error?: string }> {
+): Promise<MetaSendResult> {
   if (!credentials) return { error: "Este canal no está conectado. Vuelve a conectarlo en Canales." };
 
   const routing = humanAgent

@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import ffmpegPath from "ffmpeg-static";
 import { GRAPH_API_VERSION } from "@/lib/meta";
+import { isMetaAuthError } from "@/lib/metaTokens";
 import type { MediaInfo, MediaKind } from "@/lib/types";
 
 // Server-only. Saves the photo, video, voice note or document of a message
@@ -20,9 +21,11 @@ export type MediaJob = {
   externalMessageId: string;
   kind: MediaKind;
   info: MediaInfo;
-  // WhatsApp: the media id plus the channel's token. Instagram/Messenger:
-  // the attachment's temporary link. None for locations and contacts.
-  download?: { whatsappMediaId: string; accessToken: string } | { url: string };
+  // WhatsApp: the media id plus the channel's token (and a second token to
+  // try if Meta refuses the first, see credentialsForChannel).
+  // Instagram/Messenger: the attachment's temporary link. None for locations
+  // and contacts.
+  download?: { whatsappMediaId: string; accessToken: string; fallbackAccessToken?: string } | { url: string };
 };
 
 const BUCKET = "message-media";
@@ -82,12 +85,20 @@ async function downloadFile(source: NonNullable<MediaJob["download"]>): Promise<
     if ("whatsappMediaId" in source) {
       // WhatsApp: ask for a short-lived link (5 minutes), then fetch the
       // file from it with the same token.
-      headers = { Authorization: `Bearer ${source.accessToken}` };
-      const res = await fetch(`${GRAPH}/${encodeURIComponent(source.whatsappMediaId)}`, {
-        headers,
-        signal: AbortSignal.timeout(10_000),
-      });
-      const meta = await res.json().catch(() => null);
+      const lookup = async (token: string) => {
+        const res = await fetch(`${GRAPH}/${encodeURIComponent(source.whatsappMediaId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        return { res, meta: await res.json().catch(() => null) };
+      };
+      let token = source.accessToken;
+      let { res, meta } = await lookup(token);
+      if (!res.ok && source.fallbackAccessToken && isMetaAuthError(meta?.error)) {
+        token = source.fallbackAccessToken;
+        ({ res, meta } = await lookup(token));
+      }
+      headers = { Authorization: `Bearer ${token}` };
       if (!res.ok || !meta?.url) {
         console.error("whatsapp media lookup failed", res.status, meta?.error?.message);
         return null;

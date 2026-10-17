@@ -15,8 +15,21 @@ import { loadFacebookSdk } from "./facebookSdk";
 // and the chosen account (a postMessage from the popup) — and they can
 // arrive in either order, so we wait for both before calling the server.
 
-// `storeId`: the Tienda the number is connected to.
-export function ConnectWhatsAppButton({ appId, configId, storeId }: { appId: string; configId: string; storeId: string }) {
+// `storeId`: the Tienda the number is connected to. `label` / `hint`: the
+// same button reconnects a number Meta disconnected ("Reconectar WhatsApp").
+export function ConnectWhatsAppButton({
+  appId,
+  configId,
+  storeId,
+  label = "Conectar WhatsApp",
+  hint = true,
+}: {
+  appId: string;
+  configId: string;
+  storeId: string;
+  label?: string;
+  hint?: boolean;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "opening" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -119,12 +132,14 @@ export function ConnectWhatsAppButton({ appId, configId, storeId }: { appId: str
         disabled={status !== "idle"}
         className="flex h-10 items-center justify-center rounded-[10px] bg-[#25D366] px-4 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
       >
-        {status === "opening" ? "Abriendo Meta…" : status === "saving" ? "Conectando…" : "Conectar WhatsApp"}
+        {status === "opening" ? "Abriendo Meta…" : status === "saving" ? "Conectando…" : label}
       </button>
-      <p className="text-[12.5px] leading-relaxed text-ink-muted">
-        ¿Ya usas WhatsApp Business en tu teléfono? Conecta ese mismo número: sigues usando la app y tus chats de
-        los últimos 6 meses llegan a cheke.
-      </p>
+      {hint && (
+        <p className="text-[12.5px] leading-relaxed text-ink-muted">
+          ¿Ya usas WhatsApp Business en tu teléfono? Conecta ese mismo número: sigues usando la app y tus chats de
+          los últimos 6 meses llegan a cheke.
+        </p>
+      )}
       {error && <p className="text-[12.5px] text-danger">{error}</p>}
       {warning && <p className="text-[12.5px] text-ink-muted">{warning}</p>}
     </div>

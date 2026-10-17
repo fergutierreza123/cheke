@@ -108,7 +108,12 @@ export async function archiveStore(storeId: string): Promise<{ error?: string }>
   }
   const { error: channelError } = await supabase
     .from("channels")
-    .update({ status: "disconnected", access_token_encrypted: null, registration_pin_encrypted: null })
+    .update({
+      status: "disconnected",
+      access_token_encrypted: null,
+      registration_pin_encrypted: null,
+      credential_token_encrypted: null,
+    })
     .eq("business_id", business.id)
     .eq("store_id", storeId);
   if (channelError) return { error: channelError.message };
