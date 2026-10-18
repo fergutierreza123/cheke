@@ -4,11 +4,13 @@ const nextConfig: NextConfig = {
   // The webhooks convert WhatsApp voice notes to M4A (Safari/iPhone) with
   // the ffmpeg program from ffmpeg-static (src/lib/messageMedia.ts). It finds
   // the program next to its own file, so it must not be bundled, and the
-  // program itself has to be copied into those two functions on Vercel.
+  // program itself has to be copied into those functions on Vercel.
   serverExternalPackages: ["ffmpeg-static"],
   outputFileTracingIncludes: {
     "/api/whatsapp/webhook": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/meta/webhook": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // Voice notes recorded in Chat become OGG/Opus + M4A (issue #50).
+    "/api/chat/media": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
   experimental: {
     serverActions: {

@@ -34,7 +34,7 @@ export default async function DemoScreen({
 
   const views: Record<string, React.ReactNode> = {
     chat: <ChatView businessId="demo" storeIds={d.business.scopeStoreIds} conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} startInThread={Boolean(c)} />,
-    chekeo: <ChekeoView conversations={d.conversations} />,
+    chekeo: <ChekeoView conversations={d.conversations} demo />,
     contacts: <ContactsView contacts={d.contacts} />,
     templates: <TemplatesView templates={d.templates} />,
     inventory: <InventoryView products={d.products} conversations={d.conversations} />,

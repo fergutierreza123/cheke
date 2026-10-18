@@ -4,10 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { STORE_COOKIE, type CurrentBusiness, type Role, type StoreRef, type StoreSelection } from "@/lib/stores";
 
 export {
+  ARCHIVED_STORE_READ_ONLY,
   ROLE_LABEL,
   STORE_COOKIE,
   canAccessStore,
   canManageStore,
+  canWriteToStore,
   storeNamesForTags,
   type CurrentBusiness,
   type Role,

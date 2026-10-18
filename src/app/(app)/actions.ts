@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { canAccessStore, canManageStore, getCurrentBusiness } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness } from "@/lib/business";
+import { cleanDealValue, isConversationStage } from "@/lib/deals";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handOffActiveChats } from "@/lib/bot";
 import { CHEKELIN_OFF_OPTIONS, chekelinOffUntil, type ChekelinOffDuration } from "@/lib/chekelinState";
@@ -82,16 +83,20 @@ const DEMO_CONTACTS: Array<{
   },
 ];
 
+const SEED_FAILED = "No se pudieron crear los datos de ejemplo. Inténtalo de nuevo.";
+
 // Demo data for a fresh business so Phase 2 (Chat + Contactos) has something
 // real to show before WhatsApp/Instagram/Facebook are actually connected
 // (Phase 4+). Safe to call more than once — it's a no-op once the business
 // already has contacts.
-export async function seedDemoData() {
+export async function seedDemoData(): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
-  if (!business) return;
-  // The Tienda on screen (or the first one, from "Todas las tiendas").
-  const storeId = business.selectedStore?.id ?? business.stores[0]?.id;
-  if (!storeId) return;
+  if (!business) return { error: "No se encontró el negocio." };
+  // The Tienda on screen (or the first open one, from "Todas las tiendas" or
+  // an archived Tienda's history).
+  const selected = business.selectedStore?.id;
+  const storeId = selected && canWriteToStore(business, selected) ? selected : business.stores[0]?.id;
+  if (!storeId) return { error: "Elige una tienda para crear los datos de ejemplo." };
 
   const supabase = await createClient();
 
@@ -99,7 +104,7 @@ export async function seedDemoData() {
     .from("contacts")
     .select("id", { count: "exact", head: true })
     .eq("business_id", business.id);
-  if (count && count > 0) return;
+  if (count && count > 0) return {};
 
   const channelIds: Partial<Record<ChannelType, string>> = {};
   for (const type of ["whatsapp", "instagram", "facebook"] as const) {
@@ -108,7 +113,7 @@ export async function seedDemoData() {
       .insert({ business_id: business.id, store_id: storeId, type, status: "connected" })
       .select("id")
       .single();
-    if (error || !data) throw new Error(error?.message ?? "No se pudo crear el canal.");
+    if (error || !data) return { error: SEED_FAILED };
     channelIds[type] = data.id;
   }
 
@@ -126,7 +131,7 @@ export async function seedDemoData() {
       })
       .select("id")
       .single();
-    if (contactError || !contact) throw new Error(contactError?.message ?? "No se pudo crear el contacto.");
+    if (contactError || !contact) return { error: SEED_FAILED };
 
     const lastMessageAt = new Date(now - (DEMO_CONTACTS.length - i) * 45 * 60 * 1000);
 
@@ -141,7 +146,7 @@ export async function seedDemoData() {
       })
       .select("id")
       .single();
-    if (convError || !conversation) throw new Error(convError?.message ?? "No se pudo crear la conversación.");
+    if (convError || !conversation) return { error: SEED_FAILED };
 
     const messageRows = c.messages.map((m, idx) => ({
       conversation_id: conversation.id,
@@ -151,11 +156,12 @@ export async function seedDemoData() {
       created_at: new Date(lastMessageAt.getTime() + idx * 60 * 1000).toISOString(),
     }));
     const { error: msgError } = await supabase.from("messages").insert(messageRows);
-    if (msgError) throw new Error(msgError.message);
+    if (msgError) return { error: SEED_FAILED };
   }
 
   revalidatePath("/contacts");
   revalidatePath("/chat");
+  return {};
 }
 
 // Shared by Chat and Chekeo — both let you tag a conversation's sales stage.
@@ -163,9 +169,10 @@ export async function setConversationStage(
   conversationId: string,
   stage: ConversationStage,
 ): Promise<{ error?: string }> {
+  if (!isConversationStage(stage)) return { error: "Etapa inválida." };
   const supabase = await createClient();
-  const { error } = await supabase.from("conversations").update({ stage }).eq("id", conversationId);
-  if (error) return { error: error.message };
+  const { data, error } = await supabase.from("conversations").update({ stage }).eq("id", conversationId).select("id");
+  if (error || !data?.length) return { error: "No se pudo mover el contacto. Inténtalo de nuevo." };
   return {};
 }
 
@@ -222,12 +229,15 @@ export async function setConversationValue(
   conversationId: string,
   valueHnl: number | null,
 ): Promise<{ error?: string }> {
+  const clean = cleanDealValue(valueHnl);
+  if (clean.error) return { error: clean.error };
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("conversations")
-    .update({ value_hnl: valueHnl })
-    .eq("id", conversationId);
-  if (error) return { error: error.message };
+    .update({ value_hnl: clean.value })
+    .eq("id", conversationId)
+    .select("id");
+  if (error || !data?.length) return { error: "No se pudo guardar el valor. Inténtalo de nuevo." };
   return {};
 }
 
@@ -246,7 +256,11 @@ export async function createLead(input: {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
   const storeId = input.storeId || business.selectedStore?.id || (business.multiStore ? null : business.stores[0]?.id);
-  if (!storeId || !canAccessStore(business, storeId)) return { error: "Elige la tienda del contacto." };
+  if (!storeId) return { error: "Elige la tienda del contacto." };
+  if (!canWriteToStore(business, storeId)) {
+    const archived = business.archivedStores.some((s) => s.id === storeId);
+    return { error: archived ? ARCHIVED_STORE_READ_ONLY : "Elige la tienda del contacto." };
+  }
 
   const name = input.name.trim();
   if (!name) return { error: "Ponle un nombre al contacto." };

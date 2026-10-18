@@ -27,6 +27,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   const filtered = useMemo(() => {
@@ -66,8 +67,12 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
 
   async function handleSeed() {
     setSeeding(true);
+    setSeedError(null);
     try {
-      await seedDemoData();
+      const result = await seedDemoData();
+      if (result.error) setSeedError(result.error);
+    } catch {
+      setSeedError("No se pudieron crear los datos de ejemplo. Inténtalo de nuevo.");
     } finally {
       setSeeding(false);
     }
@@ -111,7 +116,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
           <div className="font-heading text-lg font-bold text-ink">{contacts.length}</div>
           <div className="text-xs text-ink-muted">contactos registrados</div>
         </div>
-        <div className="ml-auto text-xs text-ink-soft">{filtered.length} resultado(s)</div>
+        <div className="ml-auto text-xs text-ink-soft">{filtered.length} {filtered.length === 1 ? "resultado" : "resultados"}</div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8">
@@ -127,6 +132,11 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
             >
               {seeding ? "Sembrando…" : "Sembrar datos de ejemplo"}
             </button>
+            {seedError && (
+              <p role="alert" className="text-[12.5px] text-danger">
+                {seedError}
+              </p>
+            )}
           </div>
         ) : (
           <>

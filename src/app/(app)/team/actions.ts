@@ -94,11 +94,22 @@ export async function setMemberStore(
 ): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
-  const allowed =
-    business.role === "owner" || (business.role === "manager" && targetRole === "agent" && canManageStore(business, storeId));
-  if (!allowed) return { error: "No puedes cambiar las tiendas de esta persona." };
+  void targetRole; // The browser's word for the role isn't trusted; read it below.
+  const denied = { error: "No puedes cambiar las tiendas de esta persona." };
+  if (!business.allStores.some((s) => s.id === storeId)) return denied;
 
   const supabase = await createClient();
+  const { data: target } = await supabase
+    .from("members")
+    .select("role")
+    .eq("business_id", business.id)
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+  if (!target) return { error: "Esa persona ya no está en tu negocio." };
+  const allowed =
+    business.role === "owner" || (business.role === "manager" && target.role === "agent" && canManageStore(business, storeId));
+  if (!allowed) return denied;
+
   const { error } = inStore
     ? await supabase.from("store_members").insert({ store_id: storeId, business_id: business.id, user_id: targetUserId })
     : await supabase.from("store_members").delete().eq("store_id", storeId).eq("user_id", targetUserId);

@@ -5,6 +5,8 @@ import { fetchMetaProfile, metaCredentialsForChannel } from "@/lib/metaMessaging
 import { handleInboundMessage } from "@/lib/bot";
 import { saveMessageMedia, type MediaJob } from "@/lib/messageMedia";
 import { processComments, saveIncomingComments } from "@/lib/commentsServer";
+import { deletedFields, metaReaction, metaReplyTo } from "@/lib/messageEvents";
+import { findMessageId, insertMessage } from "@/lib/messageRows";
 
 // Instagram DMs and Facebook Messenger webhook (Messenger Platform), one URL
 // for every business: Meta tells us which Page (object "page") or Instagram
@@ -169,7 +171,16 @@ async function handlePayload(payload: MetaWebhookPayload): Promise<HandleResult>
     // One bad event must not drop the rest of the batch.
     for (const event of events) {
       try {
-        if (event.message?.is_echo) {
+        // Reactions, edits and deletes change a message already in the chat.
+        // The account itself = the business ("out"); anyone else = customer.
+        const side = event.sender?.id === channel.external_id ? "out" : "in";
+        if (event.reaction) {
+          await applyReaction(supabase, channel, event, side);
+        } else if (event.message_edit) {
+          await applyEdit(supabase, channel, event, side);
+        } else if (event.message?.is_deleted) {
+          await applyDelete(supabase, channel, event, event.message.is_echo ? "out" : side);
+        } else if (event.message?.is_echo) {
           // Sent by this app (an agent or chekelin in cheke): already saved.
           if (appId && event.message.app_id && String(event.message.app_id) === appId) continue;
           result.echoes.push({ channel, event });
@@ -219,7 +230,7 @@ async function saveInboundMessage(
     .update({ last_message_at: now.toISOString(), window_expires_at: windowExpiresAt, status: "open" })
     .eq("id", conversation.id);
 
-  const { error } = await supabase.from("messages").insert({
+  const { error } = await insertMessage(supabase, {
     conversation_id: conversation.id,
     business_id: channel.business_id,
     direction: "in",
@@ -227,6 +238,7 @@ async function saveInboundMessage(
     external_message_id: mid,
     status: "sent",
     created_at: messageTime(event.timestamp, now),
+    reply_to_id: await findMessageId(supabase, channel.business_id, metaReplyTo(event.message)),
   });
   if (error) {
     // 23505 = the same message arrived twice at once; the other copy won.
@@ -254,7 +266,7 @@ async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho)
   const conversation = await findOrCreateConversation(supabase, channel, contact.id);
   const sentAt = messageTime(event.timestamp, new Date());
 
-  const { error } = await supabase.from("messages").insert({
+  const { error } = await insertMessage(supabase, {
     conversation_id: conversation.id,
     business_id: channel.business_id,
     direction: "out",
@@ -263,6 +275,7 @@ async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho)
     status: "sent",
     source: "meta_app",
     created_at: sentAt,
+    reply_to_id: await findMessageId(supabase, channel.business_id, metaReplyTo(message)),
   });
   if (error) {
     if (error.code === "23505") return null;
@@ -274,6 +287,41 @@ async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho)
     .update({ last_message_at: later(conversation.last_message_at, sentAt) })
     .eq("id", conversation.id);
   return mediaJob(message);
+}
+
+// A ❤️ (or any reaction) on a message, or taking it back.
+async function applyReaction(supabase: Admin, channel: Channel, event: MessagingEvent, side: "in" | "out") {
+  const reaction = metaReaction(event.reaction);
+  if (!reaction) return;
+  await supabase
+    .from("messages")
+    .update(side === "in" ? { reaction_in: reaction.emoji } : { reaction_out: reaction.emoji })
+    .eq("business_id", channel.business_id)
+    .eq("external_message_id", reaction.targetId);
+}
+
+// The author changed the text of a message they had sent.
+async function applyEdit(supabase: Admin, channel: Channel, event: MessagingEvent, side: "in" | "out") {
+  const edit = event.message_edit;
+  if (!edit?.mid || typeof edit.text !== "string") return;
+  await supabase
+    .from("messages")
+    .update({ body: edit.text, edited_at: messageTime(event.timestamp, new Date()) })
+    .eq("business_id", channel.business_id)
+    .eq("external_message_id", edit.mid)
+    .eq("direction", side);
+}
+
+// The author deleted ("unsent") a message: Chat shows "Mensaje eliminado".
+async function applyDelete(supabase: Admin, channel: Channel, event: MessagingEvent, side: "in" | "out") {
+  const mid = event.message?.mid;
+  if (!mid) return;
+  await supabase
+    .from("messages")
+    .update(deletedFields(messageTime(event.timestamp, new Date())))
+    .eq("business_id", channel.business_id)
+    .eq("external_message_id", mid)
+    .eq("direction", side);
 }
 
 // What to show in the chat for each kind of message. Returns null for
@@ -510,6 +558,7 @@ type MetaMessage = {
   app_id?: number | string;
   is_deleted?: boolean;
   is_unsupported?: boolean;
+  reply_to?: { mid?: string; story?: { url?: string; id?: string } };
   attachments?: Array<{
     type?: string;
     title?: string;
@@ -524,4 +573,6 @@ type MessagingEvent = {
   postback?: { mid?: string; title?: string; payload?: string };
   delivery?: { mids?: string[]; watermark?: number };
   read?: { watermark?: number; mid?: string };
+  reaction?: { mid?: string; action?: string; reaction?: string; emoji?: string };
+  message_edit?: { mid?: string; text?: string; num_edit?: number };
 };

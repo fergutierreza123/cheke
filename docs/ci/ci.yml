@@ -1,0 +1,39 @@
+# To turn this on, it has to live at .github/workflows/ci.yml. The agent that
+# wrote it couldn't put it there (its GitHub token has no "workflow"
+# permission). On github.com: Add file > Create new file, name it
+# .github/workflows/ci.yml, paste this content, commit. Or locally:
+#   gh auth refresh -h github.com -s workflow
+#   git mv docs/ci/ci.yml .github/workflows/ci.yml && git commit && git push
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Database tests (RLS)
+        run: npm run test:db
