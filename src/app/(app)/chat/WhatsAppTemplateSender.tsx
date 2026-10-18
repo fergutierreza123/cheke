@@ -56,15 +56,25 @@ export function WhatsAppTemplateSender({
   contactName,
   demo = false,
   onSent,
+  open: openProp,
+  onOpenChange,
 }: {
   conversationId: string;
   contactName: string | null | undefined;
   // The public /demo: sample templates, nothing leaves the browser.
   demo?: boolean;
   onSent: (result: { message?: Message; error?: string; sendError?: string }) => void;
+  // Optional control from the composer (the "+" sheet's "Plantilla" opens it).
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const prefersReducedMotion = useReducedMotion();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  function setOpen(next: boolean) {
+    setOpenState(next);
+    onOpenChange?.(next);
+  }
   const [templates, setTemplates] = useState<ChatWhatsAppTemplate[] | null>(demo ? DEMO_WHATSAPP_TEMPLATES : null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -177,7 +187,7 @@ export function WhatsAppTemplateSender({
         </p>
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen(!open)}
           aria-expanded={open}
           className="min-h-9 shrink-0 rounded-lg bg-brand px-3.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
         >

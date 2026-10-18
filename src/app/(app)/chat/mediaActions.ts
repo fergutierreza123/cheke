@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { documentExtension, documentMime, recordingExtension, uploadProblem, type OutgoingKind } from "@/lib/outgoingMedia";
+import { visualExtension, visualMime } from "@/lib/outgoingVisual";
 import type { ChannelType } from "@/lib/types";
 import { ARCHIVED_STORE_READ_ONLY, isArchivedStore } from "@/lib/stores";
 
@@ -37,7 +38,10 @@ export async function prepareChatUpload(
   const ext =
     input.kind === "voice"
       ? recordingExtension(input.mime)
-      : documentExtension(documentMime(channelType, input.mime, input.filename ?? "")!);
+      : input.kind === "image" || input.kind === "video"
+        ? visualExtension(visualMime(input.mime, input.filename ?? "")?.mime ?? "")
+        : documentExtension(documentMime(channelType, input.mime, input.filename ?? "")!);
+  if (!ext) return { error: "Ese tipo de archivo no se puede enviar." };
   // <business>/<store>/uploads/<random>: the bucket's read policy checks the
   // Tienda folder; /api/chat/media only accepts paths of this shape.
   const path = `${conversation.business_id}/${conversation.store_id}/uploads/${randomUUID()}.${ext}`;
