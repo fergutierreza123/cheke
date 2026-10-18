@@ -401,6 +401,16 @@ sigue siendo manual).
      `<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />`.
   3. `npx cap sync`, abrir un chat en el teléfono, tocar el micrófono y
      aceptar el permiso. Cómo funciona: `src/lib/outgoingMedia.ts`.
+- **Fotos y videos desde el Chat** (Cámara / Fotos y videos en el menú +).
+  Al generar los proyectos nativos agregar:
+  1. **iPhone**: en `ios/App/App/Info.plist` las llaves
+     `NSCameraUsageDescription` (`cheke usa la cámara para tomar fotos y videos para tus clientes.`)
+     y `NSPhotoLibraryUsageDescription` (`cheke abre tus fotos para que se las envíes a tus clientes.`).
+     Sin estos textos la app se cierra al tocar Cámara.
+  2. **Android**: `<uses-permission android:name="android.permission.CAMERA" />`
+     en `AndroidManifest.xml`.
+  3. `npx cap sync`, abrir un chat, tocar + → Cámara y aceptar el permiso.
+     Cómo funciona: `src/lib/outgoingVisual.ts`.
 - **Web: Entrar con huella o rostro (passkey)**: en Supabase → Authentication
   → Passkeys, activar *Enable Passkey authentication* con *Relying Party
   Display Name* `cheke`, *Relying Party ID* `cheke.io` y *Relying Party

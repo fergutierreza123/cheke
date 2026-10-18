@@ -30,7 +30,8 @@ import {
 import type { Role } from "@/lib/stores";
 import type { QuickReply } from "@/lib/quickReplies";
 import { useQuickReplyPicker } from "./QuickReplyPicker";
-import { useComposerMedia, type MediaSendResult } from "./ComposerMedia";
+import { CameraIcon, ClipIcon, PhotoIcon, useComposerMedia, type MediaSendResult } from "./ComposerMedia";
+import { AttachSheet } from "./AttachSheet";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
 export type ChekelinStore = { id: string; name: string; offUntil: string | null; canManage: boolean };
@@ -167,6 +168,8 @@ export function ChatView({
   // the agent to fill in/edit, rather than sending it outright.
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // Phones/tablets: WhatsApp's "+" sheet with everything besides text.
+  const [showAttach, setShowAttach] = useState(false);
   // Payment request ("Cobrar"): the form's fields, and the orders still
   // waiting on payment per conversation (shown above the composer).
   const [showPayment, setShowPayment] = useState(false);
@@ -281,11 +284,22 @@ export function ChatView({
     disabled: !selected || sendBlocked || simulateMode,
     canManage: canManageQuickReplies,
   });
-  // Voice notes (mic, while the box is empty) and documents (clip): issue #50.
+  // Why nothing but Plantillas can go out right now: the mic stays visible
+  // (grey) and says this when tapped.
+  const mediaBlockedReason = sendBlocked
+    ? "La ventana de respuesta está cerrada: solo puedes enviar plantillas hasta que el cliente vuelva a escribir."
+    : simulateMode
+      ? "En modo prueba escribes como el cliente: las notas de voz y fotos no se envían."
+      : null;
+  // Voice notes (mic, while the box is empty), documents (clip), photos and
+  // videos (gallery / camera): issue #50 and composer parity.
   const composerMedia = useComposerMedia({
     conversationId: selected?.id ?? null,
     channelType: selected?.channel?.type,
     disabled: !selected || sendBlocked || simulateMode,
+    blockedReason: selected ? mediaBlockedReason : null,
+    caption: draft,
+    onCaptionUsed: () => setDraft(""),
     demo: businessId === "demo",
     replyToId: replyTo && replyTo.conversation_id === selected?.id ? replyTo.id : null,
     onSendStart: () => setReplyTo(null),
@@ -297,8 +311,10 @@ export function ChatView({
     const el = draftInputRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
-  }, [draft, selectedId]);
+    // Measured while hidden (phone list view) scrollHeight is 0: leave the
+    // natural one-line height instead of collapsing the box.
+    el.style.height = el.scrollHeight ? `${Math.min(el.scrollHeight, 140)}px` : "";
+  }, [draft, selectedId, mobileView]);
   const messages = useMemo(
     () => (selectedId ? (messagesByConversation[selectedId] ?? []) : []),
     [selectedId, messagesByConversation],
@@ -697,6 +713,12 @@ export function ChatView({
   const storeProducts = selected ? products.filter((p) => p.store_id === selected.store_id) : products;
 
   async function handleSend() {
+    // A photo or video waiting in the strip: Send sends it, the typed text
+    // as its caption.
+    if (composerMedia.hasPendingVisual) {
+      composerMedia.sendVisual();
+      return;
+    }
     const text = draft.trim();
     if (!selected || (!text && !pendingProduct)) return;
     setSendError(null);
@@ -1544,13 +1566,34 @@ export function ChatView({
             {composerMedia.strip}
             <div className="relative flex shrink-0 items-end gap-1.5 border-t border-border bg-surface px-3 py-2.5 sm:gap-2 lg:px-6 lg:py-3.5">
               {quickReplyPicker.picker}
-              {composerMedia.attachButton}
-              <div className="relative">
+              {composerMedia.inputs}
+              {/* Phones and tablets: one "+" opens WhatsApp's attach sheet.
+                  Computers keep the inline buttons of design/Inbox.html. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProductPicker(false);
+                  setShowTemplatePicker(false);
+                  setShowPayment(false);
+                  setShowAttach(true);
+                }}
+                aria-label="Adjuntar: foto, cámara, documento, producto, cobro…"
+                aria-haspopup="dialog"
+                aria-expanded={showAttach}
+                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-2 lg:hidden"
+              >
+                <PlusIcon className="h-[22px] w-[22px]" />
+              </button>
+              <div className="hidden lg:contents">
+                {composerMedia.attachButton}
+                {composerMedia.photoButton}
+              </div>
+              <div className="relative max-lg:contents">
                 <button
                   onClick={() => setShowProductPicker((v) => !v)}
                   title="Enviar un producto del catálogo"
                   aria-pressed={showProductPicker}
-                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  className={`hidden h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors lg:flex ${
                     showProductPicker
                       ? "border-brand bg-brand-tint text-brand-dark"
                       : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -1565,7 +1608,7 @@ export function ChatView({
                       animate={{ opacity: 1, y: 0 }}
                       exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                       transition={{ type: "spring", bounce: 0, duration: 0.25 }}
-                      className="absolute bottom-[46px] left-0 z-10 w-56 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                      className="absolute bottom-[46px] left-0 z-10 max-lg:bottom-[calc(100%+6px)] max-lg:left-3 w-56 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
                     >
                       <div className="px-2 py-1 text-[11px] text-ink-soft">Enviar producto del catálogo…</div>
                       <div className="max-h-56 overflow-y-auto">
@@ -1588,12 +1631,12 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
-              <div className="relative">
+              <div className="relative max-lg:contents">
                 <button
                   onClick={() => setShowTemplatePicker((v) => !v)}
                   title="Usar una plantilla"
                   aria-pressed={showTemplatePicker}
-                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  className={`hidden lg:flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
                     showTemplatePicker
                       ? "border-brand bg-brand-tint text-brand-dark"
                       : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -1608,7 +1651,7 @@ export function ChatView({
                       animate={{ opacity: 1, y: 0 }}
                       exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                       transition={{ type: "spring", bounce: 0, duration: 0.25 }}
-                      className="absolute bottom-[46px] left-0 z-10 w-64 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                      className="absolute bottom-[46px] left-0 z-10 max-lg:bottom-[calc(100%+6px)] max-lg:left-3 w-64 rounded-[10px] border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
                     >
                       <div className="px-2 py-1 text-[11px] text-ink-soft">Usar una plantilla…</div>
                       <div className="max-h-56 overflow-y-auto">
@@ -1632,13 +1675,13 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
-              <div className="relative">
+              <div className="relative max-lg:contents">
                 <button
                   onClick={openPayment}
                   disabled={sendBlocked || simulateMode || businessId === "demo"}
                   title="Cobrar: enviar un link de pago o datos para pagar"
                   aria-pressed={showPayment}
-                  className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
+                  className={`hidden lg:flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
                     showPayment
                       ? "border-brand bg-brand-tint text-brand-dark"
                       : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -1653,7 +1696,7 @@ export function ChatView({
                       animate={{ opacity: 1, y: 0 }}
                       exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                       transition={{ type: "spring", bounce: 0, duration: 0.25 }}
-                      className="absolute bottom-[46px] left-0 z-10 flex w-[290px] max-w-[calc(100vw-24px)] flex-col gap-2 rounded-[10px] border border-border bg-surface p-3 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
+                      className="absolute bottom-[46px] left-0 z-10 max-lg:bottom-[calc(100%+6px)] max-lg:left-3 flex w-[290px] max-w-[calc(100vw-24px)] flex-col gap-2 rounded-[10px] border border-border bg-surface p-3 shadow-[0_8px_24px_rgba(0,16,55,0.14)]"
                     >
                       <div className="text-[12.5px] font-semibold text-ink">Cobrar al cliente</div>
                       <input
@@ -1701,7 +1744,7 @@ export function ChatView({
               </div>
               {/* Phones have emoji on their own keyboard: the button only takes
                   room the message box needs. */}
-              <div className="relative hidden sm:block">
+              <div className="relative hidden lg:block">
                 <button
                   onClick={() => setShowEmojiPicker((v) => !v)}
                   title="Emoji"
@@ -1764,8 +1807,14 @@ export function ChatView({
                 }
                 className="max-h-[140px] min-w-0 flex-1 resize-none rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-[18px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
               />
-              {/* WhatsApp-style: the mic takes Send's place while the box is empty. */}
-              {composerMedia.recording || (!draft.trim() && !pendingProduct && !simulateMode && !sendBlocked) ? (
+              {/* WhatsApp-style: while the box is empty, phones get the camera
+                  and the mic takes Send's place. The mic is always there; when
+                  nothing can be sent (window closed, Modo prueba) it is grey
+                  and says why when tapped. */}
+              {!draft.trim() && !pendingProduct && !composerMedia.hasPendingVisual && !composerMedia.recording && (
+                <div className="flex lg:hidden">{composerMedia.cameraButton}</div>
+              )}
+              {composerMedia.recording || (!draft.trim() && !pendingProduct && !composerMedia.hasPendingVisual) ? (
                 composerMedia.micButton
               ) : (
                 <button
@@ -1778,6 +1827,70 @@ export function ChatView({
                 </button>
               )}
             </div>
+            <AttachSheet
+              open={showAttach}
+              onClose={() => setShowAttach(false)}
+              footnote={mediaBlockedReason}
+              options={[
+                {
+                  key: "camera",
+                  label: "Cámara",
+                  tint: "#001037",
+                  icon: <CameraIcon className="h-6 w-6" />,
+                  onSelect: composerMedia.openCamera,
+                  disabled: composerMedia.pickBlocked,
+                },
+                {
+                  key: "gallery",
+                  label: "Fotos y videos",
+                  tint: "#0043F8",
+                  icon: <PhotoIcon className="h-6 w-6" />,
+                  onSelect: composerMedia.openGallery,
+                  disabled: composerMedia.pickBlocked,
+                },
+                {
+                  key: "document",
+                  label: "Documento",
+                  tint: "#7C5CFF",
+                  icon: <ClipIcon className="h-6 w-6" />,
+                  onSelect: composerMedia.openDocument,
+                  disabled: composerMedia.pickBlocked,
+                },
+                {
+                  key: "product",
+                  label: "Producto del catálogo",
+                  tint: "#0E7C86",
+                  icon: <BoxIcon className="h-6 w-6" />,
+                  onSelect: () => setShowProductPicker(true),
+                },
+                {
+                  key: "payment",
+                  label: "Cobrar",
+                  tint: "#1F8A4C",
+                  icon: <CardIcon className="h-6 w-6" />,
+                  onSelect: openPayment,
+                  disabled: sendBlocked || simulateMode || businessId === "demo",
+                },
+                {
+                  key: "quick",
+                  label: "Respuesta rápida",
+                  tint: "#B45309",
+                  icon: <BoltIcon className="h-6 w-6" />,
+                  onSelect: () => {
+                    setDraft((d) => (d.trim() ? `${d.replace(/\s+$/, "")} /` : "/"));
+                    window.setTimeout(() => draftInputRef.current?.focus(), 0);
+                  },
+                  disabled: sendBlocked || simulateMode,
+                },
+                {
+                  key: "template",
+                  label: "Plantilla",
+                  tint: "#5B6B8C",
+                  icon: <TemplateIcon className="h-6 w-6" />,
+                  onSelect: () => setShowTemplatePicker(true),
+                },
+              ]}
+            />
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center text-[13.5px] text-ink-soft">
@@ -2072,6 +2185,21 @@ function FailedNotice({
         )}
       </AnimatePresence>
     </>
+  );
+}
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+function BoltIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M13 2 3 14h9l-1 8 10-12h-9z" />
+    </svg>
   );
 }
 function AlertIcon({ className }: { className?: string }) {

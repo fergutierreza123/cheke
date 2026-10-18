@@ -15,9 +15,19 @@ import {
   cleanFilename,
   documentExtension,
   documentMime,
+  isOutgoingKind,
   outgoingBody,
   type OutgoingKind,
 } from "@/lib/outgoingMedia";
+import {
+  MAX_VIDEO_TO_CONVERT_BYTES,
+  captionProblem,
+  convertedVideoProblem,
+  videoNeedsMp4,
+  visualLimits,
+  visualMimeFromExtension,
+} from "@/lib/outgoingVisual";
+import { toMp4 } from "@/lib/videoConvert";
 import type { ChannelType, MediaInfo, Message } from "@/lib/types";
 
 // Step 2 of sending a voice note or document from Chat (issue #50). The
@@ -42,12 +52,14 @@ type Body = {
   filename?: unknown;
   duration?: unknown;
   replyToId?: unknown;
+  caption?: unknown;
 };
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Body | null;
   const conversationId = typeof body?.conversationId === "string" ? body.conversationId : null;
-  const kind: OutgoingKind | null = body?.kind === "voice" || body?.kind === "document" ? body.kind : null;
+  const kind: OutgoingKind | null = isOutgoingKind(body?.kind) ? body.kind : null;
+  const caption = typeof body?.caption === "string" ? body.caption.trim() : "";
   const path = typeof body?.path === "string" ? body.path : null;
   if (!conversationId || !kind || !path) return reply({ error: "Faltan datos para enviar." }, 400);
 
@@ -84,9 +96,37 @@ export async function POST(request: Request) {
   const { data: blob } = await storage.download(path);
   const raw = blob ? Buffer.from(await blob.arrayBuffer()) : null;
   if (!raw || raw.length === 0) return reply({ error: "No llegó el archivo. Inténtalo de nuevo." });
-  if (raw.length > (kind === "voice" ? MAX_RECORDING_BYTES : MAX_DOCUMENT_BYTES)) {
+  const uploadedExt = path.split(".").pop() ?? "";
+  const visualMimeType = kind === "image" || kind === "video" ? visualMimeFromExtension(uploadedExt) : null;
+  const maxBytes =
+    kind === "voice"
+      ? MAX_RECORDING_BYTES
+      : kind === "document"
+        ? MAX_DOCUMENT_BYTES
+        : kind === "image"
+          ? visualLimits(channelType).image
+          : visualMimeType && videoNeedsMp4(visualMimeType)
+            ? MAX_VIDEO_TO_CONVERT_BYTES
+            : visualLimits(channelType).video;
+  if (raw.length > maxBytes) {
     await discard();
-    return reply({ error: kind === "voice" ? "La nota de voz es muy larga." : "El archivo pesa más de 25 MB." });
+    return reply({
+      error:
+        kind === "voice"
+          ? "La nota de voz es muy larga."
+          : kind === "document"
+            ? "El archivo pesa más de 25 MB."
+            : kind === "image"
+              ? "La foto es muy pesada."
+              : "El video es muy pesado. Envía uno más corto.",
+    });
+  }
+  if ((kind === "image" || kind === "video") && caption) {
+    const problem = captionProblem(channelType, caption);
+    if (problem) {
+      await discard();
+      return reply({ error: problem });
+    }
   }
 
   // Files sit next to the message, like received media: <business>/<store>/<message>.<ext>
@@ -119,6 +159,38 @@ export async function POST(request: Request) {
       },
     };
     file = { kind: "voice", ogg, m4aUrl: link?.signedUrl ?? "" };
+  } else if (kind === "image" || kind === "video") {
+    // Photo (already shrunk to JPEG/PNG in the browser) or video.
+    if (!visualMimeType || (kind === "image") !== visualMimeType.startsWith("image/")) {
+      await discard();
+      return reply({ error: "Ese tipo de archivo no se puede enviar." });
+    }
+    let bytes: Buffer = raw;
+    let mime = visualMimeType;
+    let target = `${base}.${uploadedExt}`;
+    if (kind === "video" && videoNeedsMp4(mime)) {
+      // iPhone .mov / .webm → MP4 (H.264 + AAC), what every network plays.
+      const mp4 = await toMp4(raw);
+      await discard();
+      if (!mp4) return reply({ error: "No se pudo preparar el video. Prueba con otro video o uno más corto." });
+      const tooBig = convertedVideoProblem(channelType, mp4.length);
+      if (tooBig) return reply({ error: tooBig });
+      bytes = mp4;
+      mime = "video/mp4";
+      target = `${base}.mp4`;
+      const { error: saveError } = await storage.upload(target, mp4, { contentType: mime, upsert: true });
+      if (saveError) return reply({ error: "No se pudo guardar el video. Inténtalo de nuevo." });
+    } else {
+      const { error: moveError } = await storage.move(path, target);
+      if (moveError) return reply({ error: "No se pudo guardar el archivo. Inténtalo de nuevo." });
+    }
+    const { data: link } = await storage.createSignedUrl(target, LINK_SECONDS);
+    media = {
+      media_path: target,
+      media_m4a_path: null,
+      media_info: { mime, size: bytes.length, ...(caption ? { caption } : {}) },
+    };
+    file = { kind, bytes, mime, url: link?.signedUrl ?? "", caption: caption || null };
   } else {
     const filename = cleanFilename(typeof body?.filename === "string" ? body.filename : "");
     const mime = documentMime(channelType, "", `upload.${path.split(".").pop()}`);
@@ -153,7 +225,7 @@ export async function POST(request: Request) {
       conversation_id: conversation.id,
       business_id: conversation.business_id,
       direction: "out",
-      body: outgoingBody(kind, media.media_info.filename),
+      body: outgoingBody(kind, media.media_info.filename, media.media_info.caption),
       media_kind: kind,
       ...media,
       ...(quoted ? { reply_to_id: quoted.id } : {}),

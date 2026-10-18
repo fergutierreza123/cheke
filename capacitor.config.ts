@@ -19,6 +19,14 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // - AndroidManifest.xml:
 //   <uses-permission android:name="android.permission.RECORD_AUDIO" />
 //   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+// And for photos and videos in Chat (Cámara / Fotos y videos): the web
+// file picker works in Capacitor's WebView on both systems, it only needs:
+// - Info.plist: NSCameraUsageDescription =
+//   "cheke usa la cámara para tomar fotos y videos para tus clientes."
+//   NSPhotoLibraryUsageDescription =
+//   "cheke abre tus fotos para que se las envíes a tus clientes."
+// - AndroidManifest.xml:
+//   <uses-permission android:name="android.permission.CAMERA" />
 // (Full steps in README.md → "App móvil".)
 const config: CapacitorConfig = {
   appId: "io.cheke.app",
