@@ -12,12 +12,45 @@ import type {
 import type { NotificationItem } from "@/lib/notifications";
 import type { CurrentBusiness } from "@/lib/stores";
 import type { ChannelItem } from "@/app/(app)/channels/ChannelsView";
+import type { WhatsAppTemplate } from "@/lib/whatsappTemplates";
 
 // Sample data for the /demo showcase (an iPhone-framed walkthrough of the
 // app). Entirely fictional — never read from or written to the database.
 export const DEMO_BASE = "/demo/app";
 const DEMO_STORE = { id: "demo-store", name: "Tienda Luna", archived: false };
 const H = 3600000;
+
+// Sample WhatsApp templates Meta "approved" for the demo number: what
+// "Enviar plantilla" offers in a WhatsApp chat whose 24 h window closed.
+export const DEMO_WHATSAPP_TEMPLATES: WhatsAppTemplate[] = [
+  {
+    id: "wt-demo-1",
+    name: "seguimiento_pedido",
+    language: "es",
+    status: "APPROVED",
+    category: "UTILITY",
+    components: [{ type: "BODY", text: "Hola {{1}}, te escribimos de Tienda Luna sobre tu pedido de {{2}}. ¿Te lo enviamos esta semana?" }],
+  },
+  {
+    id: "wt-demo-2",
+    name: "nueva_coleccion",
+    language: "es",
+    status: "APPROVED",
+    category: "MARKETING",
+    components: [
+      { type: "BODY", text: "¡Hola {{1}}! Llegó la nueva colección de Tienda Luna. ¿Quieres que te mandemos fotos?" },
+      { type: "FOOTER", text: "Responde «no» si no quieres recibir novedades." },
+    ],
+  },
+  {
+    id: "wt-demo-3",
+    name: "recordatorio_pago",
+    language: "es",
+    status: "PENDING",
+    category: "UTILITY",
+    components: [{ type: "BODY", text: "Hola {{1}}, tu pedido sigue apartado. Avísanos cuando hagas el depósito." }],
+  },
+];
 
 export function buildDemoData(now: number) {
   const iso = (ago: number) => new Date(now - ago).toISOString();
@@ -43,7 +76,8 @@ export function buildDemoData(now: number) {
     bot_enabled: i === 1,
     assigned_to: null,
     last_message_at: iso(ago),
-    window_expires_at: null,
+    // WhatsApp chats quiet for more than 24 h show "Enviar plantilla".
+    window_expires_at: ch === "whatsapp" && ago > 24 * H ? iso(ago - 24 * H) : null,
     created_at: iso(ago + 5 * H),
     contact: {
       id: `c-${i}`,

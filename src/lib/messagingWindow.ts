@@ -37,7 +37,7 @@ function networkName(channelType: ChannelType): string {
 // Shown in Chat (and returned by the server) when sending is blocked.
 export function windowClosedMessage(channelType: ChannelType | null | undefined): string {
   if (!channelType || channelType === "whatsapp") return WINDOW_CLOSED_MESSAGE;
-  return `Pasaron más de 7 días desde el último mensaje de este cliente. ${networkName(channelType)} no permite escribirle hasta que vuelva a enviarte un mensaje.`;
+  return `Pasaron más de 7 días desde el último mensaje de este cliente. ${networkName(channelType)} no permite escribirle: podrás responderle cuando te vuelva a escribir.`;
 }
 
 // Shown in Chat (not blocking) between 24 h and 7 days on Instagram/Facebook.

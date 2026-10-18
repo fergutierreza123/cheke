@@ -31,6 +31,7 @@ import type { Role } from "@/lib/stores";
 import type { QuickReply } from "@/lib/quickReplies";
 import { useQuickReplyPicker } from "./QuickReplyPicker";
 import { useComposerMedia, type MediaSendResult } from "./ComposerMedia";
+import { WhatsAppTemplateSender } from "./WhatsAppTemplateSender";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
 export type ChekelinStore = { id: string; name: string; offUntil: string | null; canManage: boolean };
@@ -1484,11 +1485,21 @@ export function ChatView({
                 {sendError}
               </div>
             )}
-            {sendBlocked && (
-              <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 text-[12.5px] text-danger lg:px-6">
-                {windowClosedMessage(selected.channel?.type)}
-              </div>
-            )}
+            {sendBlocked &&
+              (selected.channel?.type === "whatsapp" ? (
+                // WhatsApp after 24 h: only an approved template can go out.
+                <WhatsAppTemplateSender
+                  key={selected.id}
+                  conversationId={selected.id}
+                  contactName={selected.contact.name}
+                  demo={businessId === "demo"}
+                  onSent={handleMediaResult}
+                />
+              ) : (
+                <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 text-[12.5px] text-danger lg:px-6">
+                  {windowClosedMessage(selected.channel?.type)}
+                </div>
+              ))}
             {replyState === "human_agent" && !simulateMode && selected.channel && (
               <div className="shrink-0 border-t border-border bg-surface-2 px-4 py-2 text-[12.5px] text-ink-muted lg:px-6">
                 {humanAgentNotice(selected.channel.type)}

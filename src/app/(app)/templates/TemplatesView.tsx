@@ -7,6 +7,17 @@ import { dismissSuggestion, saveTemplate } from "./actions";
 import { TEMPLATE_CATEGORY_META, TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
 import type { Template, TemplateCategory, TemplateSuggestion } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
+import { WhatsAppApprovalDialog, WhatsAppStatus, type WhatsAppChannelOption } from "./WhatsAppApproval";
+import { refreshTemplateApprovals, type TemplateApproval } from "./whatsappActions";
+
+// WhatsApp templates made from Plantillas (migration 0033). Absent = the
+// screen works as before (no WhatsApp connected, or the migration not run).
+export type WhatsAppPlantillas = {
+  channels: WhatsAppChannelOption[];
+  approvals: TemplateApproval[];
+  // Dueños and Gerentes send Plantillas to WhatsApp for approval.
+  canSubmit: boolean;
+};
 
 // suggestionId: editing a Sugerencia de chekelin; saving approves it.
 type Draft = { id: string | null; name: string; category: TemplateCategory; body: string; suggestionId?: string };
@@ -15,11 +26,19 @@ const EMPTY_DRAFT: Draft = { id: null, name: "", category: "precios", body: "" }
 export function TemplatesView({
   templates,
   suggestions: initialSuggestions = [],
+  whatsapp = null,
+  demo = false,
 }: {
   templates: Template[];
   // Sugerencias de chekelin waiting for a Dueño or Gerente (empty for Agentes).
   suggestions?: TemplateSuggestion[];
+  whatsapp?: WhatsAppPlantillas | null;
+  // The public /demo: nothing is saved or sent.
+  demo?: boolean;
 }) {
+  const [approvals, setApprovals] = useState<TemplateApproval[]>(whatsapp?.approvals ?? []);
+  const [approving, setApproving] = useState<Template | null>(null);
+  const [refreshingApprovals, setRefreshingApprovals] = useState(false);
   const [suggestions, setSuggestions] = useState(initialSuggestions);
   const [busySuggestion, setBusySuggestion] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -92,6 +111,25 @@ export function TemplatesView({
       else setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
     } finally {
       setBusySuggestion(null);
+    }
+  }
+
+  // The newest WhatsApp template made from this Plantilla, if any.
+  function approvalOf(t: Template): TemplateApproval | undefined {
+    return approvals.filter((a) => a.source_template_id === t.id).at(-1);
+  }
+
+  async function handleRefreshApprovals() {
+    if (demo) return;
+    setRefreshingApprovals(true);
+    try {
+      const result = await refreshTemplateApprovals();
+      if (result.approvals) setApprovals(result.approvals);
+      setToast(result.error ?? "Estado de WhatsApp actualizado.");
+    } catch {
+      setToast("No se pudo actualizar. Revisa tu conexión.");
+    } finally {
+      setRefreshingApprovals(false);
     }
   }
 
@@ -239,9 +277,32 @@ export function TemplatesView({
             </button>
           </div>
         ) : (
+          <>
+          {whatsapp && approvals.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-muted">
+              <span>
+                Aprobadas por WhatsApp: {approvals.filter((a) => a.status.toUpperCase() === "APPROVED").length} · En
+                revisión: {approvals.filter((a) => ["PENDING", "IN_APPEAL"].includes(a.status.toUpperCase())).length}
+              </span>
+              <button
+                onClick={handleRefreshApprovals}
+                disabled={refreshingApprovals || demo}
+                className="min-h-8 rounded-md px-2 font-semibold text-brand-dark hover:bg-surface-2 disabled:opacity-60"
+              >
+                {refreshingApprovals ? "Actualizando…" : "Actualizar estado"}
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:gap-3.5">
             {filtered.map((t) => {
               const meta = TEMPLATE_CATEGORY_META[t.category];
+              const approval = whatsapp ? approvalOf(t) : undefined;
+              const approvalStatus = approval?.status.toUpperCase();
+              // Offer it when there's no WhatsApp template yet, or the last one was refused.
+              const canSendToWhatsApp =
+                Boolean(whatsapp?.canSubmit) &&
+                (whatsapp?.channels.length ?? 0) > 0 &&
+                (!approval || approvalStatus === "REJECTED" || approvalStatus === "DISABLED");
               return (
                 <div key={t.id} className="flex min-w-0 flex-col gap-2.5 rounded-[14px] border border-border bg-surface p-4 lg:w-[328px]">
                   <div className="flex items-start justify-between gap-2">
@@ -262,6 +323,7 @@ export function TemplatesView({
                   <div className="flex-1 break-words rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink-muted lg:text-[12.5px]">
                     {t.body}
                   </div>
+                  {approval && <WhatsAppStatus approval={approval} />}
                   <button
                     onClick={() => handleCopy(t)}
                     className="flex items-center justify-center gap-1.5 rounded-lg bg-brand-dark px-2 py-2.5 text-[13px] font-semibold text-white lg:py-2 lg:text-xs"
@@ -269,6 +331,14 @@ export function TemplatesView({
                     <CopyIcon className="h-3 w-3" />
                     Copiar plantilla
                   </button>
+                  {canSendToWhatsApp && (
+                    <button
+                      onClick={() => setApproving(t)}
+                      className="rounded-lg border border-border bg-surface px-2 py-2.5 text-[13px] font-semibold text-brand-dark transition-colors hover:bg-surface-2 lg:py-2 lg:text-xs"
+                    >
+                      {approval ? "Enviar otra vez a WhatsApp" : "Enviar a aprobación de WhatsApp"}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -278,6 +348,7 @@ export function TemplatesView({
               </div>
             )}
           </div>
+          </>
         )}
       </div>
 
@@ -381,6 +452,22 @@ export function TemplatesView({
           </>
         )}
       </AnimatePresence>
+
+      <WhatsAppApprovalDialog
+        template={approving}
+        channels={whatsapp?.channels ?? []}
+        demo={demo}
+        onClose={() => setApproving(null)}
+        onSubmitted={(approval) => {
+          setApprovals((prev) => [...prev.filter((a) => a.id !== approval.id), approval]);
+          setApproving(null);
+          setToast(
+            approval.status.toUpperCase() === "APPROVED"
+              ? "WhatsApp aprobó la plantilla. Ya puedes enviarla desde el Chat."
+              : "Plantilla enviada a WhatsApp. Aquí verás cuando la aprueben.",
+          );
+        }}
+      />
 
       {/* Toast */}
       <AnimatePresence>

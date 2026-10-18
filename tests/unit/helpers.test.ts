@@ -38,6 +38,10 @@ describe("replyWindow", () => {
   it("explains each case", () => {
     expect(windowClosedMessage("whatsapp")).toBe(WINDOW_CLOSED_MESSAGE);
     expect(windowClosedMessage("instagram")).toContain("Instagram no permite");
+    // WhatsApp points at the way out; Instagram/Facebook have no templates.
+    expect(windowClosedMessage("whatsapp")).toContain("Enviar plantilla");
+    expect(windowClosedMessage("facebook")).toContain("cuando te vuelva a escribir");
+    expect(windowClosedMessage("facebook")).not.toContain("plantilla");
     expect(humanAgentNotice("facebook")).toContain("En Facebook");
     expect(isWhatsAppWindowClosed(expiresIn(-1), NOW)).toBe(true);
     expect(isWhatsAppWindowClosed(null, NOW)).toBe(false);

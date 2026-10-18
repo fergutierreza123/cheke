@@ -41,11 +41,14 @@ const REASONS: Record<number, string> = {
   131016: "WhatsApp tiene una falla temporal. Vuelve a intentar en unos minutos.",
   131000: "WhatsApp tuvo un error desconocido. Vuelve a intentar.",
   131021: "no puedes enviarte mensajes a tu propio número.",
-  132000: TEMPLATE_PROBLEM,
-  132001: TEMPLATE_PROBLEM,
-  132005: TEMPLATE_PROBLEM,
+  // Template sends ("Enviar plantilla" in Chat, migration 0033).
+  132000:
+    "los datos que llenaste no coinciden con los que pide la plantilla. Toca «Actualizar» en Enviar plantilla y vuelve a intentar.",
+  132001: "la plantilla no existe en ese idioma o todavía no está aprobada. Toca «Actualizar» en Enviar plantilla.",
+  132005: "el mensaje quedó muy largo con los datos que llenaste. Acórtalos.",
   132007: "la plantilla no cumple las políticas de WhatsApp.",
   132012: TEMPLATE_PROBLEM,
+  132018: "un dato de la plantilla tiene saltos de línea o muchos espacios seguidos. Escríbelo en una sola línea.",
   132015: "la plantilla está pausada por baja calidad.",
   132016: "la plantilla fue desactivada por baja calidad.",
   190: RECONNECT,
