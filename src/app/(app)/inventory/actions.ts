@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ARCHIVED_STORE_READ_ONLY, canWriteToStore, getCurrentBusiness } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canWriteToStore, getCurrentBusiness, writableStoreIds } from "@/lib/business";
 import { isOwnStorageUrl } from "@/lib/storageUrl";
 import { removeBackgroundToWhite } from "@/lib/images";
 import { friendlyError } from "@/lib/dbErrors";
@@ -119,7 +119,13 @@ export async function deleteProduct(id: string): Promise<{ error?: string }> {
   if (!business) return { error: "No se encontró el negocio." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("products").delete().eq("id", id).eq("business_id", business.id);
+  // Only products of open Tiendas: an archived Tienda's catalog is read-only.
+  const { error } = await supabase
+    .from("products")
+    .delete()
+    .eq("id", id)
+    .eq("business_id", business.id)
+    .in("store_id", writableStoreIds(business));
   if (error) return { error: friendlyError(error, "No se pudo eliminar el producto.") };
 
   revalidatePath("/inventory");

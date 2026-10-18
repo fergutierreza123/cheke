@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { canManageStore, getCurrentBusiness, type Role } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness, type Role } from "@/lib/business";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { friendlyError } from "@/lib/dbErrors";
 
@@ -110,6 +110,8 @@ export async function setMemberStore(
   const allowed =
     business.role === "owner" || (business.role === "manager" && target.role === "agent" && canManageStore(business, storeId));
   if (!allowed) return denied;
+  // Taking someone out of an archived Tienda is fine; adding them isn't.
+  if (inStore && !canWriteToStore(business, storeId)) return { error: ARCHIVED_STORE_READ_ONLY };
 
   const { error } = inStore
     ? await supabase.from("store_members").insert({ store_id: storeId, business_id: business.id, user_id: targetUserId })

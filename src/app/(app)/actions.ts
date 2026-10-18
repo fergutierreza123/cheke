@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness, writableStoreIds } from "@/lib/business";
 import { cleanDealValue, isConversationStage } from "@/lib/deals";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handOffActiveChats } from "@/lib/bot";
@@ -165,14 +165,30 @@ export async function seedDemoData(): Promise<{ error?: string }> {
   return {};
 }
 
+// Changes to one conversation (chekeo, Chat) only reach open Tiendas the
+// person works in. Viewing an archived Tienda's history says why.
+async function writableScope(): Promise<{ storeIds: string[]; error?: undefined } | { error: string }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+  if (business.selectedStore?.archived) return { error: ARCHIVED_STORE_READ_ONLY };
+  return { storeIds: writableStoreIds(business) };
+}
+
 // Shared by Chat and Chekeo — both let you tag a conversation's sales stage.
 export async function setConversationStage(
   conversationId: string,
   stage: ConversationStage,
 ): Promise<{ error?: string }> {
   if (!isConversationStage(stage)) return { error: "Etapa inválida." };
+  const scope = await writableScope();
+  if (scope.error !== undefined) return { error: scope.error };
   const supabase = await createClient();
-  const { data, error } = await supabase.from("conversations").update({ stage }).eq("id", conversationId).select("id");
+  const { data, error } = await supabase
+    .from("conversations")
+    .update({ stage })
+    .eq("id", conversationId)
+    .in("store_id", scope.storeIds)
+    .select("id");
   if (error || !data?.length) return { error: "No se pudo mover el contacto. Inténtalo de nuevo." };
   return {};
 }
@@ -197,12 +213,15 @@ export async function setConversationBotEnabled(
   conversationId: string,
   enabled: boolean,
 ): Promise<{ error?: string }> {
+  const scope = await writableScope();
+  if (scope.error !== undefined) return { error: scope.error };
   const supabase = await createClient();
   const { error } = await supabase
     .from("conversations")
     // Turning it back on makes chekelin the first responder again here.
     .update(enabled ? { bot_enabled: true, handed_off_at: null, chekelin_replies: 0 } : { bot_enabled: false })
-    .eq("id", conversationId);
+    .eq("id", conversationId)
+    .in("store_id", scope.storeIds);
   if (error) return { error: friendlyError(error, "No se pudo cambiar a chekelin en este chat.") };
   return {};
 }
@@ -214,6 +233,7 @@ export async function setChekelinOff(storeId: string, duration: ChekelinOffDurat
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
   if (!canManageStore(business, storeId)) return { error: "Solo el dueño o el gerente de la tienda puede apagar a chekelin." };
+  if (!canWriteToStore(business, storeId)) return { error: ARCHIVED_STORE_READ_ONLY };
   if (duration && !CHEKELIN_OFF_OPTIONS.some((o) => o.id === duration)) return { error: "Opción inválida." };
 
   const until = duration ? chekelinOffUntil(duration, Date.now()) : null;
@@ -232,11 +252,14 @@ export async function setConversationValue(
 ): Promise<{ error?: string }> {
   const clean = cleanDealValue(valueHnl);
   if (clean.error) return { error: clean.error };
+  const scope = await writableScope();
+  if (scope.error !== undefined) return { error: scope.error };
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("conversations")
     .update({ value_hnl: clean.value })
     .eq("id", conversationId)
+    .in("store_id", scope.storeIds)
     .select("id");
   if (error || !data?.length) return { error: "No se pudo guardar el valor. Inténtalo de nuevo." };
   return {};

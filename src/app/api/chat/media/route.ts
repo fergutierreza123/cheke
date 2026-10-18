@@ -20,6 +20,7 @@ import {
 } from "@/lib/outgoingMedia";
 import type { ChannelType, MediaInfo, Message } from "@/lib/types";
 import { friendlyError } from "@/lib/dbErrors";
+import { ARCHIVED_STORE_READ_ONLY, isArchivedStore } from "@/lib/stores";
 
 // Step 2 of sending a voice note or document from Chat (issue #50). The
 // browser already uploaded the file (prepareChatUpload); this:
@@ -57,11 +58,12 @@ export async function POST(request: Request) {
   const { data: conversation } = await supabase
     .from("conversations")
     .select(
-      `id, business_id, store_id, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`,
+      `id, business_id, store_id, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(archived_at)`,
     )
     .eq("id", conversationId)
     .maybeSingle();
   if (!conversation) return reply({ error: "No se encontró la conversación." }, 404);
+  if (isArchivedStore(conversation.store)) return reply({ error: ARCHIVED_STORE_READ_ONLY }, 409);
 
   const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
   const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;

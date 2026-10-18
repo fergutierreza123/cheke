@@ -23,6 +23,11 @@ const { saveProduct } = await import("@/app/(app)/inventory/actions");
 const { saveTemplate } = await import("@/app/(app)/templates/actions");
 const { setMemberStore } = await import("@/app/(app)/team/actions");
 const { saveContact } = await import("@/app/(app)/contacts/actions");
+const { deleteProduct } = await import("@/app/(app)/inventory/actions");
+const { saveChekelinInfo } = await import("@/app/(app)/chekelin/actions");
+const { setChekelinOff } = await import("@/app/(app)/actions");
+const { sendChatMessage, simulateInboundMessage, resolveComplaint } = await import("@/app/(app)/chat/actions");
+const { replyToCommentPublicly } = await import("@/app/(app)/comments/actions");
 
 const OPEN = { id: "A", name: "Centro", archived: false };
 const OPEN_B = { id: "B", name: "Mall", archived: false };
@@ -202,6 +207,108 @@ describe("setMemberStore reads the person's real role", () => {
   it("refuses Tiendas of another Negocio", async () => {
     expect((await setMemberStore("u9", "agent", "other-biz-store", true)).error).toBeDefined();
     expect(db.calls).toHaveLength(0);
+  });
+});
+
+describe("archived Tiendas are read-only everywhere (issue #35 item 4)", () => {
+  const ARCHIVED_CONV = {
+    id: "c1",
+    business_id: "biz",
+    store_id: "X",
+    window_expires_at: null,
+    contact: null,
+    channel: null,
+    store: { archived_at: "2026-09-01T00:00:00Z" },
+  };
+
+  it("Chat can't send in an archived Tienda's conversation", async () => {
+    db.queue("conversations", { data: ARCHIVED_CONV });
+    expect((await sendChatMessage("c1", "hola")).error).toMatch(/archivada/);
+    expect(db.writes("messages", "insert")).toHaveLength(0);
+  });
+
+  it("modo prueba can't add messages there either", async () => {
+    db.queue("conversations", { data: ARCHIVED_CONV });
+    expect((await simulateInboundMessage("c1", "hola")).error).toMatch(/archivada/);
+    expect(db.writes("messages", "insert")).toHaveLength(0);
+  });
+
+  it("chekeo can't move or price a deal while viewing an archived Tienda", async () => {
+    business = as("owner", { selected: "X" });
+    expect((await setConversationStage("c1", "ganado")).error).toMatch(/archivada/);
+    expect((await setConversationValue("c1", 100)).error).toMatch(/archivada/);
+    expect(db.writes("conversations", "update")).toHaveLength(0);
+  });
+
+  it("chekeo changes only touch conversations of open Tiendas", async () => {
+    db.queue("conversations", { data: [{ id: "c1" }] });
+    expect(await setConversationStage("c1", "ganado")).toEqual({});
+    expect(db.writes("conversations", "update")[0].ops).toContainEqual({ op: "in", args: ["store_id", ["A", "B"]] });
+  });
+
+  it("a Queja of an archived Tienda can't be resolved", async () => {
+    db.queue("conversations", { data: { id: "c1", store_id: "X" } });
+    expect((await resolveComplaint("c1")).error).toMatch(/archivada/);
+    expect(db.writes("conversations", "update")).toHaveLength(0);
+  });
+
+  it("products of an archived Tienda can't be deleted", async () => {
+    await deleteProduct("p1");
+    expect(db.writes("products", "delete")[0].ops).toContainEqual({ op: "in", args: ["store_id", ["A", "B"]] });
+  });
+
+  it("Lo que chekelin sabe and the chekelin switch of an archived Tienda can't change", async () => {
+    const info = { payment_methods: "", shipping: "", delivery_hours: "", returns_policy: "", faq: "", address_form: "mirror" as const };
+    expect((await saveChekelinInfo("X", info)).error).toMatch(/archivada/);
+    expect((await setChekelinOff("X", null)).error).toMatch(/archivada/);
+    expect(db.writes("store_chekelin_info", "upsert")).toHaveLength(0);
+  });
+
+  it("nobody can be added to an archived Tienda", async () => {
+    db.queue("members", { data: { role: "agent" } });
+    expect((await setMemberStore("u9", "agent", "X", true)).error).toMatch(/archivada/);
+    expect(db.writes("store_members", "insert")).toHaveLength(0);
+  });
+
+  it("comments of an archived Tienda can't be answered", async () => {
+    db.queue("post_comments", { data: { id: "k1", store_id: "X" } });
+    expect((await replyToCommentPublicly("k1", "Gracias")).error).toMatch(/archivada/);
+  });
+});
+
+describe("modo prueba only in sample chats (PR #63 follow-up)", () => {
+  const conv = (channel: unknown) => ({
+    id: "c1",
+    business_id: "biz",
+    store_id: "A",
+    contact: { name: "Ana" },
+    channel,
+    store: { archived_at: null },
+  });
+  const LIVE = { id: "ch1", type: "whatsapp", external_id: "pn-1", page_id: null, access_token_encrypted: "secret" };
+  beforeEach(async () => {
+    const bot = await import("@/lib/bot");
+    vi.mocked(bot.handleInboundMessage).mockResolvedValue({});
+  });
+
+  it("refuses to add a fake customer message to a real customer's chat", async () => {
+    db.queue("conversations", { data: conv(LIVE) });
+    db.queue("businesses", { data: { is_demo: false } });
+    expect((await simulateInboundMessage("c1", "hola")).error).toMatch(/modo prueba/i);
+    expect(db.writes("messages", "insert")).toHaveLength(0);
+  });
+
+  it("works in a sample chat (no connected channel)", async () => {
+    db.queue("conversations", { data: conv({ id: "ch1", type: "whatsapp", external_id: null, page_id: null, access_token_encrypted: null }) });
+    db.queue("messages", { data: { id: "m1", created_at: "2026-10-01T00:00:00Z" } });
+    expect((await simulateInboundMessage("c1", "hola")).inbound?.id).toBe("m1");
+  });
+
+  it("works in the app reviewers' demo Negocio", async () => {
+    db.queue("conversations", { data: conv(LIVE) });
+    db.queue("businesses", { data: { is_demo: true } });
+    db.queue("messages", { data: { id: "m1", created_at: "2026-10-01T00:00:00Z" } });
+    expect((await simulateInboundMessage("c1", "hola")).inbound?.id).toBe("m1");
   });
 });
 
