@@ -13,6 +13,7 @@ import { StoreSwitcher, type StoreSwitcherProps } from "@/components/StoreSwitch
 export const DEFAULT_NAV_ITEMS = [
   { href: "/chat", label: "Chat", icon: ChatIcon },
   { href: "/chekeo", label: "chekeo", icon: KanbanIcon },
+  { href: "/chekelin", label: "chekelin", icon: SparkIcon },
   { href: "/contacts", label: "Contactos", icon: UsersIcon },
   { href: "/comments", label: "Comentarios", icon: CommentIcon },
   { href: "/templates", label: "Plantillas", icon: TemplateIcon },
@@ -216,6 +217,14 @@ function KanbanIcon({ className }: { className?: string }) {
       <rect x="3" y="4" width="4" height="16" />
       <rect x="10" y="4" width="4" height="10" />
       <rect x="17" y="4" width="4" height="7" />
+    </svg>
+  );
+}
+function SparkIcon({ className }: { className?: string }) {
+  return (
+    <svg {...iconProps(className)}>
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
     </svg>
   );
 }

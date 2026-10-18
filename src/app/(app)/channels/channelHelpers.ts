@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
+import { friendlyError } from "@/lib/dbErrors";
 import { GRAPH_API_VERSION } from "@/lib/meta";
 import { graphWithFallback, systemUserToken } from "@/lib/whatsapp";
 
@@ -43,7 +44,7 @@ export async function claimExternalId(
       .update({ external_id: null, status: "disconnected", access_token_encrypted: null, credential_token_encrypted: null })
       .eq("id", row.id)
       .eq("business_id", businessId);
-    if (error) return error.message;
+    if (error) return friendlyError(error, "No se pudo mover la conexión a esta tienda.");
   }
   return null;
 }

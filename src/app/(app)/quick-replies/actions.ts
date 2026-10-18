@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
 import { BODY_MAX, normalizeShortcut, parsePastedReplies } from "@/lib/quickReplies";
+import { friendlyError } from "@/lib/dbErrors";
 
 const ONLY_MANAGERS = "Solo el dueño o un gerente puede cambiar las respuestas rápidas.";
 
@@ -36,7 +37,7 @@ export async function saveQuickReply(input: { id?: string; shortcut: string; bod
     : await ctx.supabase.from("quick_replies").insert({ ...row, business_id: ctx.business.id });
   if (error) {
     if (error.code === "23505") return { error: `Ya tienes una respuesta con /${shortcut}.` };
-    return { error: error.message };
+    return { error: friendlyError(error, "No se pudo guardar la respuesta rápida.") };
   }
   refresh();
   return {};
@@ -46,7 +47,7 @@ export async function deleteQuickReply(id: string): Promise<{ error?: string }> 
   const ctx = await managerContext();
   if ("error" in ctx) return { error: ctx.error };
   const { error } = await ctx.supabase.from("quick_replies").delete().eq("id", id).eq("business_id", ctx.business.id);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo guardar. Inténtalo de nuevo.") };
   refresh();
   return {};
 }
@@ -65,7 +66,7 @@ export async function importQuickReplies(text: string): Promise<{ error?: string
       replies.map((r) => ({ ...r, business_id: ctx.business.id })),
       { onConflict: "business_id,shortcut" },
     );
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo guardar. Inténtalo de nuevo.") };
   refresh();
   return { saved: replies.length };
 }

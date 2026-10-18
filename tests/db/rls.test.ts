@@ -304,3 +304,58 @@ describe("Tiendas and roles", () => {
     expect(await visible(null, "conversations")).toEqual(sorted(ids.convA, ids.convB, ids.conv2));
   });
 });
+
+describe("Comentarios (post_comments, migration 0027)", () => {
+  beforeAll(async () => {
+    for (const [key, biz, store] of [
+      ["A", ids.biz, ids.storeA],
+      ["B", ids.biz, ids.storeB],
+      ["2", ids.biz2, ids.store2],
+    ] as const) {
+      ids[`comment${key}`] = (await one(
+        `insert into post_comments (business_id, store_id, channel_id, platform, external_comment_id, body, private_status, private_sent_at)
+         values ($1, $2, $3, 'instagram', $4, '¿precio?', 'sent', now()) returning id`,
+        [biz, store, ids[`ch${key}`], `ig-comment-${key}`],
+      )).id;
+    }
+  });
+
+  it("each person sees only the comments of their own Tiendas", async () => {
+    expect(await visible(OWNER, "post_comments")).toEqual(sorted(ids.commentA, ids.commentB));
+    expect(await visible(AGENT_A, "post_comments")).toEqual([ids.commentA]);
+    expect(await visible(MANAGER_B, "post_comments")).toEqual([ids.commentB]);
+    expect(await visible(OTHER_OWNER, "post_comments")).toEqual([ids.comment2]);
+    expect(await visible(NOBODY, "post_comments")).toEqual([]);
+    expect(await visible(null, "post_comments")).toEqual(sorted(ids.commentA, ids.commentB, ids.comment2));
+  });
+
+  it("only the server writes them: nobody signed in can add, change or delete one", async () => {
+    const add = await t.as(OWNER, `insert into post_comments (business_id, store_id, channel_id, platform, external_comment_id) values ($1, $2, $3, 'facebook', 'fake')`, [ids.biz, ids.storeA, ids.chA]);
+    expect(add.error).toBeDefined();
+    expect((await t.as(OWNER, `update post_comments set private_status = 'queued' where id = $1 returning id`, [ids.commentA])).rows ?? []).toEqual([]);
+    expect((await t.as(OWNER, `delete from post_comments where id = $1 returning id`, [ids.commentA])).rows ?? []).toEqual([]);
+  });
+
+  it("a redelivered comment can't be saved twice", async () => {
+    const again = await t.as(null, `insert into post_comments (business_id, store_id, channel_id, platform, external_comment_id) values ($1, $2, $3, 'instagram', 'ig-comment-A')`, [ids.biz, ids.storeA, ids.chA]);
+    expect(again.error).toMatch(/duplicate|unique/);
+  });
+
+  it("the hourly private-reply count is for the server only", async () => {
+    expect((await t.as(OWNER, `select comment_private_replies_sent_last_hour($1) as n`, [ids.chA])).error).toBeDefined();
+    expect((await t.as(null, `select comment_private_replies_sent_last_hour($1) as n`, [ids.chA])).rows?.[0].n).toBe(1);
+  });
+});
+
+describe("Canal token health (migration 0029)", () => {
+  it("an Agente or another Negocio can't clear «Reconectar» or swap a Canal's tokens", async () => {
+    await t.q(`update channels set reauth_required_at = now() where id = $1`, [ids.chA]);
+    try {
+      const r = await t.as(AGENT_A, `update channels set reauth_required_at = null, credential_token_encrypted = 'x' where id = $1 returning id`, [ids.chA]);
+      expect(r.rows ?? []).toEqual([]);
+      expect((await t.as(OTHER_OWNER, `update channels set reauth_required_at = null where id = $1 returning id`, [ids.chA])).rows ?? []).toEqual([]);
+    } finally {
+      await t.q(`update channels set reauth_required_at = null where id = $1`, [ids.chA]);
+    }
+  });
+});

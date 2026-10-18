@@ -12,6 +12,7 @@ import { ChannelsView } from "@/app/(app)/channels/ChannelsView";
 import { PageStub } from "@/components/PageStub";
 import { WelcomeSplash } from "@/components/WelcomeSplash";
 import { AccountView } from "@/app/(app)/account/AccountView";
+import { ChekelinInfoView } from "@/app/(app)/chekelin/ChekelinInfoView";
 import { buildDemoData, DEMO_BASE } from "@/lib/demoData";
 
 export const metadata: Metadata = { title: "cheke.io — demo", robots: { index: false, follow: false } };
@@ -35,6 +36,14 @@ export default async function DemoScreen({
   const views: Record<string, React.ReactNode> = {
     chat: <ChatView businessId="demo" storeIds={d.business.scopeStoreIds} conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} startInThread={Boolean(c)} />,
     chekeo: <ChekeoView conversations={d.conversations} demo />,
+    chekelin: (
+      <ChekelinInfoView
+        store={{ id: d.business.scopeStoreIds[0], name: d.business.name, archived: false }}
+        stores={[]}
+        info={d.chekelinInfo}
+        canEdit
+      />
+    ),
     contacts: <ContactsView contacts={d.contacts} />,
     templates: <TemplatesView templates={d.templates} />,
     inventory: <InventoryView products={d.products} conversations={d.conversations} />,

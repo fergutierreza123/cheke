@@ -7,6 +7,7 @@ import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { documentExtension, documentMime, recordingExtension, uploadProblem, type OutgoingKind } from "@/lib/outgoingMedia";
 import { visualExtension, visualMime } from "@/lib/outgoingVisual";
 import type { ChannelType } from "@/lib/types";
+import { ARCHIVED_STORE_READ_ONLY, isArchivedStore } from "@/lib/stores";
 
 // Step 1 of sending a voice note or document from Chat (issue #50): a
 // one-time link to upload the file straight to the private "message-media"
@@ -19,10 +20,11 @@ export async function prepareChatUpload(
   // The signed-in client: RLS only finds conversations of the person's Tiendas.
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("id, business_id, store_id, window_expires_at, channel:channels(type)")
+    .select("id, business_id, store_id, window_expires_at, channel:channels(type), store:stores(archived_at)")
     .eq("id", conversationId)
     .maybeSingle();
   if (!conversation) return { error: "No se encontró la conversación." };
+  if (isArchivedStore(conversation.store)) return { error: ARCHIVED_STORE_READ_ONLY };
 
   const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
   const channelType = (channel?.type ?? null) as ChannelType | null;

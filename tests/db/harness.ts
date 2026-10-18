@@ -58,7 +58,9 @@ export type TestDb = {
   applyMigration(file: string): Promise<void>;
 };
 
-export async function createTestDb(): Promise<TestDb> {
+// `until`: apply only the migrations whose file name sorts before it (e.g.
+// "0019" stops after 0018), to test how a migration treats existing data.
+export async function createTestDb({ until }: { until?: string } = {}): Promise<TestDb> {
   const db = new PGlite();
   await db.exec(SUPABASE_STUBS);
 
@@ -69,7 +71,7 @@ export async function createTestDb(): Promise<TestDb> {
       throw new Error(`Migration ${file} failed: ${(e as Error).message}`);
     }
   };
-  for (const f of migrationFiles()) await applyMigration(f);
+  for (const f of migrationFiles()) if (!until || f < until) await applyMigration(f);
 
   const as: TestDb["as"] = async (user, sql, params = []) => {
     await db.exec(

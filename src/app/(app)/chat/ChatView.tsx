@@ -151,6 +151,7 @@ export function ChatView({
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState<string | null>(null);
   // Demo/testing only — lets you type as if you were the customer so
   // Chekelin's first-reply flow can be shown without a real WhatsApp number
   // connected yet.
@@ -754,7 +755,12 @@ export function ChatView({
           appendMessage(result.reply);
           bumpConversation(selected.id, result.reply.created_at, result.reply.body);
         }
-        if (result.error) setSendError(`chekelin no pudo responder: ${result.error}`);
+        if (result.error && !result.inbound) {
+          // The test message wasn't saved (real customer's chat, archived
+          // Tienda…): give the text back and say why.
+          setDraft(text);
+          setSendError(result.error);
+        } else if (result.error) setSendError(`chekelin no pudo responder: ${result.error}`);
       } finally {
         setBotTyping(false);
       }
@@ -814,8 +820,22 @@ export function ChatView({
 
   async function handleSetStage(stage: ConversationStage) {
     if (!selected) return;
-    setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, stage } : c)));
-    await setConversationStage(selected.id, stage);
+    const id = selected.id;
+    const previous = selected.stage;
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, stage } : c)));
+    // The public /demo only moves it on screen.
+    if (businessId === "demo") return;
+    let error: string | undefined;
+    try {
+      error = (await setConversationStage(id, stage)).error;
+    } catch {
+      error = "No se pudo mover el contacto. Inténtalo de nuevo.";
+    }
+    if (error) {
+      // Not saved: put the stage back and say why.
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, stage: previous } : c)));
+      setSendError(error);
+    }
   }
 
   // Per-conversation pause. Turning it back on makes chekelin the first
@@ -951,8 +971,12 @@ export function ChatView({
 
   async function handleSeed() {
     setSeeding(true);
+    setSeedError(null);
     try {
-      await seedDemoData();
+      const result = await seedDemoData();
+      if (result.error) setSeedError(result.error);
+    } catch {
+      setSeedError("No se pudieron crear los datos de ejemplo. Inténtalo de nuevo.");
     } finally {
       setSeeding(false);
     }
@@ -972,6 +996,11 @@ export function ChatView({
         >
           {seeding ? "Sembrando…" : "Sembrar datos de ejemplo"}
         </button>
+        {seedError && (
+          <p role="alert" className="text-[12.5px] text-danger">
+            {seedError}
+          </p>
+        )}
       </div>
     );
   }

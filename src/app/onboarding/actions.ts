@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { friendlyError } from "@/lib/dbErrors";
 
 export type OnboardingState = { error?: string };
 
@@ -25,7 +26,7 @@ export async function createBusiness(_prev: OnboardingState, formData: FormData)
   if (nameError) return { error: "No se pudo guardar tu nombre. Inténtalo de nuevo." };
 
   const { error } = await supabase.rpc("create_business", { business_name: name });
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo crear tu negocio. Inténtalo de nuevo.") };
 
   redirect("/chat");
 }

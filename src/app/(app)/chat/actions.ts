@@ -16,20 +16,14 @@ import { markMessageFailed } from "@/lib/whatsappErrors";
 import { afterPaymentConfirmed, handleInboundMessage } from "@/lib/bot";
 import { sendPushToPeople } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { canManageStore, getCurrentBusiness } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness, isArchivedStore } from "@/lib/business";
 import { buildPaymentMessage, normalizePaymentLink, orderConcept, type OrderItem } from "@/lib/payments";
 import { recordPaymentRequest } from "@/lib/orders";
 import type { ConversationNote, Message } from "@/lib/types";
+// Images sent to customers must come from our own storage.
+import { isOwnStorageUrl } from "@/lib/storageUrl";
+import { friendlyError } from "@/lib/dbErrors";
 
-// Images sent to customers must come from our own storage, not an arbitrary
-// address a client could supply.
-function isOwnStorageUrl(url: string): boolean {
-  try {
-    return new URL(url).origin === new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin;
-  } catch {
-    return false;
-  }
-}
 
 // The app reviewers' demo Negocio (businesses.is_demo, migration 0015) runs
 // in modo prueba: replies are saved in cheKe but never sent to WhatsApp.
@@ -55,12 +49,13 @@ export async function sendChatMessage(
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
     .select(
-      `id, business_id, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS})`,
+      `id, business_id, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(archived_at)`,
     )
     .eq("id", conversationId)
     .single();
 
   if (convError || !conversation) return { error: "No se encontró la conversación." };
+  if (isArchivedStore(conversation.store)) return { error: ARCHIVED_STORE_READ_ONLY };
 
   const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
   const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
@@ -98,7 +93,7 @@ export async function sendChatMessage(
     .single();
 
   if (insertError || !message) {
-    return { error: insertError?.message ?? "No se pudo guardar el mensaje." };
+    return { error: friendlyError(insertError, "No se pudo guardar el mensaje.") };
   }
 
   await supabase
@@ -145,11 +140,12 @@ export async function reactToMessage(messageId: string, emoji: string | null): P
   const { data: message } = await supabase
     .from("messages")
     .select(
-      `id, business_id, external_message_id, reaction_out, deleted_at, conversation:conversations(window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}))`,
+      `id, business_id, external_message_id, reaction_out, deleted_at, store:stores(archived_at), conversation:conversations(window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}))`,
     )
     .eq("id", messageId)
     .maybeSingle();
   if (!message) return { error: "No se encontró el mensaje." };
+  if (isArchivedStore(message.store)) return { error: ARCHIVED_STORE_READ_ONLY };
   if (message.deleted_at) return { error: "Ese mensaje fue eliminado." };
 
   const conversation = Array.isArray(message.conversation) ? message.conversation[0] : message.conversation;
@@ -173,7 +169,7 @@ export async function reactToMessage(messageId: string, emoji: string | null): P
   }
 
   const { error } = await supabase.from("messages").update({ reaction_out: next }).eq("id", messageId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo guardar la reacción.") };
   return { reaction: next };
 }
 
@@ -217,9 +213,21 @@ export async function markConversationRead(conversationId: string): Promise<void
   });
 }
 
+// Modo prueba: a channel really connected to a customer's WhatsApp,
+// Instagram or Facebook (seeded sample chats have no credentials).
+function isLiveChannel(channel: { access_token_encrypted: string | null } | null | undefined): boolean {
+  return Boolean(channel?.access_token_encrypted);
+}
+
+const SIMULATE_ONLY_IN_SAMPLES =
+  "El modo prueba solo funciona en chats de ejemplo. Este chat es con un cliente real: escríbele normalmente.";
+
 // Demo/testing only (no real WhatsApp message involved): lets the founder
 // type as if they were the customer, so Chekelin's first-reply flow can be
-// shown end-to-end before a real WhatsApp number is connected.
+// shown end-to-end before a real WhatsApp number is connected. Only in
+// sample chats (no connected channel) and the app reviewers' demo Negocio:
+// a fake customer message in a real chat would mix into the customer's
+// history and restart chekelin's and the team's timers.
 export async function simulateInboundMessage(
   conversationId: string,
   body: string,
@@ -231,17 +239,22 @@ export async function simulateInboundMessage(
 
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
-    .select("id, business_id, store_id, contact:contacts(name)")
+    .select(`id, business_id, store_id, contact:contacts(name), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(archived_at)`)
     .eq("id", conversationId)
     .single();
   if (convError || !conversation) return { error: "No se encontró la conversación." };
+  if (isArchivedStore(conversation.store)) return { error: ARCHIVED_STORE_READ_ONLY };
+  const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
+  if (isLiveChannel(channel) && !(await isDemoBusiness(supabase, conversation.business_id))) {
+    return { error: SIMULATE_ONLY_IN_SAMPLES };
+  }
 
   const { data: inbound, error: insertError } = await supabase
     .from("messages")
     .insert({ conversation_id: conversationId, business_id: conversation.business_id, direction: "in", body: text })
     .select("*")
     .single();
-  if (insertError || !inbound) return { error: insertError?.message ?? "No se pudo guardar el mensaje." };
+  if (insertError || !inbound) return { error: friendlyError(insertError, "No se pudo guardar el mensaje.") };
 
   await supabase.from("conversations").update({ last_message_at: inbound.created_at }).eq("id", conversationId);
 
@@ -272,6 +285,7 @@ export async function reassignConversation(conversationId: string, userId: strin
     .maybeSingle();
   if (!conversation) return { error: "No se encontró la conversación." };
   if (!canManageStore(business, conversation.store_id)) return { error: "Solo el dueño o el gerente puede reasignar." };
+  if (!canWriteToStore(business, conversation.store_id)) return { error: ARCHIVED_STORE_READ_ONLY };
 
   const admin = createAdminClient();
   const [{ data: member }, { data: inStore }] = await Promise.all([
@@ -291,7 +305,7 @@ export async function reassignConversation(conversationId: string, userId: strin
       ...(conversation.awaiting_since ? { awaiting_since: now } : {}),
     })
     .eq("id", conversationId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo reasignar el chat.") };
 
   const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
   await sendPushToPeople(admin, business.id, conversation.store_id, [userId], {
@@ -418,7 +432,7 @@ export async function resolveOrder(
     .eq("status", "awaiting_payment")
     .select("id, conversation_id")
     .maybeSingle();
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo actualizar el cobro.") };
   if (!order) return { error: "Este cobro ya fue actualizado." };
 
   if (outcome === "paid" && order.conversation_id) {
@@ -440,10 +454,11 @@ export async function resolveComplaint(conversationId: string): Promise<{ error?
   if (!canManageStore(business, conversation.store_id)) {
     return { error: "Solo el gerente o el dueño puede marcar la queja como resuelta." };
   }
+  if (!canWriteToStore(business, conversation.store_id)) return { error: ARCHIVED_STORE_READ_ONLY };
   const { error } = await supabase
     .from("conversations")
     .update({ complaint_open_at: null, complaint_resolved_at: new Date().toISOString() })
     .eq("id", conversationId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo marcar la queja como resuelta.") };
   return {};
 }

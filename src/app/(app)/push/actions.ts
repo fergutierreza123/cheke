@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
+import { friendlyError } from "@/lib/dbErrors";
 
 // Called by the installed iPhone/Android app after the user allows
 // notifications, to remember this phone's push address for their business.
@@ -24,5 +25,5 @@ export async function registerDeviceToken(token: string, platform: "ios" | "andr
     p_platform: platform,
     p_business_id: business.id,
   });
-  return error ? { error: error.message } : {};
+  return error ? { error: friendlyError(error, "No se pudieron activar los avisos en este teléfono.") } : {};
 }
