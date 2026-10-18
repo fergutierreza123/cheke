@@ -1,6 +1,15 @@
-import { credentialsForChannel, graphWithFallback, toWhatsAppNumber, GRAPH_API_VERSION, type WhatsAppCredentials } from "@/lib/whatsapp";
-import { metaCredentialsForChannel, postMessage } from "@/lib/metaMessaging";
+import {
+  credentialsForChannel,
+  graphWithFallback,
+  toWhatsAppNumber,
+  GRAPH_API_VERSION,
+  RECONNECT_MESSAGE,
+  type WhatsAppCredentials,
+} from "@/lib/whatsapp";
+import { metaCredentialsForChannel, postMessage, type MetaCredentials } from "@/lib/metaMessaging";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
+import { isMetaAuthError } from "@/lib/metaTokens";
+import { markChannelNeedsReconnect, regeneratePageToken } from "@/lib/channelHealth";
 import type { SendChannel, SendContact, SendResult } from "@/lib/channelSend";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,7 +49,12 @@ export async function sendMediaOnChannel(input: {
 
   if (channel.type === "whatsapp") {
     if (!contact.phone) return { notSent: true };
-    return sendWhatsAppFile(contact.phone, credentialsForChannel(channel), file, replyToExternalId);
+    const { needsReconnect, ...result } = await sendWhatsAppFile(contact.phone, credentialsForChannel(channel), file, replyToExternalId);
+    // Same as text replies: Meta refused every token, so "Reconectar".
+    if (needsReconnect && channel.id) {
+      await markChannelNeedsReconnect(channel.id, `whatsapp_${result.errorCode ?? "auth"}`);
+    }
+    return result;
   }
 
   const recipientId = channel.type === "instagram" ? contact.ig_id : contact.fb_psid;
@@ -55,16 +69,28 @@ export async function sendMediaOnChannel(input: {
       ? { type: "audio", payload: { url: file.m4aUrl, is_reusable: false } }
       : { type: "file", payload: { url: file.url, is_reusable: false } };
   const recipient = { id: recipientId };
-  if (replyToExternalId) {
-    const quotedSend = await postMessage(credentials, {
-      recipient,
-      ...routing,
-      message: { attachment, reply_to: { mid: replyToExternalId } },
-    });
-    // If Meta won't quote that message, still send the file on its own.
-    if (!quotedSend.error) return { externalMessageId: quotedSend.externalMessageId };
+  const send = async (using: MetaCredentials) => {
+    if (replyToExternalId) {
+      const quotedSend = await postMessage(using, {
+        recipient,
+        ...routing,
+        message: { attachment, reply_to: { mid: replyToExternalId } },
+      });
+      // If Meta won't quote that message, still send the file on its own.
+      if (!quotedSend.error) return quotedSend;
+    }
+    return postMessage(using, { recipient, ...routing, message: { attachment } });
+  };
+  let result = await send(credentials);
+  if (isMetaAuthError(result.graphError) && channel.id) {
+    // Same as text replies: a fresh Page token first, then "Reconectar".
+    const fresh = await regeneratePageToken(channel.id);
+    if (fresh) result = await send(fresh);
+    if (isMetaAuthError(result.graphError)) {
+      await markChannelNeedsReconnect(channel.id, `meta_${result.graphError?.code ?? "auth"}`);
+      return { error: RECONNECT_MESSAGE, errorDetails: result.error };
+    }
   }
-  const result = await postMessage(credentials, { recipient, ...routing, message: { attachment } });
   return result.error ? { error: result.error } : { externalMessageId: result.externalMessageId };
 }
 
@@ -73,7 +99,7 @@ async function sendWhatsAppFile(
   credentials: WhatsAppCredentials | null,
   file: OutgoingFile,
   replyToId?: string | null,
-): Promise<SendResult> {
+): Promise<WhatsAppFileResult> {
   if (!credentials) return { error: "El canal de WhatsApp de este negocio no está conectado todavía." };
 
   const upload =
@@ -101,7 +127,7 @@ async function uploadWhatsAppMedia(
   bytes: Buffer,
   mime: string,
   filename: string,
-): Promise<{ id: string } | SendResult> {
+): Promise<{ id: string } | WhatsAppFileResult> {
   const form = new FormData();
   form.append("messaging_product", "whatsapp");
   form.append("type", mime);
@@ -124,7 +150,7 @@ async function uploadWhatsAppMedia(
   return { id: String(data.id) };
 }
 
-async function postWhatsApp(credentials: WhatsAppCredentials, payload: Record<string, unknown>): Promise<SendResult> {
+async function postWhatsApp(credentials: WhatsAppCredentials, payload: Record<string, unknown>): Promise<WhatsAppFileResult> {
   let res: { ok: boolean; data: GraphBody };
   try {
     res = await graphWithFallback(credentials, (token) =>
@@ -145,12 +171,22 @@ async function postWhatsApp(credentials: WhatsAppCredentials, payload: Record<st
 
 // Same shape as sendWhatsAppMessage's errors, so markMessageFailed can
 // explain the reason in Spanish.
-function metaError(data: { error?: { message?: string; code?: unknown; error_data?: { details?: string } } } | null, fallback: string): SendResult {
+function metaError(
+  data: { error?: { message?: string; code?: number; error_subcode?: number; error_data?: { details?: string } } } | null,
+  fallback: string,
+): WhatsAppFileResult {
   const errorCode = typeof data?.error?.code === "number" ? data.error.code : undefined;
   const details = data?.error?.error_data?.details;
+  // Token expired/revoked, or the client removed cheke from its account.
+  const needsReconnect = isMetaAuthError(data?.error);
   return {
-    error: data?.error?.message ?? fallback,
+    error: needsReconnect ? RECONNECT_MESSAGE : (data?.error?.message ?? fallback),
     errorCode,
     errorDetails: [data?.error?.message, details].filter(Boolean).join(" — ") || undefined,
+    ...(needsReconnect ? { needsReconnect: true as const } : {}),
   };
 }
+
+// What the WhatsApp helpers return: a send result, plus whether Meta refused
+// every token for auth/permission reasons.
+type WhatsAppFileResult = SendResult & { needsReconnect?: true };

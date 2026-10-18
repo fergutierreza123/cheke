@@ -137,6 +137,9 @@ export async function reactOnChannel(input: {
     const result = await sendWhatsAppMessage(contact.phone, "", credentialsForChannel(channel), null, {
       reaction: { messageId: externalMessageId, emoji: emoji ?? "" },
     });
+    if (result.needsReconnect && channel.id) {
+      await markChannelNeedsReconnect(channel.id, `whatsapp_${result.errorCode ?? "auth"}`);
+    }
     return result.error ? { error: result.error } : {};
   }
   if (channel.type === "instagram") {
