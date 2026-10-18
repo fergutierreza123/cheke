@@ -1,17 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk, Work_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
+// Self-hosted (variable, Latin subset incl. ñ/á) so the build never depends
+// on downloading from Google Fonts. Files from @fontsource-variable 5.3.0.
+const spaceGrotesk = localFont({
+  src: "./fonts/space-grotesk-latin.woff2",
   variable: "--font-space-grotesk",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: "300 700",
+  display: "swap",
 });
 
-const workSans = Work_Sans({
+const workSans = localFont({
+  src: "./fonts/work-sans-latin.woff2",
   variable: "--font-work-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: "100 900",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
