@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
+import { TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
 import type { TemplateCategory } from "@/lib/types";
 
 export async function saveTemplate(formData: FormData): Promise<{ error?: string }> {
@@ -15,6 +16,7 @@ export async function saveTemplate(formData: FormData): Promise<{ error?: string
   const category = String(formData.get("category") ?? "precios") as TemplateCategory;
 
   if (!name || !body) return { error: "Ponle un nombre y un mensaje a la plantilla." };
+  if (!TEMPLATE_CATEGORY_ORDER.includes(category)) return { error: "Elige una categoría." };
 
   const supabase = await createClient();
 
@@ -22,17 +24,18 @@ export async function saveTemplate(formData: FormData): Promise<{ error?: string
   const suggestionId = String(formData.get("suggestion_id") ?? "").trim() || null;
   if (suggestionId) {
     if (business.role === "agent") return { error: "Solo el dueño o un gerente puede aprobar sugerencias." };
-    const { data: decided, error } = await supabase
+    const { data: pending } = await supabase
       .from("template_suggestions")
-      .update({ status: "approved", decided_at: new Date().toISOString(), decided_by: business.userId })
+      .select("id")
       .eq("id", suggestionId)
       .eq("business_id", business.id)
       .eq("status", "pending")
-      .select("id");
-    if (error) return { error: error.message };
-    if (!decided?.length) return { error: "Esta sugerencia ya se revisó." };
+      .maybeSingle();
+    if (!pending) return { error: "Esta sugerencia ya se revisó." };
   }
 
+  // The Plantilla first: if it can't be saved, the Sugerencia stays pending
+  // instead of being marked approved without a Plantilla.
   if (id) {
     const { error } = await supabase
       .from("templates")
@@ -45,6 +48,16 @@ export async function saveTemplate(formData: FormData): Promise<{ error?: string
       .from("templates")
       .insert({ business_id: business.id, name, category, body });
     if (error) return { error: error.message };
+  }
+
+  if (suggestionId) {
+    const { error } = await supabase
+      .from("template_suggestions")
+      .update({ status: "approved", decided_at: new Date().toISOString(), decided_by: business.userId })
+      .eq("id", suggestionId)
+      .eq("business_id", business.id)
+      .eq("status", "pending");
+    if (error) console.error("template suggestion approve error", error.message);
   }
 
   revalidatePath("/templates");

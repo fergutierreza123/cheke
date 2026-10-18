@@ -7,7 +7,7 @@ import { canManageStore, getCurrentBusiness } from "@/lib/business";
 import { claimExternalId, unsubscribeMetaPage } from "./channelHelpers";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
-import { PAGE_SUBSCRIBED_FIELDS } from "@/lib/metaMessaging";
+import { PAGE_OPTIONAL_FIELDS, PAGE_SUBSCRIBED_FIELDS } from "@/lib/metaMessaging";
 import { debugToken, freshConnectionFields } from "@/lib/channelHealth";
 import { grantedPageIds } from "@/lib/metaTokens";
 
@@ -212,7 +212,7 @@ export async function connectMetaPage(
     return res?.ok ? null : (data?.error?.message ?? "No se pudo activar la recepción de mensajes.");
   };
   let subscribeError = await subscribe(PAGE_SUBSCRIBED_FIELDS);
-  if (subscribeError) subscribeError = await subscribe(PAGE_SUBSCRIBED_FIELDS.filter((f) => f !== "feed"));
+  if (subscribeError) subscribeError = await subscribe(PAGE_SUBSCRIBED_FIELDS.filter((f) => !PAGE_OPTIONAL_FIELDS.includes(f)));
   if (subscribeError) return { error: subscribeError };
 
   let warning: string | undefined;

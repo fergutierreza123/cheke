@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentBusiness } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canWriteToStore, getCurrentBusiness } from "@/lib/business";
+import { isOwnStorageUrl } from "@/lib/storageUrl";
 import { removeBackgroundToWhite } from "@/lib/images";
 
 // Matches src/lib/shrinkPhoto.ts, which keeps uploads under Vercel's 4.5 MB
@@ -18,6 +19,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   // Catálogo always shows one Tienda: new products go to that one.
   const storeId = business.selectedStore?.id;
   if (!storeId) return { error: "Elige una tienda para ver su catálogo." };
+  if (!canWriteToStore(business, storeId)) return { error: ARCHIVED_STORE_READ_ONLY };
 
   const id = String(formData.get("id") ?? "").trim() || null;
   const name = String(formData.get("name") ?? "").trim();
@@ -30,7 +32,10 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   const priceRaw = Number(formData.get("price") ?? 0);
   const price = Math.max(0, Number.isFinite(priceRaw) ? Math.round(priceRaw * 100) / 100 : 0);
   const visible = formData.get("visible") === "on";
+  // The photo the product already had. Only our own storage: the browser
+  // could send any address, and this photo goes out to customers.
   const existingImageUrl = String(formData.get("existingImageUrl") ?? "").trim() || null;
+  if (existingImageUrl && !isOwnStorageUrl(existingImageUrl)) return { error: "La foto no es válida." };
 
   const supabase = await createClient();
 
@@ -80,12 +85,15 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   }
 
   if (id) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("products")
       .update({ name, category, description, price_hnl: price, visible, image_url: imageUrl })
       .eq("id", id)
-      .eq("business_id", business.id);
+      .eq("business_id", business.id)
+      .eq("store_id", storeId)
+      .select("id");
     if (error) return { error: error.message };
+    if (!updated?.length) return { error: "No se encontró el producto. Recarga la página." };
   } else {
     const { error } = await supabase.from("products").insert({
       business_id: business.id,

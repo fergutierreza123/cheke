@@ -389,6 +389,18 @@ sigue siendo manual).
      volver a abrir la app: debe pedir Face ID / huella y abrir el Chat.
      Cancelar debe dejar la pantalla del código.
   Cómo funciona: `src/lib/biometricLogin.ts`.
+- **Notas de voz desde el Chat** (micrófono; funciona en el navegador y en
+  la app). Al generar los proyectos nativos agregar el permiso del micrófono:
+  1. **iPhone**: en `ios/App/App/Info.plist` la llave *Privacy - Microphone
+     Usage Description* (`NSMicrophoneUsageDescription`) con el texto:
+     `cheke usa el micrófono para grabar notas de voz para tus clientes.`
+     Sin este texto la app se cierra al tocar el micrófono.
+  2. **Android**: en `android/app/src/main/AndroidManifest.xml`, junto a los
+     otros `<uses-permission>`, agregar
+     `<uses-permission android:name="android.permission.RECORD_AUDIO" />` y
+     `<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />`.
+  3. `npx cap sync`, abrir un chat en el teléfono, tocar el micrófono y
+     aceptar el permiso. Cómo funciona: `src/lib/outgoingMedia.ts`.
 - **Web: Entrar con huella o rostro (passkey)**: en Supabase → Authentication
   → Passkeys, activar *Enable Passkey authentication* con *Relying Party
   Display Name* `cheke`, *Relying Party ID* `cheke.io` y *Relying Party

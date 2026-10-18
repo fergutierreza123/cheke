@@ -1,6 +1,6 @@
 import type { ChannelType } from "@/lib/types";
-import { credentialsForChannel, RECONNECT_MESSAGE, sendWhatsAppMessage, sendWhatsAppTyping } from "@/lib/whatsapp";
-import { metaCredentialsForChannel, sendMetaMessage, sendMetaTyping } from "@/lib/metaMessaging";
+import { credentialsForChannel, markWhatsAppRead, RECONNECT_MESSAGE, sendWhatsAppMessage, sendWhatsAppTyping } from "@/lib/whatsapp";
+import { metaCredentialsForChannel, sendMetaMessage, sendMetaReaction, sendMetaSeen, sendMetaTyping } from "@/lib/metaMessaging";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { isMetaAuthError } from "@/lib/metaTokens";
 import { markChannelNeedsReconnect, regeneratePageToken } from "@/lib/channelHealth";
@@ -67,8 +67,10 @@ export async function sendOnChannel(input: {
   mediaUrl?: string | null;
   // "human" = typed by a person in Chat; "bot" = chekelin or any automation.
   author: "human" | "bot";
+  // Meta's id of the message being answered ("Responder"), if any.
+  replyToExternalId?: string | null;
 }): Promise<SendResult> {
-  const { channel, contact, text, mediaUrl, author } = input;
+  const { channel, contact, text, mediaUrl, author, replyToExternalId } = input;
   if (!channel || !contact) return { notSent: true };
 
   const state = replyWindow(channel.type, input.windowExpiresAt, Date.now());
@@ -80,7 +82,9 @@ export async function sendOnChannel(input: {
 
   if (channel.type === "whatsapp") {
     if (!contact.phone) return { notSent: true };
-    const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl);
+    const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl, {
+      replyToId: replyToExternalId,
+    });
     if (result.needsReconnect && channel.id) {
       await markChannelNeedsReconnect(channel.id, `whatsapp_${result.errorCode ?? "auth"}`);
     }
@@ -91,7 +95,7 @@ export async function sendOnChannel(input: {
 
   const recipientId = channel.type === "instagram" ? contact.ig_id : contact.fb_psid;
   if (!recipientId) return { notSent: true };
-  const options = { mediaUrl, humanAgent: state === "human_agent" };
+  const options = { mediaUrl, humanAgent: state === "human_agent", replyToMid: replyToExternalId };
   let result = await sendMetaMessage(recipientId, text, metaCredentialsForChannel(channel), options);
   if (isMetaAuthError(result.graphError) && channel.id) {
     // The Page token stopped working: get a fresh one with the client's
@@ -104,4 +108,58 @@ export async function sendOnChannel(input: {
     }
   }
   return result.error ? { error: result.error } : { externalMessageId: result.externalMessageId };
+}
+
+// Which networks let the business react, and with what: WhatsApp any emoji,
+// Instagram only a heart, Messenger not at all.
+export function reactionsAllowed(type: ChannelType | null | undefined): "any" | "heart" | "none" {
+  if (type === "whatsapp") return "any";
+  if (type === "instagram") return "heart";
+  return "none";
+}
+
+// The business reacts to a message (emoji null = takes it back). Only while
+// the customer can still be written to (WhatsApp: 24 h window).
+export async function reactOnChannel(input: {
+  channel: SendChannel | null | undefined;
+  contact: SendContact | null | undefined;
+  windowExpiresAt: string | null;
+  externalMessageId: string | null;
+  emoji: string | null;
+}): Promise<SendResult> {
+  const { channel, contact, externalMessageId, emoji } = input;
+  if (!channel || !contact || !externalMessageId) return { notSent: true };
+  if (replyWindow(channel.type, input.windowExpiresAt, Date.now()) === "closed") {
+    return { error: windowClosedMessage(channel.type) };
+  }
+  if (channel.type === "whatsapp") {
+    if (!contact.phone) return { notSent: true };
+    const result = await sendWhatsAppMessage(contact.phone, "", credentialsForChannel(channel), null, {
+      reaction: { messageId: externalMessageId, emoji: emoji ?? "" },
+    });
+    return result.error ? { error: result.error } : {};
+  }
+  if (channel.type === "instagram") {
+    if (!contact.ig_id) return { notSent: true };
+    return sendMetaReaction(contact.ig_id, externalMessageId, emoji, metaCredentialsForChannel(channel));
+  }
+  return { error: "Facebook Messenger no permite reaccionar desde cheke." };
+}
+
+// An agent opened the chat: the customer sees their messages as read
+// (WhatsApp blue ticks; "Visto" on Instagram/Messenger). WhatsApp needs the
+// newest message's id; it marks every earlier one too. Best effort.
+export async function markReadOnChannel(input: {
+  channel: SendChannel | null | undefined;
+  contact: SendContact | null | undefined;
+  latestInboundId: string | null;
+}): Promise<void> {
+  const { channel, contact } = input;
+  if (!channel || !contact) return;
+  if (channel.type === "whatsapp") {
+    if (input.latestInboundId) await markWhatsAppRead(credentialsForChannel(channel), input.latestInboundId);
+    return;
+  }
+  const recipientId = channel.type === "instagram" ? contact.ig_id : contact.fb_psid;
+  if (recipientId) await sendMetaSeen(recipientId, metaCredentialsForChannel(channel));
 }

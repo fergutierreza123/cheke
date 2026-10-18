@@ -102,7 +102,7 @@ export async function connectWhatsAppChannel(input: {
   if (claimed && claimed.length > 0) return { error: "Este número ya está conectado a otro negocio en cheke." };
 
   // Without this, Meta never sends this business's messages to our webhook.
-  const subscribeRes = await fetch(`${GRAPH}/${input.wabaId}/subscribed_apps`, { method: "POST", headers: auth });
+  const subscribeRes = await fetch(`${GRAPH}/${encodeURIComponent(input.wabaId)}/subscribed_apps`, { method: "POST", headers: auth });
   if (!subscribeRes.ok) {
     const data = await subscribeRes.json().catch(() => null);
     return { error: data?.error?.message ?? "No se pudo activar la recepción de mensajes." };
@@ -115,7 +115,7 @@ export async function connectWhatsAppChannel(input: {
   let encryptedPin: string | null = null;
   if (!input.coexistence) {
     const pin = String(randomInt(100000, 1000000));
-    const registerRes = await fetch(`${GRAPH}/${number.id}/register`, {
+    const registerRes = await fetch(`${GRAPH}/${encodeURIComponent(number.id)}/register`, {
       method: "POST",
       headers: auth,
       body: JSON.stringify({ messaging_product: "whatsapp", pin }),

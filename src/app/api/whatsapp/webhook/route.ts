@@ -5,6 +5,9 @@ import { handleInboundMessage } from "@/lib/bot";
 import { describeMessage, whatsappMedia, type WhatsAppMessage } from "@/lib/whatsappMessages";
 import { saveMessageMedia, type MediaJob } from "@/lib/messageMedia";
 import { explainWhatsAppError } from "@/lib/whatsappErrors";
+import { deletedFields, whatsappChange, whatsappReaction, whatsappReplyTo } from "@/lib/messageEvents";
+import { findMessageId, insertMessage } from "@/lib/messageRows";
+import type { MediaInfo } from "@/lib/types";
 
 // Meta resends if we answer slowly, so the push alert and Chekelin's AI reply
 // (which can take several seconds) run *after* the response, with room to finish.
@@ -158,6 +161,8 @@ async function handlePayload(payload: WhatsAppWebhookPayload, media: MediaJob[])
       // One bad message must not drop the rest of the batch.
       for (const message of value.messages ?? []) {
         try {
+          // A reaction, edit or delete changes a message already saved.
+          if (await applyMessageChange(supabase, channel, message, "in")) continue;
           const result = await saveInboundMessage(supabase, book, channel, value, message, media);
           if (result) saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...result });
         } catch (error) {
@@ -167,6 +172,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload, media: MediaJob[])
       // Coexistence: what the business sent from the WhatsApp Business app.
       for (const echo of value.message_echoes ?? []) {
         try {
+          if (await applyMessageChange(supabase, channel, echo, "out")) continue;
           await saveEchoMessage(supabase, book, channel, echo, media);
         } catch (error) {
           console.error("whatsapp echo error", echo?.id, error);
@@ -192,7 +198,7 @@ async function saveInboundMessage(
   message: WhatsAppMessage,
   media: MediaJob[],
 ): Promise<{ conversationId: string; contactName: string; body: string | null } | null> {
-  // Reactions (a 👍 on one of our messages) aren't conversation messages.
+  // Reactions, edits and deletes were applied before getting here.
   const body = describeMessage(message);
   if (body === null) return null;
   if (await alreadySaved(supabase, message.id)) return null; // Meta redelivered it
@@ -210,7 +216,7 @@ async function saveInboundMessage(
     .update({ last_message_at: now.toISOString(), window_expires_at: windowExpiresAt, status: "open" })
     .eq("id", conversation.id);
 
-  const { error: insertError } = await supabase.from("messages").insert({
+  const { error: insertError } = await insertMessage(supabase, {
     conversation_id: conversation.id,
     business_id: channel.business_id,
     direction: "in",
@@ -218,6 +224,7 @@ async function saveInboundMessage(
     external_message_id: message.id,
     status: "sent",
     created_at: messageTime(message.timestamp, now),
+    reply_to_id: await findMessageId(supabase, channel.business_id, whatsappReplyTo(message)),
   });
   if (insertError) {
     // 23505 = the same message arrived twice at once; the other copy won.
@@ -249,7 +256,7 @@ async function saveEchoMessage(
   const conversation = await findOrCreateConversation(supabase, channel, contactId);
   const sentAt = messageTime(echo.timestamp, new Date());
 
-  const { error } = await supabase.from("messages").insert({
+  const { error } = await insertMessage(supabase, {
     conversation_id: conversation.id,
     business_id: channel.business_id,
     direction: "out",
@@ -258,6 +265,7 @@ async function saveEchoMessage(
     status: "sent",
     source: "phone",
     created_at: sentAt,
+    reply_to_id: await findMessageId(supabase, channel.business_id, whatsappReplyTo(echo)),
   });
   if (error && error.code !== "23505") throw new Error(error.message);
   queueMedia(media, channel, echo);
@@ -266,6 +274,61 @@ async function saveEchoMessage(
     .from("conversations")
     .update({ last_message_at: later(conversation.last_message_at, sentAt) })
     .eq("id", conversation.id);
+}
+
+// A reaction, an edit or a delete for everyone, from the customer ("in") or
+// from the business's phone under Coexistence ("out"): applied to the stored
+// message instead of saved as a new one. True when the message was one of
+// these (even if the original isn't in cheke).
+async function applyMessageChange(
+  supabase: Admin,
+  channel: Channel,
+  message: WhatsAppMessage,
+  side: "in" | "out",
+): Promise<boolean> {
+  const reaction = whatsappReaction(message);
+  if (reaction) {
+    // Either side can react to any message in the chat, theirs or ours.
+    await supabase
+      .from("messages")
+      .update(side === "in" ? { reaction_in: reaction.emoji } : { reaction_out: reaction.emoji })
+      .eq("business_id", channel.business_id)
+      .eq("external_message_id", reaction.targetId);
+    return true;
+  }
+
+  const change = whatsappChange(message);
+  if (!change) return false;
+  // Only the author can edit or delete: the customer their own messages,
+  // the business its own.
+  const { data: target } = await supabase
+    .from("messages")
+    .select("id, media_info")
+    .eq("business_id", channel.business_id)
+    .eq("external_message_id", change.targetId)
+    .eq("direction", side)
+    .maybeSingle<{ id: string; media_info: MediaInfo | null }>();
+  if (!target) return true;
+  const at = messageTime(message.timestamp, new Date());
+
+  if (change.kind === "revoke") {
+    await supabase.from("messages").update(deletedFields(at)).eq("id", target.id);
+    return true;
+  }
+
+  const body = describeMessage(change.message);
+  if (body === null) return true;
+  const newCaption = whatsappMedia(change.message)?.info.caption;
+  await supabase
+    .from("messages")
+    .update({
+      body,
+      edited_at: at,
+      // A photo's caption was edited: the bubble shows the caption.
+      ...(newCaption && target.media_info ? { media_info: { ...target.media_info, caption: newCaption } } : {}),
+    })
+    .eq("id", target.id);
+  return true;
 }
 
 // Coexistence history import: Meta sends the phone's last 6 months of 1:1

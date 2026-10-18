@@ -388,6 +388,89 @@ export async function decideSimpleFact(args: {
 }
 
 // ---------------------------------------------------------------------------
+// Comentarios: a comment under one of the Tienda's posts (issue #43)
+// ---------------------------------------------------------------------------
+
+export type CommentDecision = {
+  kind: "price" | "complaint" | "other";
+  publicReply: string;
+  privateReply: string;
+  // The Catálogo product the comment asks about (P1, P2…), or null.
+  productRef: string | null;
+  teamSummary: string;
+};
+
+const COMMENT_SCHEMA = {
+  type: "object",
+  properties: {
+    kind: { type: "string", enum: ["price", "complaint", "other"] },
+    public_reply: { type: "string", description: "Respuesta pública corta debajo del comentario. Vacía si kind = other." },
+    private_reply: { type: "string", description: "Mensaje privado (DM) para quien comentó. Vacío si kind = other." },
+    product_ref: { type: "string", description: "Producto del catálogo (P1, P2…) del que pregunta, o vacío si no se sabe." },
+    team_summary: { type: "string", description: "Solo para el equipo: qué quiere o qué pasó, 1 oración." },
+  },
+  required: ["kind", "public_reply", "private_reply", "product_ref", "team_summary"],
+  additionalProperties: false,
+} as const;
+
+export async function decideComment(args: {
+  businessName: string;
+  info: ChekelinInfo;
+  refs: ProductRef[];
+  managerName: string | null;
+  platform: "instagram" | "facebook";
+  postCaption: string | null;
+  comment: string;
+}): Promise<{ decision?: CommentDecision; error?: string }> {
+  const manager = args.managerName ?? "la persona encargada";
+  const network = args.platform === "instagram" ? "Instagram" : "Facebook";
+  const system = [
+    `Atiendes los comentarios públicos en las publicaciones de ${network} de "${args.businessName}", un negocio hondureño. Lees un comentario y decides qué hacer.`,
+    "",
+    "# kind",
+    '- "price": pregunta precio, info, disponibilidad, tallas, colores, envíos, o muestra interés en comprar ("precio", "info", "¿cuánto?", "inbox", "lo quiero").',
+    '- "complaint": un comentario negativo: queja, enojo, producto dañado, pedido que no llegó, mala atención, acusación de estafa.',
+    '- "other": todo lo demás (elogios, emojis, etiquetar a un amigo, spam). No se responde.',
+    "",
+    "# public_reply (lo ve todo el mundo)",
+    '- price: muy corto, sin precio ni datos, solo que le escribes por mensaje. Ejemplo: "¡Te escribimos por mensaje! 💬".',
+    "- complaint: corto y amable, sin discutir, sin admitir culpas concretas ni prometer nada; reconoce y di que le escribes por mensaje para ayudarle personalmente. Sin emoji.",
+    "",
+    "# private_reply (mensaje privado, el único que se puede mandar hasta que la persona conteste)",
+    "- Empieza diciendo que viste su comentario. Máximo 2 oraciones cortas, español natural de Honduras, sin frases de robot. No te presentes.",
+    "- price: si sabes de qué producto habla (por la publicación o el comentario), di el nombre y el precio exacto del catálogo y pregunta algo para seguir la venta. Si no lo sabes, pregunta qué producto le interesó. Nunca inventes precios.",
+    `- complaint: empatía de verdad, pide qué pasó y de qué pedido se trata, y di que ${manager} va a ver su caso personalmente y le responde lo antes posible. Nunca prometas reembolsos, descuentos, cambios ni fechas.`,
+    `- ${ADDRESS_FORM_RULE[args.info.address_form]}`,
+    "",
+    knowledge(args.info, args.refs, []),
+  ].join("\n");
+
+  const content = [
+    `Publicación: ${args.postCaption?.trim() ? args.postCaption.trim().slice(0, 1500) : "(sin texto)"}`,
+    `Comentario: ${args.comment.slice(0, 1500)}`,
+  ].join("\n\n");
+
+  const { data, error } = await structuredCall<{
+    kind?: CommentDecision["kind"];
+    public_reply?: string;
+    private_reply?: string;
+    product_ref?: string;
+    team_summary?: string;
+  }>({ system, messages: [{ role: "user", content }], schema: COMMENT_SCHEMA, maxTokens: 2000 });
+  if (!data) return { error };
+  const ref = (data.product_ref ?? "").trim();
+  return {
+    decision: {
+      kind: data.kind ?? "other",
+      publicReply: (data.public_reply ?? "").trim(),
+      privateReply: (data.private_reply ?? "").trim(),
+      productRef: /^P\d+$/.test(ref) ? ref : null,
+      teamSummary: (data.team_summary ?? "").trim(),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Sugerencias de chekelin: Plantillas from what the team keeps answering
 // ---------------------------------------------------------------------------
 

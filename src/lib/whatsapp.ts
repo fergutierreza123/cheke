@@ -148,13 +148,34 @@ export async function sendWhatsAppTyping(credentials: WhatsAppCredentials | null
   }
 }
 
+// Marks the customer's message (and every earlier one) as read: they see
+// the blue ticks. No "escribiendo…". Best effort.
+export async function markWhatsAppRead(credentials: WhatsAppCredentials | null, messageId: string): Promise<void> {
+  if (!credentials || !messageId) return;
+  try {
+    await graphWithFallback(credentials, (token) =>
+      fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${credentials.phoneNumberId}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", status: "read", message_id: messageId }),
+        signal: AbortSignal.timeout(5_000),
+      }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
 // Sends a WhatsApp message (text, or an image with the text as its caption
 // when `mediaUrl` is given) through the given business's number.
+// `replyToId` quotes one message of the chat ("Responder"); `reaction` sends
+// an emoji on a message instead ("" takes it back).
 export async function sendWhatsAppMessage(
   toPhone: string,
   body: string,
   credentials: WhatsAppCredentials | null,
   mediaUrl?: string | null,
+  { replyToId, reaction }: { replyToId?: string | null; reaction?: { messageId: string; emoji: string } } = {},
 ): Promise<{
   externalMessageId?: string;
   error?: string;
@@ -167,9 +188,15 @@ export async function sendWhatsAppMessage(
     return { error: "El canal de WhatsApp de este negocio no está conectado todavía." };
   }
 
-  const payload = mediaUrl
-    ? { messaging_product: "whatsapp", to: toWhatsAppNumber(toPhone), type: "image", image: { link: mediaUrl, caption: body } }
-    : { messaging_product: "whatsapp", to: toWhatsAppNumber(toPhone), type: "text", text: { body } };
+  const to = toWhatsAppNumber(toPhone);
+  const payload = reaction
+    ? { messaging_product: "whatsapp", to, type: "reaction", reaction: { message_id: reaction.messageId, emoji: reaction.emoji } }
+    : {
+        messaging_product: "whatsapp",
+        to,
+        ...(replyToId ? { context: { message_id: replyToId } } : {}),
+        ...(mediaUrl ? { type: "image", image: { link: mediaUrl, caption: body } } : { type: "text", text: { body } }),
+      };
 
   // A dropped connection or a Meta outage must come back as a normal error
   // the Chat screen can show, not an exception that breaks the server action.

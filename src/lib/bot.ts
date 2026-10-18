@@ -33,6 +33,8 @@ import {
 import { buildPaymentMessage, orderConcept, type OrderItem } from "@/lib/payments";
 import { productMessageText } from "@/lib/format";
 import { recordPaymentRequest } from "@/lib/orders";
+import { textForChekelin } from "@/lib/transcription";
+import { waitForVoiceTranscription } from "@/lib/voiceTranscription";
 import { EMPTY_CHEKELIN_INFO, type ChekelinInfo, type Message, type Template } from "@/lib/types";
 
 // chekelin sells on its own (answers, photos, order, payment details,
@@ -55,7 +57,7 @@ const SALE_CAP = 15;
 
 const CONVERSATION_COLUMNS = `id, business_id, store_id, contact_id, stage, bot_enabled, handed_off_at, chekelin_replies, chekelin_order_at, complaint_open_at, assigned_to, window_expires_at, last_inbound_at, awaiting_since, contact:contacts(name, ${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(chekelin_off_until), business:businesses(name, plan, is_demo)`;
 
-type LoadedConversation = {
+export type LoadedConversation = {
   id: string;
   businessId: string;
   storeId: string;
@@ -206,17 +208,23 @@ export async function routeConversation(supabase: Admin, conversationId: string)
 async function recentHistory(supabase: Admin, conversationId: string) {
   const { data } = await supabase
     .from("messages")
-    .select("direction, body, external_message_id, created_at")
+    .select("direction, body, transcription, external_message_id, created_at")
     .eq("conversation_id", conversationId)
     // newest 30, reversed below
     .order("created_at", { ascending: false })
     .limit(30);
-  return (data ?? []).reverse() as Array<Pick<Message, "direction" | "body" | "created_at"> & { external_message_id: string | null }>;
+  // A transcribed voice note reads as what the customer said (issue #49).
+  return (data ?? []).reverse().map((m) => ({
+    direction: m.direction as Message["direction"],
+    body: textForChekelin(m),
+    external_message_id: m.external_message_id as string | null,
+    created_at: m.created_at as string,
+  }));
 }
 
 type PendingOrder = { id: string; concept: string; totalHnl: number; receiptSent: boolean };
 
-type Knowledge = {
+export type Knowledge = {
   info: ChekelinInfo;
   refs: ProductRef[];
   templates: Template[];
@@ -259,7 +267,7 @@ async function loadKnowledge(supabase: Admin, conv: LoadedConversation): Promise
 }
 
 // The Tienda's Gerentes; the Dueños when it has none.
-async function managersOf(supabase: Admin, businessId: string, storeId: string): Promise<string[]> {
+export async function managersOf(supabase: Admin, businessId: string, storeId: string): Promise<string[]> {
   const [{ data: members }, { data: storeRows }] = await Promise.all([
     supabase.from("members").select("user_id, role, created_at").eq("business_id", businessId).order("created_at"),
     supabase.from("store_members").select("user_id").eq("store_id", storeId),
@@ -271,7 +279,7 @@ async function managersOf(supabase: Admin, businessId: string, storeId: string):
 }
 
 // Dueños who turned on "avisarme de todo".
-async function notifyAllOwners(supabase: Admin, businessId: string): Promise<string[]> {
+export async function notifyAllOwners(supabase: Admin, businessId: string): Promise<string[]> {
   const { data } = await supabase.from("members").select("user_id").eq("business_id", businessId).eq("role", "owner").eq("notify_all", true);
   return (data ?? []).map((m) => m.user_id as string);
 }
@@ -288,7 +296,7 @@ export const HANDOFF_REASON_LABEL: Record<
   chekelin_apagado: "chekelin se apagó en la tienda",
   total: "El total del pedido no cuadró: revísalo antes de cobrar",
   sin_formas_pago: 'Falta llenar "Formas de pago" en Lo que chekelin sabe',
-  comprobante_sin_cobro: "Dice que ya pagó, pero no hay un cobro pendiente en cheKe",
+  comprobante_sin_cobro: "Dice que ya pagó, pero no hay un cobro pendiente en cheke",
 };
 
 // The Traspaso: assign a person, tell the customer who will help them, leave
@@ -390,7 +398,7 @@ type Plan =
   | { kind: "order"; order: OrderDraft }
   | { kind: "receipt"; orderId: string };
 
-function planFor(decision: SellerDecision, conv: LoadedConversation, know: Knowledge): Plan {
+export function planFor(decision: SellerDecision, conv: LoadedConversation, know: Knowledge): Plan {
   switch (decision.action) {
     case "complaint":
       return { kind: "complaint" };
@@ -439,6 +447,9 @@ async function runSeller(
   preview: string | null | undefined,
 ): Promise<{ message?: Message; error?: string }> {
   const started = Date.now();
+  // A voice note that just arrived is still being transcribed: wait for its
+  // words (counts toward the natural pause below).
+  await waitForVoiceTranscription(supabase, conv.id);
   const [history, know, managers] = await Promise.all([
     recentHistory(supabase, conv.id),
     loadKnowledge(supabase, conv),
@@ -625,7 +636,13 @@ async function receiptReceived(supabase: Admin, conv: LoadedConversation, orderI
 // A Queja: chekelin already answered with empathy and named the Gerente. The
 // chat gets the red Queja tag, chekelin goes silent until a person marks it
 // resolved, and the Tienda's Gerente (else the Dueño) gets an urgent alert.
-async function openComplaint(supabase: Admin, conv: LoadedConversation, summary: string, managers: string[]): Promise<void> {
+async function openComplaint(
+  supabase: Admin,
+  conv: LoadedConversation,
+  summary: string,
+  managers: string[],
+  { alert = true }: { alert?: boolean } = {},
+): Promise<void> {
   const now = new Date().toISOString();
   await supabase
     .from("conversations")
@@ -651,6 +668,7 @@ async function openComplaint(supabase: Admin, conv: LoadedConversation, summary:
     reason: "Queja: chekelin no responde hasta que alguien la marque resuelta",
   });
 
+  if (!alert) return;
   const people = new Set(managers);
   for (const owner of await notifyAllOwners(supabase, conv.businessId)) people.add(owner);
   await sendPushToPeople(supabase, conv.businessId, conv.storeId, [...people], {
@@ -658,6 +676,22 @@ async function openComplaint(supabase: Admin, conv: LoadedConversation, summary:
     body: summary || "Un cliente tiene una queja. Atiéndelo lo antes posible.",
     conversationId: conv.id,
   });
+}
+
+// A negative comment under a post moved to a private chat (Comentarios,
+// issue #43): the chekelin private reply already did the empathetic part, so
+// the chat gets the Queja straight away. `alert` = false when the Gerente was
+// already alerted about the comment itself.
+export async function openComplaintFromComment(
+  supabase: Admin,
+  conversationId: string,
+  summary: string,
+  { alert }: { alert: boolean },
+): Promise<void> {
+  const conv = await loadConversation(supabase, conversationId);
+  if (!conv || conv.complaintOpenAt) return;
+  const managers = await managersOf(supabase, conv.businessId, conv.storeId);
+  await openComplaint(supabase, conv, summary, managers, { alert });
 }
 
 // "Confirmar pago" was tapped (the order is already marked paid by the

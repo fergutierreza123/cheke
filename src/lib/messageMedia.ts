@@ -8,6 +8,7 @@ import ffmpegPath from "ffmpeg-static";
 import { GRAPH_API_VERSION } from "@/lib/meta";
 import { isMetaAuthError } from "@/lib/metaTokens";
 import type { MediaInfo, MediaKind } from "@/lib/types";
+import { transcribeVoiceNote } from "@/lib/voiceTranscription";
 
 // Server-only. Saves the photo, video, voice note or document of a message
 // the webhooks already stored into the private "message-media" bucket
@@ -47,7 +48,7 @@ export async function saveMessageMedia(supabase: SupabaseClient, jobs: MediaJob[
 async function saveOne(supabase: SupabaseClient, job: MediaJob) {
   const { data: message } = await supabase
     .from("messages")
-    .select("id, business_id, store_id, media_path")
+    .select("id, business_id, store_id, direction, media_path")
     .eq("external_message_id", job.externalMessageId)
     .maybeSingle();
   if (!message || message.media_path) return; // not saved, or already done
@@ -55,6 +56,7 @@ async function saveOne(supabase: SupabaseClient, job: MediaJob) {
   const update: Record<string, unknown> = { media_kind: job.kind, media_info: job.info };
 
   const file = job.download ? await downloadFile(job.download) : null;
+  let m4a: Buffer | null = null;
   if (file) {
     // <business>/<store>/<message>: the bucket's read policy checks the Tienda.
     const base = `${message.business_id}/${message.store_id}/${message.id}`;
@@ -66,7 +68,7 @@ async function saveOne(supabase: SupabaseClient, job: MediaJob) {
     // WhatsApp voice notes are OGG/Opus, which Safari and iPhones can't
     // play: keep an AAC/M4A copy that every browser can.
     if ((job.kind === "voice" || job.kind === "audio") && !PLAYS_EVERYWHERE.includes(file.mime)) {
-      const m4a = await toM4a(file.bytes);
+      m4a = await toM4a(file.bytes);
       if (m4a) {
         await upload(supabase, `${base}.m4a`, m4a, "audio/mp4");
         update.media_m4a_path = `${base}.m4a`;
@@ -76,6 +78,16 @@ async function saveOne(supabase: SupabaseClient, job: MediaJob) {
 
   const { error } = await supabase.from("messages").update(update).eq("id", message.id);
   if (error) throw new Error(error.message);
+
+  // A customer's voice note: its words, for Chat and chekelin (issue #49).
+  // After the file is saved, so a slow transcription never hides the audio.
+  if ((job.kind === "voice" || job.kind === "audio") && message.direction === "in") {
+    await transcribeVoiceNote(
+      supabase,
+      message,
+      file ? { original: file, m4a: m4a ? { bytes: m4a, mime: "audio/mp4" } : null } : null,
+    );
+  }
 }
 
 async function downloadFile(source: NonNullable<MediaJob["download"]>): Promise<{ bytes: Buffer; mime: string } | null> {
@@ -159,7 +171,7 @@ const run = promisify(execFile);
 
 // ffmpeg (bundled by ffmpeg-static, see next.config.ts) in a temp folder:
 // a 20-second voice note converts in well under a second.
-async function toM4a(input: Buffer): Promise<Buffer | null> {
+export async function toM4a(input: Buffer): Promise<Buffer | null> {
   if (!ffmpegPath) return null;
   const dir = await mkdtemp(join(tmpdir(), "cheke-audio-"));
   try {
