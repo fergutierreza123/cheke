@@ -28,6 +28,7 @@ import {
   paymentConfirmedLine,
   secondMessageDelayMs,
   simpleFactEnding,
+  stageAfterChekelin,
   waitNoticeLine,
 } from "@/lib/chekelinState";
 import { buildPaymentMessage, orderConcept, type OrderItem } from "@/lib/payments";
@@ -394,6 +395,9 @@ export async function handleInboundMessage(
 type Plan =
   | { kind: "reply" }
   | { kind: "handoff"; reason: string; lineKind: "default" | "confirm"; dropMessages: boolean }
+  // chekelin didn't know something: it told the customer it will confirm,
+  // the team is asked, and chekelin keeps selling the rest.
+  | { kind: "ask_team"; reason: string }
   | { kind: "complaint" }
   | { kind: "order"; order: OrderDraft }
   | { kind: "receipt"; orderId: string };
@@ -404,6 +408,9 @@ export function planFor(decision: SellerDecision, conv: LoadedConversation, know
       return { kind: "complaint" };
     case "handoff": {
       const reason = decision.handoffReason === "ninguna" ? "pide_persona" : decision.handoffReason;
+      if (reason === "falta_info" && decision.messages.length > 0) {
+        return { kind: "ask_team", reason: HANDOFF_REASON_LABEL.falta_info };
+      }
       return {
         kind: "handoff",
         reason: HANDOFF_REASON_LABEL[reason],
@@ -470,7 +477,7 @@ async function runSeller(
 
   const plan = planFor(decision, conv, know);
   const texts = plan.kind === "handoff" && plan.dropMessages ? [] : decision.messages;
-  const products = plan.kind === "reply" ? decision.productRefs.map((r) => know.refs.find((x) => x.ref === r)?.product).filter((p) => p !== undefined) : [];
+  const products = plan.kind === "reply" || plan.kind === "ask_team" ? decision.productRefs.map((r) => know.refs.find((x) => x.ref === r)?.product).filter((p) => p !== undefined) : [];
 
   // Like a person: "escribiendo…", then a pause that grows with the reply.
   const live = sendExternally && !conv.isDemo;
@@ -535,6 +542,14 @@ async function runSeller(
     case "receipt":
       await receiptReceived(supabase, now, plan.orderId, decision.teamSummary);
       break;
+    case "ask_team":
+      await askTeam(supabase, now, decision.teamSummary, managers);
+      break;
+  }
+
+  if (plan.kind === "reply" || plan.kind === "ask_team") {
+    const stage = stageAfterChekelin(now.stage, { messages: texts, productsSent: products.length });
+    if (stage) await supabase.from("conversations").update({ stage }).eq("id", now.id);
   }
 
   await chekelinSpoke(supabase, now, sent.filter((m) => !m.media_url).length);
@@ -546,6 +561,28 @@ async function runSeller(
     { title: now.contactName, body: preview ?? "Nuevo mensaje", conversationId: now.id },
   );
   return sent[0] ? { message: sent[0] } : {};
+}
+
+// chekelin didn't have an answer (envío a una ciudad, un horario…): the
+// Gerente (or Dueño) gets the question to answer in the chat, and a nudge to
+// add it to "Lo que chekelin sabe". chekelin keeps attending meanwhile; when
+// the person writes in the chat, chekelin steps back as usual.
+async function askTeam(supabase: Admin, conv: LoadedConversation, summary: string, managers: string[]): Promise<void> {
+  const question = summary || "El cliente preguntó algo que chekelin no sabe.";
+  await supabase.from("conversation_notes").insert({
+    business_id: conv.businessId,
+    store_id: conv.storeId,
+    conversation_id: conv.id,
+    kind: "handoff",
+    summary: question,
+    reason: `${HANDOFF_REASON_LABEL.falta_info}: le dijo que lo confirma y sigue atendiendo`,
+  });
+  const people = managers.length > 0 ? managers : await notifyAllOwners(supabase, conv.businessId);
+  await sendPushToPeople(supabase, conv.businessId, conv.storeId, people, {
+    title: `${conv.contactName} pregunta algo que chekelin no sabe`,
+    body: `${question} Respóndele en el chat y agrégalo en chekelin para la próxima.`,
+    conversationId: conv.id,
+  });
 }
 
 // chekelin answered: count its messages, and the customer isn't waiting on a

@@ -1,3 +1,4 @@
+import type { ChekelinInfo } from "@/lib/types";
 import type {
   ChannelType,
   Contact,
@@ -144,5 +145,14 @@ export function buildDemoData(now: number) {
       history_sync_progress: 100, history_sync_error: null },
   ];
 
-  return { conversations, messages, products, contacts, templates, business, members, notifications, channels };
+  const chekelinInfo: ChekelinInfo = {
+    payment_methods: "Transferencia BAC 7300-1122-33 a nombre de Tienda Luna, o depósito en Banco Atlántida.",
+    shipping: "Cargo Expreso a todo el país. Tegucigalpa L 80, San Pedro Sula L 120, resto del país L 150. Llega en 1 a 2 días hábiles.",
+    delivery_hours: "Se puede recoger en la tienda de col. Palmira, lunes a sábado de 9 a. m. a 5 p. m.",
+    returns_policy: "Cambios de talla dentro de 7 días con la etiqueta puesta. No hay devoluciones de dinero.",
+    faq: "¿Venden al por mayor? Sí, desde 12 piezas; eso lo ve directamente el equipo.",
+    address_form: "mirror",
+  };
+
+  return { conversations, messages, products, contacts, templates, business, members, notifications, channels, chekelinInfo };
 }

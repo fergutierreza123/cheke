@@ -122,3 +122,22 @@ export function waitNoticeLine(firstName: string | null): string {
 export function simpleFactEnding(firstName: string | null): string {
   return `${firstName ?? "Alguien del equipo"} te atiende enseguida…`;
 }
+
+// chekeo moves on its own as chekelin sells: its first answer → Consulta, a
+// price or a product photo → Cotización. Taking the order (→ Negociación,
+// src/lib/orders.ts) and the confirmed payment (→ Ganado) move it further.
+// Never moves a deal backwards; null = leave it where it is.
+const STAGE_ORDER = ["nuevo", "consulta", "cotizacion"] as const;
+// "L 450", "L450", "L. 450", "Lps 450", "450 lempiras". Not phone numbers or times.
+const PRICE = /(?:\bL(?:ps?)?\.?\s?\d)|(?:\d\s?lempiras?\b)/i;
+
+export function stageAfterChekelin(
+  current: string | null,
+  reply: { messages: string[]; productsSent: number },
+): "consulta" | "cotizacion" | null {
+  const at = STAGE_ORDER.indexOf((current ?? "nuevo") as (typeof STAGE_ORDER)[number]);
+  if (at < 0) return null;
+  const quoted = reply.productsSent > 0 || reply.messages.some((m) => PRICE.test(m));
+  const target = quoted ? 2 : 1;
+  return target > at ? STAGE_ORDER[target] as "consulta" | "cotizacion" : null;
+}

@@ -24,8 +24,8 @@ const FIELDS: Array<{ key: keyof Omit<ChekelinInfo, "address_form">; label: stri
   },
   {
     key: "delivery_hours",
-    label: "Horario de entregas",
-    hint: "Cuándo entregan o se puede recoger.",
+    label: "Recoger en tienda y horarios",
+    hint: "Si se puede recoger, dónde y cuándo, y en qué horario entregan.",
     placeholder: "Ej. Lunes a sábado de 9 a. m. a 5 p. m. Se puede recoger en la tienda de col. Palmira.",
     max: 2000,
   },
@@ -121,8 +121,8 @@ export function ChekelinInfoView({
             <Link href="/templates" className="font-semibold text-brand">
               Plantillas
             </Link>
-            . Escribe corto, como se lo dirías a un cliente. Si algo no está aquí, chekelin no lo inventa: dice que lo
-            confirma y te pasa el chat.
+            . Escribe corto, como se lo dirías a un cliente. Si algo no está aquí, chekelin no lo inventa: le dice al
+            cliente que lo confirma, te avisa a ti y sigue atendiendo lo demás.
           </p>
           {!canEdit && (
             <p className="rounded-xl bg-surface-2 px-4 py-3 text-[13px] text-ink-muted">

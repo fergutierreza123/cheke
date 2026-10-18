@@ -16,8 +16,10 @@ import {
   humanDelayMs,
   isChekelinOff,
   secondMessageDelayMs,
+  stageAfterChekelin,
   waitNoticeLine,
 } from "@/lib/chekelinState";
+import { DEFAULT_NAV_ITEMS } from "@/components/Sidebar";
 import { EMPTY_CHEKELIN_INFO } from "@/lib/types";
 
 const NOW = Date.parse("2026-10-16T20:00:00.000Z"); // 2:00 p. m. in Honduras
@@ -129,11 +131,15 @@ describe("planFor (what chekelin does with its decision)", () => {
     expect(planFor(decision({}), { ...tired, chekelinOrderAt: "x" } as LoadedConversation, know)).toEqual({ kind: "reply" });
   });
 
-  it("uses the confirm line when information was missing", () => {
-    expect(planFor(decision({ action: "handoff", handoffReason: "falta_info" }), conv, know)).toMatchObject({
+  it("keeps selling when information is missing: asks the team instead of handing off", () => {
+    expect(planFor(decision({ action: "handoff", handoffReason: "falta_info" }), conv, know)).toEqual({
+      kind: "ask_team",
+      reason: HANDOFF_REASON_LABEL.falta_info,
+    });
+    // Nothing to say at all: a person takes it.
+    expect(planFor(decision({ action: "handoff", handoffReason: "falta_info", messages: [] }), conv, know)).toMatchObject({
       kind: "handoff",
       lineKind: "confirm",
-      reason: HANDOFF_REASON_LABEL.falta_info,
     });
     expect(planFor(decision({ action: "handoff", handoffReason: "ninguna" }), conv, know)).toMatchObject({
       reason: HANDOFF_REASON_LABEL.pide_persona,
@@ -165,5 +171,42 @@ describe("planFor (what chekelin does with its decision)", () => {
     });
     const pending = { ...know, pendingOrder: { id: "o1", concept: "Blusa", totalHnl: 700, receiptSent: false } };
     expect(planFor(decision({ action: "payment_receipt" }), conv, pending)).toEqual({ kind: "receipt", orderId: "o1" });
+  });
+});
+
+describe("stageAfterChekelin (chekeo moves on its own)", () => {
+  const reply = (messages: string[], productsSent = 0) => ({ messages, productsSent });
+
+  it("a first answer moves a new deal to Consulta", () => {
+    expect(stageAfterChekelin("nuevo", reply(["Hola, ¿qué andás buscando?"]))).toBe("consulta");
+    expect(stageAfterChekelin(null, reply(["Hola"]))).toBe("consulta");
+  });
+
+  it("sending a price or a product moves it to Cotización", () => {
+    expect(stageAfterChekelin("nuevo", reply(["La blusa negra está en L 450"]))).toBe("cotizacion");
+    expect(stageAfterChekelin("consulta", reply(["Sale a L450 con envío"]))).toBe("cotizacion");
+    expect(stageAfterChekelin("consulta", reply(["Cuesta 450 lempiras"]))).toBe("cotizacion");
+    expect(stageAfterChekelin("consulta", reply(["Te mando la foto"], 1))).toBe("cotizacion");
+  });
+
+  it("never moves a deal backwards or out of Ganado/Perdido", () => {
+    expect(stageAfterChekelin("cotizacion", reply(["ok"]))).toBeNull();
+    expect(stageAfterChekelin("cotizacion", reply(["L 450"]))).toBeNull();
+    expect(stageAfterChekelin("negociacion", reply(["L 450"], 1))).toBeNull();
+    expect(stageAfterChekelin("ganado", reply(["L 450"]))).toBeNull();
+    expect(stageAfterChekelin("perdido", reply(["hola"]))).toBeNull();
+    expect(stageAfterChekelin("consulta", reply(["¿En qué talla?"]))).toBeNull();
+  });
+
+  it("a phone number or a time isn't a price", () => {
+    expect(stageAfterChekelin("consulta", reply(["Llamanos al 9988-7766, abrimos a las 9"]))).toBeNull();
+  });
+});
+
+describe("navigation", () => {
+  it("has a chekelin page in the menu, right after chekeo", () => {
+    const hrefs = DEFAULT_NAV_ITEMS.map((i) => i.href);
+    expect(hrefs).toContain("/chekelin");
+    expect(hrefs.indexOf("/chekelin")).toBe(hrefs.indexOf("/chekeo") + 1);
   });
 });
