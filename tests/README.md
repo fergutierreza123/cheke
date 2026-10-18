@@ -16,6 +16,9 @@ top of that file).
 - A new migration: it is picked up by `npm run test:db` automatically. If it
   adds a table with business data, add its isolation checks to
   `tests/db/rls.test.ts` (who can read it, who can write it).
+- A webhook route: `tests/unit/webhooks.test.ts` sends signed requests to
+  the route and checks the rows it saves in `tests/unit/memoryDb.ts`, a small
+  in-memory stand-in for the service-role Supabase client.
 - `tests/db/harness.ts` stubs what Supabase provides (`auth.users`,
   `auth.uid()`, storage, roles). `as(userId, sql)` runs a query as that
   signed-in person; `as(null, sql)` as the service role (webhooks).
