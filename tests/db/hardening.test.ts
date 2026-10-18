@@ -94,7 +94,7 @@ describe("one Negocio per person (0030)", () => {
     const bizB = (await rpc(t, OWNER_B, `select create_business('Sol') as id`)).id as string;
     await t.q(`insert into members (business_id, user_id, role) values ($1, $2, 'agent')`, [bizB, OWNER_A]);
 
-    await expect(t.applyMigration("0030_hardening.sql")).rejects.toThrow(/más de un negocio.*more than one business/s);
+    await expect(t.applyMigration("0030_hardening.sql")).rejects.toThrow(/más de un negocio[\s\S]*more than one business/);
     expect(await t.q(`select count(*)::int as n from members where user_id = $1`, [OWNER_A])).toEqual([{ n: 2 }]);
 
     // Once the founder fixes it by hand, it runs (twice, too).

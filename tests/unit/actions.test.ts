@@ -22,6 +22,7 @@ const { createLead, setConversationStage, setConversationValue, seedDemoData } =
 const { saveProduct } = await import("@/app/(app)/inventory/actions");
 const { saveTemplate } = await import("@/app/(app)/templates/actions");
 const { setMemberStore } = await import("@/app/(app)/team/actions");
+const { saveContact } = await import("@/app/(app)/contacts/actions");
 
 const OPEN = { id: "A", name: "Centro", archived: false };
 const OPEN_B = { id: "B", name: "Mall", archived: false };
@@ -169,9 +170,10 @@ describe("saveTemplate", () => {
 
   it("keeps the Sugerencia pending when the Plantilla can't be saved", async () => {
     db.queue("template_suggestions", { data: { id: "s1" } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
     db.queue("templates", { error: { message: "fallo" } });
     const result = await saveTemplate(form({ name: "T", body: "x", category: "precios", suggestion_id: "s1" }));
-    expect(result.error).toBe("fallo");
+    expect(result.error).toBe("No se pudo guardar la plantilla. Inténtalo de nuevo.");
     expect(db.writes("template_suggestions", "update")).toHaveLength(0);
   });
 
@@ -200,5 +202,33 @@ describe("setMemberStore reads the person's real role", () => {
   it("refuses Tiendas of another Negocio", async () => {
     expect((await setMemberStore("u9", "agent", "other-biz-store", true)).error).toBeDefined();
     expect(db.calls).toHaveLength(0);
+  });
+});
+
+describe("errors are plain Spanish, never the database's English text", () => {
+  const RAW = { code: "23502", message: 'null value in column "x" violates not-null constraint' };
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("saveContact", async () => {
+    const form = new FormData();
+    form.set("name", "Ana");
+    db.queue("contacts", { error: RAW });
+    expect((await saveContact(form)).error).toBe("No se pudo guardar el contacto. Inténtalo de nuevo.");
+  });
+
+  it("createLead", async () => {
+    db.queue("contacts", { data: null, error: RAW });
+    const result = await createLead({ name: "Ana", phone: null, ig_handle: null, fb_id: null, storeId: "A" });
+    expect(result.error).toBe("No se pudo crear el contacto.");
+  });
+
+  it("a permission refusal says so", async () => {
+    business = as("owner", { selected: "A" });
+    const form = new FormData();
+    form.set("name", "Blusa");
+    db.queue("products", { error: { code: "42501", message: "new row violates row-level security policy" } });
+    expect((await saveProduct(form)).error).toBe("No tienes permiso para hacer este cambio.");
   });
 });

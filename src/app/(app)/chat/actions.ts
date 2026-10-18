@@ -20,6 +20,7 @@ import { canManageStore, getCurrentBusiness } from "@/lib/business";
 import { buildPaymentMessage, normalizePaymentLink, orderConcept, type OrderItem } from "@/lib/payments";
 import { recordPaymentRequest } from "@/lib/orders";
 import type { ConversationNote, Message } from "@/lib/types";
+import { friendlyError } from "@/lib/dbErrors";
 
 // Images sent to customers must come from our own storage, not an arbitrary
 // address a client could supply.
@@ -98,7 +99,7 @@ export async function sendChatMessage(
     .single();
 
   if (insertError || !message) {
-    return { error: insertError?.message ?? "No se pudo guardar el mensaje." };
+    return { error: friendlyError(insertError, "No se pudo guardar el mensaje.") };
   }
 
   await supabase
@@ -173,7 +174,7 @@ export async function reactToMessage(messageId: string, emoji: string | null): P
   }
 
   const { error } = await supabase.from("messages").update({ reaction_out: next }).eq("id", messageId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo guardar la reacción.") };
   return { reaction: next };
 }
 
@@ -241,7 +242,7 @@ export async function simulateInboundMessage(
     .insert({ conversation_id: conversationId, business_id: conversation.business_id, direction: "in", body: text })
     .select("*")
     .single();
-  if (insertError || !inbound) return { error: insertError?.message ?? "No se pudo guardar el mensaje." };
+  if (insertError || !inbound) return { error: friendlyError(insertError, "No se pudo guardar el mensaje.") };
 
   await supabase.from("conversations").update({ last_message_at: inbound.created_at }).eq("id", conversationId);
 
@@ -291,7 +292,7 @@ export async function reassignConversation(conversationId: string, userId: strin
       ...(conversation.awaiting_since ? { awaiting_since: now } : {}),
     })
     .eq("id", conversationId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo reasignar el chat.") };
 
   const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
   await sendPushToPeople(admin, business.id, conversation.store_id, [userId], {
@@ -418,7 +419,7 @@ export async function resolveOrder(
     .eq("status", "awaiting_payment")
     .select("id, conversation_id")
     .maybeSingle();
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo actualizar el cobro.") };
   if (!order) return { error: "Este cobro ya fue actualizado." };
 
   if (outcome === "paid" && order.conversation_id) {
@@ -444,6 +445,6 @@ export async function resolveComplaint(conversationId: string): Promise<{ error?
     .from("conversations")
     .update({ complaint_open_at: null, complaint_resolved_at: new Date().toISOString() })
     .eq("id", conversationId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo marcar la queja como resuelta.") };
   return {};
 }

@@ -10,6 +10,7 @@ import { CHEKELIN_OFF_OPTIONS, chekelinOffUntil, type ChekelinOffDuration } from
 import { primaryChannel, productMessageText } from "@/lib/format";
 import { sendChatMessage } from "./chat/actions";
 import type { Channel, ChannelType, ConversationStage, ConversationWithContact, Product } from "@/lib/types";
+import { friendlyError } from "@/lib/dbErrors";
 
 const DEMO_CONTACTS: Array<{
   name: string;
@@ -202,7 +203,7 @@ export async function setConversationBotEnabled(
     // Turning it back on makes chekelin the first responder again here.
     .update(enabled ? { bot_enabled: true, handed_off_at: null, chekelin_replies: 0 } : { bot_enabled: false })
     .eq("id", conversationId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo cambiar a chekelin en este chat.") };
   return {};
 }
 
@@ -218,7 +219,7 @@ export async function setChekelinOff(storeId: string, duration: ChekelinOffDurat
   const until = duration ? chekelinOffUntil(duration, Date.now()) : null;
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_chekelin_off", { p_store_id: storeId, p_until: until });
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error) };
 
   if (until) await handOffActiveChats(createAdminClient(), storeId);
   revalidatePath("/chat");
@@ -279,7 +280,7 @@ export async function createLead(input: {
     .select("id, name, phone, ig_handle, fb_id, notes")
     .single();
 
-  if (contactError || !contact) return { error: contactError?.message ?? "No se pudo crear el contacto." };
+  if (contactError || !contact) return { error: friendlyError(contactError, "No se pudo crear el contacto.") };
 
   const type = primaryChannel(contact);
   let channel: Pick<Channel, "id" | "type"> | null = null;
@@ -310,7 +311,7 @@ export async function createLead(input: {
     .select("*")
     .single();
 
-  if (convError || !conversation) return { error: convError?.message ?? "No se pudo crear la conversación." };
+  if (convError || !conversation) return { error: friendlyError(convError, "No se pudo crear la conversación.") };
 
   revalidatePath("/chekeo");
   revalidatePath("/contacts");

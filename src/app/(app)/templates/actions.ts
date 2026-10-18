@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
 import { TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
 import type { TemplateCategory } from "@/lib/types";
+import { friendlyError } from "@/lib/dbErrors";
 
 export async function saveTemplate(formData: FormData): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
@@ -42,12 +43,12 @@ export async function saveTemplate(formData: FormData): Promise<{ error?: string
       .update({ name, category, body })
       .eq("id", id)
       .eq("business_id", business.id);
-    if (error) return { error: error.message };
+    if (error) return { error: friendlyError(error, "No se pudo guardar la plantilla. Inténtalo de nuevo.") };
   } else {
     const { error } = await supabase
       .from("templates")
       .insert({ business_id: business.id, name, category, body });
-    if (error) return { error: error.message };
+    if (error) return { error: friendlyError(error, "No se pudo guardar la plantilla. Inténtalo de nuevo.") };
   }
 
   if (suggestionId) {
@@ -77,7 +78,7 @@ export async function dismissSuggestion(suggestionId: string): Promise<{ error?:
     .eq("id", suggestionId)
     .eq("business_id", business.id)
     .eq("status", "pending");
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo descartar la sugerencia.") };
   revalidatePath("/templates");
   return {};
 }

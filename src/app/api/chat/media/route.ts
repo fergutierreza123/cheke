@@ -19,6 +19,7 @@ import {
   type OutgoingKind,
 } from "@/lib/outgoingMedia";
 import type { ChannelType, MediaInfo, Message } from "@/lib/types";
+import { friendlyError } from "@/lib/dbErrors";
 
 // Step 2 of sending a voice note or document from Chat (issue #50). The
 // browser already uploaded the file (prepareChatUpload); this:
@@ -162,7 +163,7 @@ export async function POST(request: Request) {
     .single();
   if (insertError || !message) {
     await storage.remove([media.media_path, ...(media.media_m4a_path ? [media.media_m4a_path] : [])]).catch(() => undefined);
-    return reply({ error: insertError?.message ?? "No se pudo guardar el mensaje." });
+    return reply({ error: friendlyError(insertError, "No se pudo guardar el mensaje.") });
   }
 
   await supabase.from("conversations").update({ last_message_at: message.created_at }).eq("id", conversation.id);
