@@ -296,7 +296,7 @@ export const HANDOFF_REASON_LABEL: Record<
   chekelin_apagado: "chekelin se apagó en la tienda",
   total: "El total del pedido no cuadró: revísalo antes de cobrar",
   sin_formas_pago: 'Falta llenar "Formas de pago" en Lo que chekelin sabe',
-  comprobante_sin_cobro: "Dice que ya pagó, pero no hay un cobro pendiente en cheKe",
+  comprobante_sin_cobro: "Dice que ya pagó, pero no hay un cobro pendiente en cheke",
 };
 
 // The Traspaso: assign a person, tell the customer who will help them, leave

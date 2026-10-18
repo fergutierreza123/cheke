@@ -15,7 +15,7 @@ export const META_BILLING_HUB_URL = "https://business.facebook.com/latest/billin
 export const BILLING_ERROR_CODE = 131042;
 
 const TEMPLATE_PROBLEM = "hay un problema con la plantilla (no está aprobada, está pausada o le faltan datos).";
-const RECONNECT = "la conexión de cheKe con tu WhatsApp ya no es válida. Vuelve a conectar WhatsApp en Canales.";
+const RECONNECT = "la conexión de cheke con tu WhatsApp ya no es válida. Vuelve a conectar WhatsApp en Canales.";
 
 const REASONS: Record<number, string> = {
   [BILLING_ERROR_CODE]:

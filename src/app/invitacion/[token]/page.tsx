@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ROLE_LABEL, type Role } from "@/lib/stores";
+import { invitationErrorMessage } from "@/lib/invitations";
 import { acceptInvitation } from "./actions";
 
 export const metadata = { title: "Invitación · cheke", robots: { index: false, follow: false } };
@@ -18,7 +19,8 @@ export default async function InvitationPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { token } = await params;
-  const { error } = await searchParams;
+  // A fixed sentence per error code; never text from the URL.
+  const error = invitationErrorMessage((await searchParams).error);
 
   const supabase = await createClient();
   const { data } = await supabase.rpc("invitation_preview", { p_token: token });

@@ -56,3 +56,12 @@ export function canManageStore(business: CurrentBusiness, storeId: string): bool
 export function canAccessStore(business: CurrentBusiness, storeId: string): boolean {
   return [...business.stores, ...business.archivedStores].some((s) => s.id === storeId);
 }
+
+// Where new products, leads and edits may go: an open Tienda this person
+// works in. A Dueño reading an archived Tienda's history can't change it
+// (reopen it first).
+export function canWriteToStore(business: CurrentBusiness, storeId: string): boolean {
+  return business.stores.some((s) => s.id === storeId);
+}
+
+export const ARCHIVED_STORE_READ_ONLY = "Esta tienda está archivada. Vuelve a abrirla en Administrar tiendas para hacer cambios.";
