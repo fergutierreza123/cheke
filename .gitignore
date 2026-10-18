@@ -47,3 +47,4 @@ next-env.d.ts
 
 # Supabase CLI local link state
 supabase/.temp/
+.claude/settings.local.json
