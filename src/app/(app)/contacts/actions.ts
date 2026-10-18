@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentBusiness } from "@/lib/business";
+import { friendlyError } from "@/lib/dbErrors";
 
 export async function saveContact(formData: FormData): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
@@ -25,12 +26,12 @@ export async function saveContact(formData: FormData): Promise<{ error?: string 
       .update({ name, phone, ig_handle, fb_id, notes })
       .eq("id", id)
       .eq("business_id", business.id);
-    if (error) return { error: error.message };
+    if (error) return { error: friendlyError(error, "No se pudo guardar el contacto. Inténtalo de nuevo.") };
   } else {
     const { error } = await supabase
       .from("contacts")
       .insert({ business_id: business.id, name, phone, ig_handle, fb_id, notes });
-    if (error) return { error: error.message };
+    if (error) return { error: friendlyError(error, "No se pudo guardar el contacto. Inténtalo de nuevo.") };
   }
 
   revalidatePath("/contacts");

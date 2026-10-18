@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canAccessStore, getCurrentBusiness, STORE_COOKIE, type StoreSelection } from "@/lib/business";
 import { canOpenAnotherStore } from "@/lib/plan";
 import { unsubscribeMetaPage, unsubscribeWhatsApp } from "../channels/channelHelpers";
+import { friendlyError } from "@/lib/dbErrors";
 
 const NAME_MAX = 60;
 
@@ -58,7 +59,7 @@ export async function createStore(rawName: string): Promise<{ error?: string; st
     .insert({ business_id: business.id, name })
     .select("id")
     .single();
-  if (error || !data) return { error: error?.message ?? "No se pudo crear la tienda." };
+  if (error || !data) return { error: friendlyError(error, "No se pudo crear la tienda.") };
 
   revalidatePath("/", "layout");
   return { storeId: data.id };
@@ -76,7 +77,7 @@ export async function renameStore(storeId: string, rawName: string): Promise<{ e
     .update({ name })
     .eq("id", storeId)
     .eq("business_id", owner.business.id);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo cambiar el nombre de la tienda.") };
   revalidatePath("/", "layout");
   return {};
 }
@@ -116,14 +117,14 @@ export async function archiveStore(storeId: string): Promise<{ error?: string }>
     })
     .eq("business_id", business.id)
     .eq("store_id", storeId);
-  if (channelError) return { error: channelError.message };
+  if (channelError) return { error: friendlyError(channelError, "No se pudo archivar la tienda.") };
 
   const { error } = await supabase
     .from("stores")
     .update({ archived_at: new Date().toISOString() })
     .eq("id", storeId)
     .eq("business_id", business.id);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo archivar la tienda.") };
 
   // Whoever had it selected goes back to the default view.
   const jar = await cookies();
@@ -149,7 +150,7 @@ export async function reopenStore(storeId: string): Promise<{ error?: string }> 
     .update({ archived_at: null })
     .eq("id", storeId)
     .eq("business_id", business.id);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo volver a abrir la tienda.") };
   revalidatePath("/", "layout");
   return {};
 }
@@ -178,7 +179,7 @@ export async function copyProductToStore(productId: string, targetStoreId: strin
   });
   if (error) {
     if (error.code === "23505") return { error: "Ese producto ya está en esa tienda." };
-    return { error: error.message };
+    return { error: friendlyError(error, "No se pudo copiar el producto.") };
   }
   revalidatePath("/inventory");
   return {};

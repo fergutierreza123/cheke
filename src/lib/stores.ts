@@ -64,4 +64,16 @@ export function canWriteToStore(business: CurrentBusiness, storeId: string): boo
   return business.stores.some((s) => s.id === storeId);
 }
 
-export const ARCHIVED_STORE_READ_ONLY = "Esta tienda está archivada. Vuelve a abrirla en Administrar tiendas para hacer cambios.";
+// A query's `store:stores(archived_at)` join (an object, or a one-item list
+// depending on how Supabase types it): is that Tienda archived?
+export function isArchivedStore(store: { archived_at: string | null } | { archived_at: string | null }[] | null | undefined): boolean {
+  const row = Array.isArray(store) ? store[0] : store;
+  return Boolean(row?.archived_at);
+}
+
+// The ids of the open Tiendas this person may write to (for `.in("store_id", …)`).
+export function writableStoreIds(business: CurrentBusiness): string[] {
+  return business.stores.map((s) => s.id);
+}
+
+export const ARCHIVED_STORE_READ_ONLY ="Esta tienda está archivada. Vuelve a abrirla en Administrar tiendas para hacer cambios.";

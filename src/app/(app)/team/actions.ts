@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { canManageStore, getCurrentBusiness, type Role } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness, type Role } from "@/lib/business";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { friendlyError } from "@/lib/dbErrors";
 
 // A business must always keep at least one owner, or nobody could manage it.
 // (The database enforces it too; this gives the friendly message first.)
@@ -37,7 +38,7 @@ export async function updateMemberRole(targetUserId: string, role: Role): Promis
     .update({ role })
     .eq("business_id", business.id)
     .eq("user_id", targetUserId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo cambiar el rol.") };
 
   // A Gerente or Agente only sees the Tiendas they're in. Someone who had
   // none (e.g. a Dueño becoming Agente) starts in every open Tienda; the
@@ -75,7 +76,7 @@ export async function removeMember(targetUserId: string): Promise<{ error?: stri
     .eq("business_id", business.id)
     .eq("user_id", targetUserId);
 
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo quitar a esta persona.") };
   // They must stop receiving this business's customer messages on their phone.
   // Admin client: an owner can't touch another person's token rows directly.
   await createAdminClient().from("device_tokens").delete().eq("user_id", targetUserId).eq("business_id", business.id);
@@ -109,11 +110,13 @@ export async function setMemberStore(
   const allowed =
     business.role === "owner" || (business.role === "manager" && target.role === "agent" && canManageStore(business, storeId));
   if (!allowed) return denied;
+  // Taking someone out of an archived Tienda is fine; adding them isn't.
+  if (inStore && !canWriteToStore(business, storeId)) return { error: ARCHIVED_STORE_READ_ONLY };
 
   const { error } = inStore
     ? await supabase.from("store_members").insert({ store_id: storeId, business_id: business.id, user_id: targetUserId })
     : await supabase.from("store_members").delete().eq("store_id", storeId).eq("user_id", targetUserId);
-  if (error && error.code !== "23505") return { error: error.message };
+  if (error && error.code !== "23505") return { error: friendlyError(error, "No se pudo cambiar la tienda de esta persona.") };
   revalidatePath("/team");
   return {};
 }
@@ -138,7 +141,7 @@ export async function createInvitation(role: Role, storeIds: string[]): Promise<
     p_role: role,
     p_store_ids: stores,
   });
-  if (error || !data) return { error: error?.message ?? "No se pudo crear la invitación." };
+  if (error || !data) return { error: friendlyError(error, "No se pudo crear la invitación.") };
   revalidatePath("/team");
   return { token: data as string };
 }
@@ -155,7 +158,7 @@ export async function setMemberAway(targetUserId: string, away: boolean): Promis
     p_user_id: targetUserId,
     p_away: away,
   });
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error) };
   revalidatePath("/team");
   return {};
 }
@@ -166,7 +169,7 @@ export async function setNotifyAll(on: boolean): Promise<{ error?: string }> {
   if (!business) return { error: "No se encontró el negocio." };
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_notify_all", { p_business_id: business.id, p_on: on });
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error) };
   revalidatePath("/team");
   return {};
 }
@@ -176,7 +179,7 @@ export async function cancelInvitation(invitationId: string): Promise<{ error?: 
   if (!business) return { error: "No se encontró el negocio." };
   const supabase = await createClient();
   const { error } = await supabase.from("invitations").delete().eq("id", invitationId).eq("business_id", business.id);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error) };
   revalidatePath("/team");
   return {};
 }

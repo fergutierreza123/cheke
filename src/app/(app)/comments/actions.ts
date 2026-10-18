@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { canAccessStore, getCurrentBusiness } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canAccessStore, canWriteToStore, getCurrentBusiness } from "@/lib/business";
 import { answerCommentPrivately, answerCommentPublicly } from "@/lib/commentsServer";
 import { PRIVATE_REPLY_MAX, PUBLIC_REPLY_MAX } from "@/lib/comments";
 
@@ -14,6 +14,7 @@ async function access(commentId: string) {
   const supabase = await createClient();
   const { data: comment } = await supabase.from("post_comments").select("id, store_id").eq("id", commentId).maybeSingle();
   if (!comment || !canAccessStore(business, comment.store_id)) return { error: "No se encontró el comentario." } as const;
+  if (!canWriteToStore(business, comment.store_id)) return { error: ARCHIVED_STORE_READ_ONLY } as const;
   return { business } as const;
 }
 

@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ARCHIVED_STORE_READ_ONLY, canWriteToStore, getCurrentBusiness } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canWriteToStore, getCurrentBusiness, writableStoreIds } from "@/lib/business";
 import { isOwnStorageUrl } from "@/lib/storageUrl";
 import { removeBackgroundToWhite } from "@/lib/images";
+import { friendlyError } from "@/lib/dbErrors";
 
 // Matches src/lib/shrinkPhoto.ts, which keeps uploads under Vercel's 4.5 MB
 // request limit. (Not imported: a "use server" file may only export actions.)
@@ -80,7 +81,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
     const { error: uploadError } = await adminSupabase.storage
       .from("product-images")
       .upload(path, uploadBody, { contentType, upsert: true });
-    if (uploadError) return { error: `No se pudo subir la foto: ${uploadError.message}` };
+    if (uploadError) return { error: friendlyError(uploadError, "No se pudo subir la foto. Inténtalo de nuevo.") };
     imageUrl = adminSupabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
   }
 
@@ -92,7 +93,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
       .eq("business_id", business.id)
       .eq("store_id", storeId)
       .select("id");
-    if (error) return { error: error.message };
+    if (error) return { error: friendlyError(error, "No se pudo guardar el producto. Inténtalo de nuevo.") };
     if (!updated?.length) return { error: "No se encontró el producto. Recarga la página." };
   } else {
     const { error } = await supabase.from("products").insert({
@@ -106,7 +107,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
       visible,
       image_url: imageUrl,
     });
-    if (error) return { error: error.message };
+    if (error) return { error: friendlyError(error, "No se pudo guardar el producto. Inténtalo de nuevo.") };
   }
 
   revalidatePath("/inventory");
@@ -118,8 +119,14 @@ export async function deleteProduct(id: string): Promise<{ error?: string }> {
   if (!business) return { error: "No se encontró el negocio." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("products").delete().eq("id", id).eq("business_id", business.id);
-  if (error) return { error: error.message };
+  // Only products of open Tiendas: an archived Tienda's catalog is read-only.
+  const { error } = await supabase
+    .from("products")
+    .delete()
+    .eq("id", id)
+    .eq("business_id", business.id)
+    .in("store_id", writableStoreIds(business));
+  if (error) return { error: friendlyError(error, "No se pudo eliminar el producto.") };
 
   revalidatePath("/inventory");
   return {};

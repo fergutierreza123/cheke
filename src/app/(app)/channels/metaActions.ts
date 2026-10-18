@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canManageStore, getCurrentBusiness } from "@/lib/business";
+import { friendlyError } from "@/lib/dbErrors";
 import { claimExternalId, unsubscribeMetaPage } from "./channelHelpers";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
@@ -297,7 +298,7 @@ async function saveChannel(
     : await supabase
         .from("channels")
         .insert({ business_id: businessId, store_id: storeId, type, external_id: externalId, ...fields });
-  return error ? error.message : null;
+  return error ? friendlyError(error, "No se pudo guardar la conexión.") : null;
 }
 
 // Disconnects a Page and its Instagram together: both go through the same
@@ -328,7 +329,7 @@ export async function disconnectMetaPage(pageId: string): Promise<{ error?: stri
     .in("store_id", storeIds)
     .in("type", ["facebook", "instagram"])
     .eq("page_id", pageId);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo desconectar el canal.") };
 
   revalidatePath("/channels");
   return {};

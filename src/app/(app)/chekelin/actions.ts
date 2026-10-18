@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { canManageStore, getCurrentBusiness } from "@/lib/business";
+import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness } from "@/lib/business";
 import type { AddressForm, ChekelinInfo } from "@/lib/types";
+import { friendlyError } from "@/lib/dbErrors";
 
 const LIMITS: Record<keyof Omit<ChekelinInfo, "address_form">, number> = {
   payment_methods: 2000,
@@ -20,6 +21,7 @@ export async function saveChekelinInfo(storeId: string, input: ChekelinInfo): Pr
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
   if (!canManageStore(business, storeId)) return { error: "Solo el dueño o el gerente de la tienda puede cambiar esto." };
+  if (!canWriteToStore(business, storeId)) return { error: ARCHIVED_STORE_READ_ONLY };
 
   const row: Record<string, string> = {};
   for (const [key, max] of Object.entries(LIMITS) as Array<[keyof typeof LIMITS, number]>) {
@@ -34,7 +36,7 @@ export async function saveChekelinInfo(storeId: string, input: ChekelinInfo): Pr
     .from("store_chekelin_info")
     // business_id is filled by the database from the Tienda.
     .upsert({ store_id: storeId, business_id: business.id, ...row, address_form: input.address_form }, { onConflict: "store_id" });
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo guardar. Inténtalo de nuevo.") };
   revalidatePath("/chekelin");
   return {};
 }

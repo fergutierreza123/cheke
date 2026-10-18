@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canManageStore, getCurrentBusiness } from "@/lib/business";
+import { friendlyError } from "@/lib/dbErrors";
 import { claimExternalId, unsubscribeWhatsApp } from "./channelHelpers";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
@@ -168,7 +169,7 @@ export async function connectWhatsAppChannel(input: {
         .insert({ business_id: business.id, store_id: input.storeId, type: "whatsapp", ...fields })
         .select("id")
         .single();
-  if (error || !saved) return { error: error?.message ?? "No se pudo guardar la conexión." };
+  if (error || !saved) return { error: friendlyError(error, "No se pudo guardar la conexión.") };
 
   // Only after the channel is saved: the imported chats arrive through the
   // webhook, which needs the channel to know which business they belong to.
@@ -240,7 +241,7 @@ export async function disconnectChannel(channelId: string): Promise<{ error?: st
     .update({ status: "disconnected", access_token_encrypted: null, registration_pin_encrypted: null })
     .eq("id", channelId)
     .eq("business_id", business.id);
-  if (error) return { error: error.message };
+  if (error) return { error: friendlyError(error, "No se pudo desconectar el canal.") };
 
   revalidatePath("/channels");
   return {};
