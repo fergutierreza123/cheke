@@ -85,6 +85,12 @@ alter table members drop constraint if exists members_role_check;
 alter table members
   add constraint members_role_check check (role in ('owner', 'manager', 'agent'));
 
+-- Remembers, for this run only, whether store_members is being created now
+-- (first run). The backfill further down only happens then.
+drop table if exists pg_temp.store_members_first_run;
+create temp table store_members_first_run as
+  select to_regclass('public.store_members') is null as first_run;
+
 create table if not exists store_members (
   store_id uuid not null references stores(id) on delete cascade,
   -- Filled from the store by a trigger; lets the foreign key below remove
@@ -119,15 +125,19 @@ create trigger store_members_business
   for each row execute function store_members_set_business();
 
 -- Existing Agentes join their Negocio's Tienda. Only for Negocios that still
--- have a single Tienda, so running this again never re-adds someone a Dueño
--- took out of a Tienda later.
+-- have a single Tienda, and only on the first run (when store_members was
+-- just created): running this again must never re-add someone a Dueño took
+-- out of a Tienda later, even in a single-Tienda Negocio (issue #35).
 insert into store_members (store_id, business_id, user_id)
 select s.id, m.business_id, m.user_id
 from members m
 join stores s on s.business_id = m.business_id
 where m.role <> 'owner'
   and (select count(*) from stores s2 where s2.business_id = m.business_id) = 1
+  and (select first_run from store_members_first_run)
 on conflict do nothing;
+
+drop table if exists pg_temp.store_members_first_run;
 
 -- A Negocio always keeps at least one Dueño while it has other people.
 -- (Someone alone in their Negocio can still delete their account, and
