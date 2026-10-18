@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { canManageStore, getCurrentBusiness } from "@/lib/business";
 import { createClient } from "@/lib/supabase/server";
 import { isBillingError } from "@/lib/whatsappErrors";
+import { daysLeft, EXPIRY_WARNING_DAYS } from "@/lib/metaTokens";
 import { ChannelsView, type BillingProblem, type ChannelItem } from "./ChannelsView";
 
 // How far back a payment failure still counts as a current problem.
@@ -12,17 +13,14 @@ export default async function ChannelsPage() {
   if (!business) redirect("/onboarding");
 
   const supabase = await createClient();
-  // Never select the token columns here — this data goes to the browser.
-  const [{ data }, billingProblem] = await Promise.all([
-    supabase
-      .from("channels")
-      .select(
-        "id, store_id, type, status, external_id, page_id, display_phone, verified_name, connected_at, coexistence, contacts_sync_requested_at, history_sync_requested_at, history_sync_progress, history_sync_error",
-      )
-      .eq("business_id", business.id)
-      .in("store_id", business.scopeStoreIds),
+  const [rows, billingProblem] = await Promise.all([
+    loadChannels(supabase, business.id, business.scopeStoreIds),
     findBillingProblem(supabase, business.id, business.scopeStoreIds),
   ]);
+  // WhatsApp sends with cheke's never-ending system-user token when it's set
+  // (src/lib/whatsapp.ts), so its own token's end date doesn't matter then.
+  const whatsappTokenManaged = Boolean(process.env.META_SYSTEM_USER_TOKEN?.trim());
+  const data = rows.map((row) => withReconnectState(row, whatsappTokenManaged));
 
   const appId = process.env.NEXT_PUBLIC_META_APP_ID;
   const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
@@ -37,7 +35,7 @@ export default async function ChannelsPage() {
 
   return (
     <ChannelsView
-      channels={(data ?? []) as ChannelItem[]}
+      channels={data}
       // Listed by Tienda in "Todas las tiendas"; one untitled block otherwise.
       sections={business.scopeStoreIds.map((id) => ({
         storeId: id,
@@ -50,6 +48,45 @@ export default async function ChannelsPage() {
       billingProblem={billingProblem}
     />
   );
+}
+
+// Never select the token columns here — this data goes to the browser.
+const CHANNEL_COLUMNS =
+  "id, store_id, type, status, external_id, page_id, display_phone, verified_name, connected_at, coexistence, contacts_sync_requested_at, history_sync_requested_at, history_sync_progress, history_sync_error";
+// Migration 0029 (issue #56): token end date and the "Reconectar" state.
+const HEALTH_COLUMNS = "token_expires_at, reauth_required_at";
+
+type ChannelRow = Omit<ChannelItem, "reconnect" | "reconnectDays"> & {
+  token_expires_at?: string | null;
+  reauth_required_at?: string | null;
+};
+
+async function loadChannels(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  businessId: string,
+  storeIds: string[],
+): Promise<ChannelRow[]> {
+  const query = (columns: string) =>
+    supabase.from("channels").select(columns).eq("business_id", businessId).in("store_id", storeIds);
+  const withHealth = await query(`${CHANNEL_COLUMNS}, ${HEALTH_COLUMNS}`);
+  if (!withHealth.error) return (withHealth.data ?? []) as unknown as ChannelRow[];
+  // Migration 0029 not applied yet: show Canales as before.
+  const plain = await query(CHANNEL_COLUMNS);
+  return (plain.data ?? []) as unknown as ChannelRow[];
+}
+
+// "Reconectar" when Meta refused the token; "soon" when it ends within
+// EXPIRY_WARNING_DAYS (and the Canal really depends on it).
+function withReconnectState(row: ChannelRow, whatsappTokenManaged: boolean): ChannelItem {
+  const { token_expires_at, reauth_required_at, ...item } = row;
+  if (item.status !== "connected") return { ...item, reconnect: null };
+  if (reauth_required_at) return { ...item, reconnect: "required" };
+  if (!token_expires_at || (item.type === "whatsapp" && whatsappTokenManaged)) return { ...item, reconnect: null };
+  const now = Date.now();
+  const ends = new Date(token_expires_at).getTime();
+  if (ends <= now) return { ...item, reconnect: "required" };
+  if (ends - now > EXPIRY_WARNING_DAYS * 24 * 60 * 60 * 1000) return { ...item, reconnect: null };
+  return { ...item, reconnect: "soon", reconnectDays: daysLeft(token_expires_at, now) };
 }
 
 // Messages WhatsApp refused in the last week because of the business's Meta

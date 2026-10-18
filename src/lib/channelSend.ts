@@ -1,7 +1,9 @@
 import type { ChannelType } from "@/lib/types";
-import { credentialsForChannel, markWhatsAppRead, sendWhatsAppMessage, sendWhatsAppTyping } from "@/lib/whatsapp";
+import { credentialsForChannel, markWhatsAppRead, RECONNECT_MESSAGE, sendWhatsAppMessage, sendWhatsAppTyping } from "@/lib/whatsapp";
 import { metaCredentialsForChannel, sendMetaMessage, sendMetaReaction, sendMetaSeen, sendMetaTyping } from "@/lib/metaMessaging";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
+import { isMetaAuthError } from "@/lib/metaTokens";
+import { markChannelNeedsReconnect, regeneratePageToken } from "@/lib/channelHealth";
 
 // Server-only. Sends one outgoing message on whatever channel the
 // conversation came in on (WhatsApp, Instagram or Facebook Messenger), so
@@ -9,11 +11,14 @@ import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 //
 // The columns to select for it, on a conversation query:
 //   window_expires_at, contact:contacts(phone, fb_psid, ig_id),
-//   channel:channels(type, external_id, page_id, access_token_encrypted)
+//   channel:channels(id, type, external_id, page_id, access_token_encrypted)
 export const SEND_CONTACT_COLUMNS = "phone, fb_psid, ig_id";
-export const SEND_CHANNEL_COLUMNS = "type, external_id, page_id, access_token_encrypted";
+export const SEND_CHANNEL_COLUMNS = "id, type, external_id, page_id, access_token_encrypted";
 
 export type SendChannel = {
+  // Lets a send Meta refuses for auth reasons mark the Canal "Reconectar"
+  // (issue #56). Optional so older callers still type-check.
+  id?: string;
   type: ChannelType;
   external_id: string | null;
   page_id: string | null;
@@ -80,6 +85,9 @@ export async function sendOnChannel(input: {
     const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl, {
       replyToId: replyToExternalId,
     });
+    if (result.needsReconnect && channel.id) {
+      await markChannelNeedsReconnect(channel.id, `whatsapp_${result.errorCode ?? "auth"}`);
+    }
     return result.error
       ? { error: result.error, errorCode: result.errorCode, errorDetails: result.errorDetails }
       : { externalMessageId: result.externalMessageId };
@@ -87,11 +95,18 @@ export async function sendOnChannel(input: {
 
   const recipientId = channel.type === "instagram" ? contact.ig_id : contact.fb_psid;
   if (!recipientId) return { notSent: true };
-  const result = await sendMetaMessage(recipientId, text, metaCredentialsForChannel(channel), {
-    mediaUrl,
-    humanAgent: state === "human_agent",
-    replyToMid: replyToExternalId,
-  });
+  const options = { mediaUrl, humanAgent: state === "human_agent", replyToMid: replyToExternalId };
+  let result = await sendMetaMessage(recipientId, text, metaCredentialsForChannel(channel), options);
+  if (isMetaAuthError(result.graphError) && channel.id) {
+    // The Page token stopped working: get a fresh one with the client's
+    // stored token and try once more before asking for "Reconectar".
+    const fresh = await regeneratePageToken(channel.id);
+    if (fresh) result = await sendMetaMessage(recipientId, text, fresh, options);
+    if (isMetaAuthError(result.graphError)) {
+      await markChannelNeedsReconnect(channel.id, `meta_${result.graphError?.code ?? "auth"}`);
+      return { error: RECONNECT_MESSAGE, errorDetails: result.error };
+    }
+  }
   return result.error ? { error: result.error } : { externalMessageId: result.externalMessageId };
 }
 

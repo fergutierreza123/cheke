@@ -102,7 +102,8 @@ export type PushNotification = {
   conversationId?: string;
   // Extra query string for the Chat link (e.g. "reasignar=1").
   linkExtra?: string;
-  // Another screen to open instead of the chat (e.g. "/comments").
+  // Another screen to open instead of the chat (e.g. "/comments", or
+  // "/channels" for "Reconectar").
   url?: string;
 };
 

@@ -603,13 +603,17 @@ function queueMedia(media: MediaJob[], channel: Channel, message: WhatsAppMessag
     return;
   }
   // No file to fetch (e.g. old history): the message keeps its text.
-  const token = credentialsForChannel(channel)?.accessToken;
-  if (!found.mediaId || !token) return;
+  const credentials = credentialsForChannel(channel);
+  if (!found.mediaId || !credentials) return;
   media.push({
     externalMessageId: message.id,
     kind: found.kind,
     info: found.info,
-    download: { whatsappMediaId: found.mediaId, accessToken: token },
+    download: {
+      whatsappMediaId: found.mediaId,
+      accessToken: credentials.accessToken,
+      fallbackAccessToken: credentials.fallbackAccessToken,
+    },
   });
 }
 

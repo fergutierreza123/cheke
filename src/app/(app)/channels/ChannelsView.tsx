@@ -28,6 +28,10 @@ export type ChannelItem = {
   history_sync_requested_at: string | null;
   history_sync_progress: number | null;
   history_sync_error: string | null;
+  // Issue #56. "required": Meta cut the connection (customers' messages still
+  // arrive, replies don't). "soon": its token ends in `reconnectDays` days.
+  reconnect?: "required" | "soon" | null;
+  reconnectDays?: number;
 };
 
 // Recent WhatsApp messages Meta refused because of the business's billing.
@@ -114,6 +118,7 @@ function StoreChannels({
 
   const whatsapp = channels.find((c) => c.type === "whatsapp");
   const whatsappConnected = whatsapp?.status === "connected";
+  const whatsappReconnect = whatsappConnected ? (whatsapp?.reconnect ?? null) : null;
 
   async function handleRetrySync(id: string) {
     setBusy(true);
@@ -148,10 +153,14 @@ function StoreChannels({
                   <h2 className="font-heading text-[15.5px] font-semibold text-ink">WhatsApp</h2>
                   <span
                     className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      whatsappConnected ? "bg-accent-tint text-brand-dark" : "bg-surface-2 text-ink-muted"
+                      whatsappReconnect === "required"
+                        ? "bg-danger-tint text-danger"
+                        : whatsappConnected
+                          ? "bg-accent-tint text-brand-dark"
+                          : "bg-surface-2 text-ink-muted"
                     }`}
                   >
-                    {whatsappConnected ? "Conectado" : "Sin conectar"}
+                    {whatsappReconnect === "required" ? "Reconectar" : whatsappConnected ? "Conectado" : "Sin conectar"}
                   </span>
                 </div>
                 {whatsappConnected ? (
@@ -167,6 +176,7 @@ function StoreChannels({
                     la primera respuesta.
                   </p>
                 )}
+                {whatsappReconnect && whatsapp && <ReconnectNotice channel={whatsapp} label="WhatsApp" />}
                 {whatsappConnected && whatsapp?.coexistence && (
                   <CoexistenceStatus channel={whatsapp} isOwner={isOwner} busy={busy} onRetry={handleRetrySync} />
                 )}
@@ -177,13 +187,24 @@ function StoreChannels({
               {!isOwner ? (
                 <p className="text-[12.5px] text-ink-soft">{NO_PERMISSION}</p>
               ) : whatsappConnected && whatsapp ? (
-                <button
-                  onClick={() => handleDisconnect(whatsapp.id)}
-                  disabled={busy}
-                  className="h-10 rounded-[10px] border border-danger-border bg-danger-tint px-4 text-[13.5px] font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60"
-                >
-                  {busy ? "Desconectando…" : "Desconectar"}
-                </button>
+                <div className="flex flex-col gap-3">
+                  {whatsappReconnect && meta && (
+                    <ConnectWhatsAppButton
+                      appId={meta.appId}
+                      configId={meta.configId}
+                      storeId={storeId}
+                      label="Reconectar WhatsApp"
+                      hint={false}
+                    />
+                  )}
+                  <button
+                    onClick={() => handleDisconnect(whatsapp.id)}
+                    disabled={busy}
+                    className="h-10 self-start rounded-[10px] border border-danger-border bg-danger-tint px-4 text-[13.5px] font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60"
+                  >
+                    {busy ? "Desconectando…" : "Desconectar"}
+                  </button>
+                </div>
               ) : meta ? (
                 <ConnectWhatsAppButton appId={meta.appId} configId={meta.configId} storeId={storeId} />
               ) : (
@@ -223,11 +244,15 @@ function MetaChannelsCard({
     (c) => (c.type === "facebook" || c.type === "instagram") && c.status === "connected" && c.page_id,
   );
   const pageIds = Array.from(new Set(connected.map((c) => c.page_id as string)));
-  const pages = pageIds.map((pageId) => ({
-    pageId,
-    facebook: connected.find((c) => c.page_id === pageId && c.type === "facebook"),
-    instagram: connected.find((c) => c.page_id === pageId && c.type === "instagram"),
-  }));
+  const pages = pageIds.map((pageId) => {
+    const facebook = connected.find((c) => c.page_id === pageId && c.type === "facebook");
+    const instagram = connected.find((c) => c.page_id === pageId && c.type === "instagram");
+    // The Page and its Instagram share one token.
+    const needs = [facebook, instagram].find((c) => c?.reconnect === "required") ?? [facebook, instagram].find((c) => c?.reconnect);
+    return { pageId, facebook, instagram, needs: needs ?? null };
+  });
+  const anyRequired = pages.some((p) => p.needs?.reconnect === "required");
+  const anyReconnect = pages.some((p) => p.needs);
 
   async function handleDisconnect(pageId: string) {
     const ok = window.confirm(
@@ -254,10 +279,14 @@ function MetaChannelsCard({
             <h2 className="font-heading text-[15.5px] font-semibold text-ink">Instagram y Facebook</h2>
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                pages.length > 0 ? "bg-accent-tint text-brand-dark" : "bg-surface-2 text-ink-muted"
+                anyRequired
+                  ? "bg-danger-tint text-danger"
+                  : pages.length > 0
+                    ? "bg-accent-tint text-brand-dark"
+                    : "bg-surface-2 text-ink-muted"
               }`}
             >
-              {pages.length > 0 ? "Conectado" : "Sin conectar"}
+              {anyRequired ? "Reconectar" : pages.length > 0 ? "Conectado" : "Sin conectar"}
             </span>
           </div>
           <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
@@ -285,6 +314,7 @@ function MetaChannelsCard({
                 {p.facebook?.connected_at && (
                   <div className="mt-1 text-[12px] text-ink-soft">Conectado {relativeTime(p.facebook.connected_at)}</div>
                 )}
+                {p.needs && <ReconnectNotice channel={p.needs} label="Instagram y Facebook" />}
               </div>
               {isOwner && (
                 <button
@@ -308,7 +338,9 @@ function MetaChannelsCard({
             storeId={storeId}
             appId={messaging.appId}
             configId={messaging.configId}
-            label={pages.length > 0 ? "Conectar otra página" : undefined}
+            label={
+              anyReconnect ? "Reconectar Instagram y Facebook" : pages.length > 0 ? "Conectar otra página" : undefined
+            }
           />
         ) : (
           <div className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-muted">
@@ -318,6 +350,36 @@ function MetaChannelsCard({
         )}
         {error && <p className="mt-2 text-[12.5px] text-danger">{error}</p>}
       </div>
+    </div>
+  );
+}
+
+// Meta cut this connection (token expired or revoked, or cheke was removed
+// from the account) or its token ends soon. Customers' messages keep
+// arriving; only replies need the reconnect.
+function ReconnectNotice({ channel, label }: { channel: ChannelItem; label: string }) {
+  const required = channel.reconnect === "required";
+  const days = channel.reconnectDays ?? 1;
+  return (
+    <div
+      role={required ? "alert" : undefined}
+      className={`mt-2 rounded-lg px-3 py-2.5 text-[12.5px] leading-relaxed ${
+        required ? "border border-danger-border bg-danger-tint text-ink" : "bg-surface-2 text-ink-muted"
+      }`}
+    >
+      {required ? (
+        <>
+          <strong className="text-danger">Meta cerró la conexión de {label}.</strong> Los mensajes de tus clientes
+          siguen llegando, pero no puedes responder desde cheke hasta que toques «Reconectar».
+        </>
+      ) : (
+        <>
+          <strong className="text-ink">
+            La conexión de {label} vence en {days} día{days === 1 ? "" : "s"}.
+          </strong>{" "}
+          Toca «Reconectar» para seguir respondiendo sin interrupciones.
+        </>
+      )}
     </div>
   );
 }

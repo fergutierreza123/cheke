@@ -1,7 +1,10 @@
-import { credentialsForChannel, toWhatsAppNumber, GRAPH_API_VERSION, type WhatsAppCredentials } from "@/lib/whatsapp";
+import { credentialsForChannel, graphWithFallback, toWhatsAppNumber, GRAPH_API_VERSION, type WhatsAppCredentials } from "@/lib/whatsapp";
 import { metaCredentialsForChannel, postMessage } from "@/lib/metaMessaging";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import type { SendChannel, SendContact, SendResult } from "@/lib/channelSend";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type GraphBody = any;
 
 // Server-only. Sends a voice note or a document a person recorded/attached
 // in Chat (issue #50) on the conversation's own channel:
@@ -103,35 +106,39 @@ async function uploadWhatsAppMedia(
   form.append("messaging_product", "whatsapp");
   form.append("type", mime);
   form.append("file", new Blob([new Uint8Array(bytes)], { type: mime }), filename);
-  let res: Response;
+  let res: { ok: boolean; data: GraphBody };
   try {
-    res = await fetch(`${GRAPH}/${credentials.phoneNumberId}/media`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${credentials.accessToken}` },
-      body: form,
-      signal: AbortSignal.timeout(60_000),
-    });
+    res = await graphWithFallback(credentials, (token) =>
+      fetch(`${GRAPH}/${credentials.phoneNumberId}/media`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+        signal: AbortSignal.timeout(60_000),
+      }),
+    );
   } catch {
     return { error: "No se pudo subir el archivo a WhatsApp. Revisa tu conexión e inténtalo de nuevo." };
   }
-  const data = await res.json().catch(() => null);
+  const data = res.data;
   if (!res.ok || !data?.id) return metaError(data, "WhatsApp no aceptó el archivo.");
   return { id: String(data.id) };
 }
 
 async function postWhatsApp(credentials: WhatsAppCredentials, payload: Record<string, unknown>): Promise<SendResult> {
-  let res: Response;
+  let res: { ok: boolean; data: GraphBody };
   try {
-    res = await fetch(`${GRAPH}/${credentials.phoneNumberId}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15_000),
-    });
+    res = await graphWithFallback(credentials, (token) =>
+      fetch(`${GRAPH}/${credentials.phoneNumberId}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      }),
+    );
   } catch {
     return { error: "No se pudo contactar a WhatsApp. Revisa tu conexión e inténtalo de nuevo." };
   }
-  const data = await res.json().catch(() => null);
+  const data = res.data;
   if (!res.ok) return metaError(data, "No se pudo enviar el mensaje de WhatsApp.");
   return { externalMessageId: data?.messages?.[0]?.id };
 }

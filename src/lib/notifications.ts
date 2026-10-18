@@ -66,6 +66,35 @@ export async function getNotifications(
     );
   }
 
+  // Canales Meta disconnected (issue #56): customers still write, but nobody
+  // can answer from cheke until a Dueño or Gerente reconnects. An error here
+  // means migration 0029 isn't applied yet: no warning.
+  const { data: broken } = await supabase
+    .from("channels")
+    .select("id, type, store_id, page_id, reauth_required_at")
+    .eq("business_id", businessId)
+    .in("store_id", storeIds)
+    .eq("status", "connected")
+    .not("reauth_required_at", "is", null);
+  const seenPages = new Set<string>();
+  for (const c of broken ?? []) {
+    if (c.page_id) {
+      if (seenPages.has(`${c.store_id}:${c.page_id}`)) continue;
+      seenPages.add(`${c.store_id}:${c.page_id}`);
+    }
+    const label = c.type === "whatsapp" ? "WhatsApp" : "Instagram y Facebook";
+    items.push({
+      id: `warning-reconnect-${c.id}`,
+      kind: "warning",
+      title: `Reconecta ${label}`,
+      description:
+        "Meta cerró la conexión. Los mensajes siguen llegando, pero un dueño o gerente debe tocar «Reconectar» en Canales para poder responder.",
+      time: c.reauth_required_at,
+      link: "/channels",
+      storeId: c.store_id,
+    });
+  }
+
   const recentWins = [...conversations]
     .filter((c) => c.stage === "ganado")
     .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""))
