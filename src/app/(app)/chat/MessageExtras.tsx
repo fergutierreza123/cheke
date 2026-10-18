@@ -160,6 +160,7 @@ export function MessageMenu({
   current,
   canReply,
   onReply,
+  onCopy = null,
   onReact,
   onClose,
 }: {
@@ -171,6 +172,8 @@ export function MessageMenu({
   current: string | null | undefined;
   canReply: boolean;
   onReply: () => void;
+  // "Copiar" (null = nothing worth copying in this message).
+  onCopy?: (() => void) | null;
   onReact: (emoji: string) => void;
   onClose: () => void;
 }) {
@@ -221,9 +224,31 @@ export function MessageMenu({
                 Responder
               </button>
             )}
+            {onCopy && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={onCopy}
+                className={`flex min-h-10 items-center gap-2.5 px-3.5 text-left text-[13.5px] text-ink hover:bg-surface-2 ${
+                  emojis.length > 0 || canReply ? "border-t border-border" : ""
+                }`}
+              >
+                <CopyIcon className="h-4 w-4 text-ink-muted" />
+                Copiar
+              </button>
+            )}
           </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function CopyIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </svg>
   );
 }
 
@@ -245,12 +270,16 @@ const LONG_PRESS_MS = 450;
 
 export function SwipeToReply({
   enabled,
+  swipe = enabled,
   onReply,
   onLongPress,
   className = "",
   children,
 }: {
+  // Hold to open the menu.
   enabled: boolean;
+  // Drag right to answer (off when nothing can be sent; holding still works).
+  swipe?: boolean;
   onReply: () => void;
   onLongPress: () => void;
   className?: string;
@@ -268,7 +297,7 @@ export function SwipeToReply({
 
   return (
     <motion.div
-      drag={enabled && !reduced ? "x" : false}
+      drag={enabled && swipe && !reduced ? "x" : false}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={{ left: 0, right: 0.5 }}
       dragSnapToOrigin
@@ -295,7 +324,7 @@ export function SwipeToReply({
       style={{ x }}
       className={`relative ${className}`}
     >
-      {enabled && (
+      {enabled && swipe && (
         <motion.span
           aria-hidden
           style={{ opacity: arrowOpacity }}

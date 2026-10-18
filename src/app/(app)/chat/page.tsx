@@ -8,6 +8,7 @@ import { getTeamMembers } from "@/lib/team";
 import { canUseChekelin } from "@/lib/plan";
 import { displayNameOf } from "@/lib/chekelinState";
 import { createClient } from "@/lib/supabase/server";
+import { getStoreLocations } from "@/lib/storeLocationServer";
 import { ChatView, type ChatPerson, type ChekelinStore } from "./ChatView";
 
 export default async function ChatPage({
@@ -62,6 +63,11 @@ export default async function ChatPage({
     offUntil: s.chekelin_off_until ?? null,
     canManage: canManageStore(business, s.id),
   }));
+  // "Ubicación" in the "+" sheet: each Tienda's saved location (0034).
+  const { locations } = await getStoreLocations(supabase, storeIds);
+  const storeLocations = Object.fromEntries(
+    (storeRows ?? []).filter((s) => locations[s.id]).map((s) => [s.id, { name: s.name, location: locations[s.id] }]),
+  );
   const requested = c && conversations.some((conv) => conv.id === c) ? c : null;
   const firstId = requested ?? conversations[0]?.id ?? null;
   const initialMessages = firstId ? await getMessages(firstId) : [];
@@ -91,6 +97,7 @@ export default async function ChatPage({
       highlightOrderId={requested !== null ? (confirmar ?? null) : null}
       quickReplies={quickReplies}
       canManageQuickReplies={business.role !== "agent"}
+      storeLocations={storeLocations}
     />
   );
 }

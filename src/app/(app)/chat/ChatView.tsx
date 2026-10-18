@@ -16,6 +16,7 @@ import {
   resolveComplaint,
   reactToMessage,
   markConversationRead,
+  sendStoreLocation,
   type OpenOrder,
 } from "./actions";
 import { setChekelinOff } from "../actions";
@@ -71,6 +72,9 @@ import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messag
 import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import type { ChannelType, ConversationNote, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
+import { countUnread, unreadAfterMessage, unreadBadge } from "@/lib/unread";
+import { locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
+import { copyableText } from "@/lib/copyMessage";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "todos", label: "Todos" },
@@ -108,6 +112,7 @@ export function ChatView({
   highlightOrderId = null,
   quickReplies = [],
   canManageQuickReplies = false,
+  storeLocations = {},
 }: {
   businessId: string;
   // The Tiendas on screen: live messages from any other Tienda are ignored.
@@ -136,6 +141,8 @@ export function ChatView({
   // Respuestas rápidas: typing "/" in the composer offers them.
   quickReplies?: QuickReply[];
   canManageQuickReplies?: boolean;
+  // "Ubicación": each Tienda's saved location ("Lo que chekelin sabe").
+  storeLocations?: Record<string, { name: string; location: StoreLocation }>;
 }) {
   const showAssignment = people.length >= 2;
   const [stores, setStores] = useState(chekelinStores);
@@ -149,6 +156,13 @@ export function ChatView({
   const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<ChannelType | "todos">("todos");
   const [storeFilter, setStoreFilter] = useState<string | "all">("all");
+  // "No leídos": only chats with messages nobody on the team has opened.
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  // "Ubicación" picked in the "+" sheet: a preview to confirm before it goes.
+  const [pendingLocation, setPendingLocation] = useState(false);
+  const [sendingLocation, setSendingLocation] = useState(false);
+  // A short confirmation at the bottom ("Copiado").
+  const [toast, setToast] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
@@ -334,6 +348,19 @@ export function ChatView({
     () => [...messages].reverse().find((m) => m.direction === "in" && m.status !== "read")?.id ?? null,
     [messages],
   );
+  // "No leídos": the chat on screen stops counting (also in /demo, where
+  // nothing is marked read in the database).
+  const selectedUnread = conversations.find((c) => c.id === selectedId)?.unread_count ?? 0;
+  useEffect(() => {
+    if (!selectedId || selectedUnread === 0) return;
+    const threadOnScreen = mobileView === "thread" || window.matchMedia("(min-width: 1024px)").matches;
+    if (!threadOnScreen || document.visibilityState !== "visible") return;
+    const timer = setTimeout(() => {
+      setConversations((prev) => prev.map((c) => (c.id === selectedId ? { ...c, unread_count: 0 } : c)));
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [selectedId, selectedUnread, mobileView]);
+
   useEffect(() => {
     if (!selectedId || !unreadInboundId || businessId === "demo" || simulateMode) return;
     // Phones open on the list: the selected chat isn't on screen until tapped.
@@ -545,6 +572,11 @@ export function ChatView({
           appendMessage(msg);
           if (knownConversationIds.current.has(msg.conversation_id)) {
             bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === msg.conversation_id ? { ...c, unread_count: unreadAfterMessage(c.unread_count ?? 0, msg) } : c,
+              ),
+            );
           } else {
             // First message from a brand-new customer: their conversation
             // isn't in the list yet, so fetch it and add it to the top.
@@ -561,7 +593,13 @@ export function ChatView({
                 }
                 const contact = Array.isArray(data.contact) ? data.contact[0] : data.contact;
                 const chan = Array.isArray(data.channel) ? data.channel[0] : data.channel;
-                const conversation = { ...data, contact, channel: chan ?? null, last_message_body: msg.body } as ConversationWithContact;
+                const conversation = {
+                  ...data,
+                  contact,
+                  channel: chan ?? null,
+                  last_message_body: msg.body,
+                  unread_count: countUnread([msg]),
+                } as ConversationWithContact;
                 setConversations((prev) =>
                   prev.some((c) => c.id === conversation.id)
                     ? prev
@@ -575,7 +613,14 @@ export function ChatView({
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages", filter: `business_id=eq.${businessId}` },
         (payload) => {
-          patchMessage(payload.new as Message);
+          const msg = payload.new as Message;
+          patchMessage(msg);
+          // Someone on the team opened the chat (it marks every message read).
+          if (msg.direction === "in" && msg.status === "read") {
+            setConversations((prev) =>
+              prev.map((c) => (c.id === msg.conversation_id && c.unread_count ? { ...c, unread_count: 0 } : c)),
+            );
+          }
         },
       )
       // Asignación and chekelin's state change on the server (handoff,
@@ -712,9 +757,12 @@ export function ChatView({
       const matchesChannel = channelFilter === "todos" || c.channel?.type === channelFilter;
       const matchesQuery = !q || c.contact.name.toLowerCase().includes(q);
       const matchesStore = storeFilter === "all" || c.store_id === storeFilter;
-      return matchesChannel && matchesQuery && matchesStore;
+      // Like WhatsApp, the chat being read stays in the list until you leave it.
+      const matchesUnread = !unreadOnly || (c.unread_count ?? 0) > 0 || c.id === selectedId;
+      return matchesChannel && matchesQuery && matchesStore && matchesUnread;
     });
-  }, [conversations, query, channelFilter, storeFilter]);
+  }, [conversations, query, channelFilter, storeFilter, unreadOnly, selectedId]);
+  const unreadChats = conversations.filter((c) => (c.unread_count ?? 0) > 0).length;
 
   // Each Tienda has its own catalog: offer the open conversation's.
   const storeProducts = selected ? products.filter((p) => p.store_id === selected.store_id) : products;
@@ -822,6 +870,72 @@ export function ChatView({
       );
     }
     setSendError(result.sendError ?? result.error ?? null);
+  }
+
+  // "Ubicación": the Tienda's saved location, as WhatsApp sends it (a map
+  // pin) or as a Google Maps link on Instagram / Messenger.
+  const locationEntry = selected ? storeLocations[selected.store_id] : undefined;
+  const locationPlan =
+    selected && locationEntry ? locationSendPlan(selected.channel?.type, locationEntry.location, locationEntry.name) : null;
+
+  async function handleSendLocation() {
+    if (!selected || !locationPlan) return;
+    setSendingLocation(true);
+    setSendError(null);
+    try {
+      let result: MediaSendResult;
+      if (businessId === "demo") {
+        const pin = locationPlan.location;
+        result = {
+          message: {
+            id: `demo-loc-${crypto.randomUUID()}`,
+            conversation_id: selected.id,
+            business_id: "demo",
+            direction: "out",
+            body: locationPlan.text,
+            media_url: null,
+            status: "sent",
+            is_bot: false,
+            created_at: new Date().toISOString(),
+            ...(pin
+              ? {
+                  media_kind: "location" as const,
+                  media_info: { latitude: pin.latitude, longitude: pin.longitude, place: pin.name, address: pin.address || undefined },
+                }
+              : {}),
+          },
+        };
+      } else {
+        result = await sendStoreLocation(selected.id);
+      }
+      handleMediaResult(result);
+      if (result.message) setPendingLocation(false);
+    } catch {
+      setSendError("No se pudo enviar. Revisa tu conexión e inténtalo de nuevo.");
+    } finally {
+      setSendingLocation(false);
+    }
+  }
+
+  // "Copiar" in a bubble's menu.
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function showToast(text: string) {
+    setToast(text);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 1800);
+  }
+  async function handleCopy(m: Message) {
+    setMenuFor(null);
+    const text = copyableText(m);
+    if (!text) return;
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    } catch {
+      ok = copyWithSelection(text);
+    }
+    showToast(ok ? "Copiado" : "No se pudo copiar");
   }
 
   async function handleSetStage(stage: ConversationStage) {
@@ -1072,6 +1186,22 @@ export function ChatView({
                 </button>
               );
             })}
+            <button
+              onClick={() => setUnreadOnly((v) => !v)}
+              aria-pressed={unreadOnly}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold transition-colors ${
+                unreadOnly
+                  ? "border-brand bg-brand-tint text-brand-dark"
+                  : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+              }`}
+            >
+              No leídos
+              {unreadChats > 0 && (
+                <span className="min-w-[18px] rounded-full bg-accent px-1 text-center text-[11px] leading-[18px] text-brand-dark">
+                  {unreadChats > 99 ? "99+" : unreadChats}
+                </span>
+              )}
+            </button>
           </div>
           {storeNames && <StoreFilter storeNames={storeNames} value={storeFilter} onChange={setStoreFilter} className="mt-2" />}
         </div>
@@ -1079,12 +1209,16 @@ export function ChatView({
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
           {filtered.map((c) => {
             const lastBody = messagesByConversation[c.id]?.at(-1)?.body ?? c.last_message_body;
+            const badge = unreadBadge(c.unread_count ?? 0);
             return (
               <button
                 key={c.id}
                 onClick={() => {
                   setSelectedId(c.id);
-                  if (c.id !== selectedId) setReplyTo(null);
+                  if (c.id !== selectedId) {
+                    setReplyTo(null);
+                    setPendingLocation(false);
+                  }
                   setMenuFor(null);
                   setMobileView("thread");
                   setSendError(null);
@@ -1107,20 +1241,34 @@ export function ChatView({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
-                    <div className="truncate text-[13.5px] font-semibold text-ink">{c.contact.name}</div>
-                    <div className="shrink-0 text-[11px] text-ink-soft">{relativeTime(c.last_message_at)}</div>
+                    <div className={`truncate text-[13.5px] text-ink ${badge ? "font-bold" : "font-semibold"}`}>
+                      {c.contact.name}
+                    </div>
+                    <div className={`shrink-0 text-[11px] ${badge ? "font-semibold text-brand-dark" : "text-ink-soft"}`}>
+                      {relativeTime(c.last_message_at)}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="min-w-0 flex-1 truncate text-[12.5px] text-ink-muted">{lastBody ?? ""}</div>
+                    <div className={`min-w-0 flex-1 truncate text-[12.5px] ${badge ? "font-medium text-ink" : "text-ink-muted"}`}>
+                      {lastBody ?? ""}
+                    </div>
                     {c.complaint_open_at && <ComplaintTag />}
                     {storeNames && <StoreTag name={storeNames[c.store_id]} />}
+                    {badge && (
+                      <span className="min-w-5 shrink-0 rounded-full bg-accent px-1.5 text-center text-[11px] font-bold leading-5 text-brand-dark">
+                        {badge}
+                        <span className="sr-only"> sin leer</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </button>
             );
           })}
           {filtered.length === 0 && (
-            <div className="px-4.5 py-8 text-center text-[13px] text-ink-soft">Sin resultados.</div>
+            <div className="px-4.5 py-8 text-center text-[13px] text-ink-soft">
+              {unreadOnly && !query.trim() ? "Estás al día: no hay chats sin leer." : "Sin resultados."}
+            </div>
           )}
         </div>
       </div>
@@ -1362,6 +1510,8 @@ export function ChatView({
                 // Only while the composer can send (not in test mode).
                 const canAnswer = !sendBlocked && !simulateMode;
                 const emojis = simulateMode ? [] : reactionChoices(selected.channel?.type);
+                // "Copiar" works even when nothing can be sent.
+                const copyText = deleted ? null : copyableText(m);
                 return (
                   <div
                     key={m.id}
@@ -1386,7 +1536,8 @@ export function ChatView({
                       </div>
                     )}
                     <SwipeToReply
-                      enabled={touchScreen && !deleted && canAnswer}
+                      enabled={touchScreen && !deleted && (canAnswer || Boolean(copyText))}
+                      swipe={canAnswer}
                       onReply={() => startReply(m)}
                       onLongPress={() => setMenuFor(m.id)}
                       className={`group max-w-[82%] lg:max-w-[65%] ${hasReaction ? "mb-[18px]" : ""}`}
@@ -1404,7 +1555,7 @@ export function ChatView({
                       }`}
                     >
                       {/* Mouse screens: a small arrow on hover opens the menu. */}
-                      {!touchScreen && !deleted && (canAnswer || emojis.length > 0) && (
+                      {!touchScreen && !deleted && (canAnswer || emojis.length > 0 || Boolean(copyText)) && (
                         <button
                           type="button"
                           onClick={() => setMenuFor(m.id)}
@@ -1424,6 +1575,7 @@ export function ChatView({
                         current={m.reaction_out}
                         canReply={canAnswer}
                         onReply={() => startReply(m)}
+                        onCopy={copyText ? () => handleCopy(m) : null}
                         onReact={(emoji) => handleReact(m, emoji)}
                         onClose={() => setMenuFor(null)}
                       />
@@ -1560,6 +1712,52 @@ export function ChatView({
                 <button
                   onClick={() => setPendingProduct(null)}
                   aria-label="Cancelar envío de producto"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/70 text-brand-dark"
+                >
+                  <CloseIcon className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            {pendingLocation && !sendBlocked && !simulateMode && (
+              <div className="flex shrink-0 items-center gap-3 border-t border-accent bg-accent-tint px-4 py-2.5 lg:px-6">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-surface text-brand-dark">
+                  <PinIcon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  {locationPlan && locationEntry ? (
+                    <>
+                      <div className="truncate text-[12.5px] font-semibold text-brand-dark">
+                        Ubicación de {locationEntry.name}
+                      </div>
+                      <div className="truncate text-[11.5px] text-brand-dark/80">
+                        {locationPlan.location ? "Le llega como un mapa" : "Le llega como un link de Google Maps"}
+                        {locationEntry.location.address ? ` · ${locationEntry.location.address}` : ""}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-[12.5px] leading-snug text-brand-dark">
+                      Todavía no guardaste la ubicación de la tienda.{" "}
+                      <Link
+                        href={businessId === "demo" ? "/demo/app/chekelin" : "/chekelin"}
+                        className="font-semibold underline underline-offset-2"
+                      >
+                        Agrégala en «Lo que chekelin sabe»
+                      </Link>
+                    </div>
+                  )}
+                </div>
+                {locationPlan && (
+                  <button
+                    onClick={handleSendLocation}
+                    disabled={sendingLocation}
+                    className="min-h-9 shrink-0 rounded-lg bg-brand px-3.5 text-[12.5px] font-semibold text-white disabled:opacity-60"
+                  >
+                    {sendingLocation ? "Enviando…" : "Enviar"}
+                  </button>
+                )}
+                <button
+                  onClick={() => setPendingLocation(false)}
+                  aria-label="Cancelar envío de ubicación"
                   className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/70 text-brand-dark"
                 >
                   <CloseIcon className="h-3 w-3" />
@@ -1794,6 +1992,19 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
+              <button
+                onClick={() => setPendingLocation((v) => !v)}
+                disabled={sendBlocked || simulateMode}
+                title="Enviar la ubicación de la tienda"
+                aria-pressed={pendingLocation}
+                className={`hidden lg:flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
+                  pendingLocation
+                    ? "border-brand bg-brand-tint text-brand-dark"
+                    : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                }`}
+              >
+                <PinIcon className="h-4 w-4" />
+              </button>
               {/* Phones have emoji on their own keyboard: the button only takes
                   room the message box needs. */}
               <div className="relative hidden lg:block">
@@ -1909,6 +2120,14 @@ export function ChatView({
                   disabled: composerMedia.pickBlocked,
                 },
                 {
+                  key: "location",
+                  label: "Ubicación",
+                  tint: "#C2410C",
+                  icon: <PinIcon className="h-6 w-6" />,
+                  onSelect: () => setPendingLocation(true),
+                  disabled: sendBlocked || simulateMode,
+                },
+                {
                   key: "product",
                   label: "Producto del catálogo",
                   tint: "#0E7C86",
@@ -1953,6 +2172,25 @@ export function ChatView({
             Selecciona una conversación
           </div>
         )}
+      </div>
+
+      {/* "Copiado": a short note at the bottom, gone on its own. */}
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              key={toast}
+              role="status"
+              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.3 }}
+              className="rounded-full bg-brand-dark px-4 py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_rgba(0,16,55,0.24)]"
+            >
+              {toast}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Contact detail drawer — opened on demand from the header tile,
@@ -2313,6 +2551,34 @@ function CardIcon({ className }: { className?: string }) {
       <rect x="2" y="5" width="20" height="14" rx="2" />
       <path d="M2 10h20" />
       <path d="M6 15h4" />
+    </svg>
+  );
+}
+
+// Older browsers and some in-app web views refuse navigator.clipboard.
+function copyWithSelection(text: string): boolean {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(area);
+  return ok;
+}
+
+function PinIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z" />
+      <circle cx="12" cy="10" r="2.5" />
     </svg>
   );
 }

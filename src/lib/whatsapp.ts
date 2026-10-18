@@ -169,13 +169,20 @@ export async function markWhatsAppRead(credentials: WhatsAppCredentials | null, 
 // Sends a WhatsApp message (text, or an image with the text as its caption
 // when `mediaUrl` is given) through the given business's number.
 // `replyToId` quotes one message of the chat ("Responder"); `reaction` sends
-// an emoji on a message instead ("" takes it back).
+// an emoji on a message instead ("" takes it back); `location` sends a map
+// pin (the Tienda's location) instead of text.
+export type WhatsAppLocation = { latitude: number; longitude: number; name?: string; address?: string };
+
 export async function sendWhatsAppMessage(
   toPhone: string,
   body: string,
   credentials: WhatsAppCredentials | null,
   mediaUrl?: string | null,
-  { replyToId, reaction }: { replyToId?: string | null; reaction?: { messageId: string; emoji: string } } = {},
+  {
+    replyToId,
+    reaction,
+    location,
+  }: { replyToId?: string | null; reaction?: { messageId: string; emoji: string }; location?: WhatsAppLocation | null } = {},
 ): Promise<{
   externalMessageId?: string;
   error?: string;
@@ -191,7 +198,19 @@ export async function sendWhatsAppMessage(
   const to = toWhatsAppNumber(toPhone);
   const payload = reaction
     ? { messaging_product: "whatsapp", to, type: "reaction", reaction: { message_id: reaction.messageId, emoji: reaction.emoji } }
-    : {
+    : location
+      ? {
+          messaging_product: "whatsapp",
+          to,
+          type: "location",
+          location: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            ...(location.name ? { name: location.name } : {}),
+            ...(location.address ? { address: location.address } : {}),
+          },
+        }
+      : {
         messaging_product: "whatsapp",
         to,
         ...(replyToId ? { context: { message_id: replyToId } } : {}),
