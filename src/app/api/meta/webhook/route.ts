@@ -4,6 +4,7 @@ import { verifyWebhookSignature } from "@/lib/whatsapp";
 import { fetchMetaProfile, metaCredentialsForChannel } from "@/lib/metaMessaging";
 import { handleInboundMessage } from "@/lib/bot";
 import { saveMessageMedia, type MediaJob } from "@/lib/messageMedia";
+import { processComments, saveIncomingComments } from "@/lib/commentsServer";
 import { deletedFields, metaReaction, metaReplyTo } from "@/lib/messageEvents";
 import { findMessageId, insertMessage } from "@/lib/messageRows";
 
@@ -13,9 +14,9 @@ import { findMessageId, insertMessage } from "@/lib/messageRows";
 // channel with that external_id. Same rules as the WhatsApp webhook: verify
 // the signature, answer 200 fast, never throw.
 //
-// Comentarios (comment-to-DM) will plug in here later: Page comments arrive
-// as entry.changes with field "feed", Instagram comments with field
-// "comments". They're ignored for now.
+// Comentarios (issue #43): Page comments arrive as entry.changes with field
+// "feed", Instagram comments with field "comments". They're handled apart
+// from messages, in handleCommentChanges (src/lib/commentsServer.ts).
 
 export const maxDuration = 60;
 
@@ -54,6 +55,8 @@ export async function POST(request: NextRequest) {
     // Still 200: Meta only needs to stop retrying. We fix bugs from the logs.
     console.error("meta webhook error", error);
   }
+
+  await handleCommentChanges(payload);
 
   // Photos, voice notes, files: Meta's links expire, so they're saved right
   // after answering Meta, never before (src/lib/messageMedia.ts).
@@ -102,6 +105,18 @@ export async function POST(request: NextRequest) {
 }
 
 const ECHO_DELAY_MS = 4000;
+
+// Comentarios: save new comments now (fast), and after answering Meta
+// chekelin reads them, answers in public and queues the private replies.
+async function handleCommentChanges(payload: MetaWebhookPayload): Promise<void> {
+  try {
+    const supabase = createAdminClient();
+    const ids = await saveIncomingComments(supabase, payload);
+    if (ids.length > 0) after(() => processComments(createAdminClient(), ids));
+  } catch (error) {
+    console.error("meta webhook comments error", error);
+  }
+}
 
 type Admin = ReturnType<typeof createAdminClient>;
 type NetworkType = "instagram" | "facebook";

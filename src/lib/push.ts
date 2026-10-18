@@ -99,9 +99,11 @@ export async function recipientsForConversation(
 export type PushNotification = {
   title: string;
   body: string;
-  conversationId: string;
+  conversationId?: string;
   // Extra query string for the Chat link (e.g. "reasignar=1").
   linkExtra?: string;
+  // Another screen to open instead of the chat (e.g. "/comments").
+  url?: string;
 };
 
 export async function sendPushToPeople(
@@ -130,7 +132,9 @@ export async function sendPushToPeople(
       notification: { title: notification.title, body: notification.body },
       // Where the app should go when the notification is tapped.
       data: {
-        url: `/chat?c=${notification.conversationId}${notification.linkExtra ? `&${notification.linkExtra}` : ""}`,
+        url:
+          notification.url ??
+          `/chat?c=${notification.conversationId ?? ""}${notification.linkExtra ? `&${notification.linkExtra}` : ""}`,
       },
       // badge = the number on the app icon; the app clears it when the
       // inbox is opened (src/components/PushRegistrar.tsx).
