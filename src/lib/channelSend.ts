@@ -1,5 +1,12 @@
 import type { ChannelType } from "@/lib/types";
-import { credentialsForChannel, markWhatsAppRead, RECONNECT_MESSAGE, sendWhatsAppMessage, sendWhatsAppTyping } from "@/lib/whatsapp";
+import {
+  credentialsForChannel,
+  markWhatsAppRead,
+  RECONNECT_MESSAGE,
+  sendWhatsAppMessage,
+  sendWhatsAppTyping,
+  type WhatsAppLocation,
+} from "@/lib/whatsapp";
 import { metaCredentialsForChannel, sendMetaMessage, sendMetaReaction, sendMetaSeen, sendMetaTyping } from "@/lib/metaMessaging";
 import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { isMetaAuthError } from "@/lib/metaTokens";
@@ -69,8 +76,11 @@ export async function sendOnChannel(input: {
   author: "human" | "bot";
   // Meta's id of the message being answered ("Responder"), if any.
   replyToExternalId?: string | null;
+  // The Tienda's location: a map pin on WhatsApp. Instagram and Messenger
+  // have no location message, so they get `text` (with a Maps link).
+  location?: WhatsAppLocation | null;
 }): Promise<SendResult> {
-  const { channel, contact, text, mediaUrl, author, replyToExternalId } = input;
+  const { channel, contact, text, mediaUrl, author, replyToExternalId, location } = input;
   if (!channel || !contact) return { notSent: true };
 
   const state = replyWindow(channel.type, input.windowExpiresAt, Date.now());
@@ -84,6 +94,7 @@ export async function sendOnChannel(input: {
     if (!contact.phone) return { notSent: true };
     const result = await sendWhatsAppMessage(contact.phone, text, credentialsForChannel(channel), mediaUrl, {
       replyToId: replyToExternalId,
+      location,
     });
     if (result.needsReconnect && channel.id) {
       await markChannelNeedsReconnect(channel.id, `whatsapp_${result.errorCode ?? "auth"}`);

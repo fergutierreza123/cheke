@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness } from "@/lib/business";
 import type { AddressForm, ChekelinInfo } from "@/lib/types";
 import { friendlyError } from "@/lib/dbErrors";
+import { isShortMapsLink, normalizeStoreLocation, type StoreLocation } from "@/lib/storeLocation";
+import { pinFromShortMapsLink } from "@/lib/storeLocationServer";
 
 const LIMITS: Record<keyof Omit<ChekelinInfo, "address_form">, number> = {
   payment_methods: 2000,
@@ -16,8 +18,13 @@ const LIMITS: Record<keyof Omit<ChekelinInfo, "address_form">, number> = {
 const ADDRESS_FORMS: AddressForm[] = ["mirror", "tu", "vos", "usted"];
 
 // Saves "Lo que chekelin sabe" of one Tienda. Dueños and its Gerentes only
-// (checked here and again by the database's RLS).
-export async function saveChekelinInfo(storeId: string, input: ChekelinInfo): Promise<{ error?: string }> {
+// (checked here and again by the database's RLS). `location` (migration
+// 0034) is left out until the database has its columns.
+export async function saveChekelinInfo(
+  storeId: string,
+  input: ChekelinInfo,
+  location?: StoreLocation,
+): Promise<{ error?: string; location?: StoreLocation }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
   if (!canManageStore(business, storeId)) return { error: "Solo el dueño o el gerente de la tienda puede cambiar esto." };
@@ -31,12 +38,40 @@ export async function saveChekelinInfo(storeId: string, input: ChekelinInfo): Pr
   }
   if (!ADDRESS_FORMS.includes(input.address_form)) return { error: "Opción de trato inválida." };
 
+  let saved: StoreLocation | undefined;
+  if (location) {
+    const normalized = normalizeStoreLocation(location);
+    if (!normalized.location) return { error: normalized.error };
+    saved = normalized.location;
+    // A "Compartir" link from the Maps app: read the pin behind it.
+    if (saved.latitude === null && isShortMapsLink(saved.mapsUrl)) {
+      const pin = await pinFromShortMapsLink(saved.mapsUrl);
+      if (pin) saved = { ...saved, ...pin };
+    }
+  }
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("store_chekelin_info")
     // business_id is filled by the database from the Tienda.
-    .upsert({ store_id: storeId, business_id: business.id, ...row, address_form: input.address_form }, { onConflict: "store_id" });
+    .upsert(
+      {
+        store_id: storeId,
+        business_id: business.id,
+        ...row,
+        address_form: input.address_form,
+        ...(saved
+          ? {
+              location_address: saved.address,
+              location_maps_url: saved.mapsUrl,
+              location_lat: saved.latitude,
+              location_lng: saved.longitude,
+            }
+          : {}),
+      },
+      { onConflict: "store_id" },
+    );
   if (error) return { error: friendlyError(error, "No se pudo guardar. Inténtalo de nuevo.") };
   revalidatePath("/chekelin");
-  return {};
+  return { location: saved };
 }

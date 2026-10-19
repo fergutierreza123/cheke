@@ -127,6 +127,9 @@ export type ConversationWithContact = Conversation & {
   contact: Pick<Contact, "id" | "name" | "phone" | "ig_handle" | "fb_id" | "notes">;
   channel: Pick<Channel, "id" | "type"> | null;
   last_message_body: string | null;
+  // "No leídos": the customer's messages nobody on the team has seen yet
+  // (src/lib/unread.ts). Missing = 0.
+  unread_count?: number;
 };
 
 export type TemplateCategory = "precios" | "pagos" | "envios" | "bienvenida" | "seguimiento";

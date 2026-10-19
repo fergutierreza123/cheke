@@ -13,6 +13,7 @@ import type { NotificationItem } from "@/lib/notifications";
 import type { CurrentBusiness } from "@/lib/stores";
 import type { ChannelItem } from "@/app/(app)/channels/ChannelsView";
 import type { WhatsAppTemplate } from "@/lib/whatsappTemplates";
+import type { StoreLocation } from "@/lib/storeLocation";
 
 // Sample data for the /demo showcase (an iPhone-framed walkthrough of the
 // app). Entirely fictional — never read from or written to the database.
@@ -89,6 +90,8 @@ export function buildDemoData(now: number) {
     },
     channel: { id: "ch1", type: ch },
     last_message_body: last,
+    // "No leídos": María and Luis wrote and nobody has opened their chats.
+    unread_count: i === 2 ? 2 : i === 5 ? 1 : 0,
   }));
 
   const msg = (id: string, direction: "in" | "out", body: string, ago: number, status: Message["status"], is_bot = false): Message => ({
@@ -188,5 +191,26 @@ export function buildDemoData(now: number) {
     address_form: "mirror",
   };
 
-  return { conversations, messages, products, contacts, templates, business, members, notifications, channels, chekelinInfo };
+  // Chat's "Ubicación" and "Lo que chekelin sabe".
+  const storeLocation: StoreLocation = {
+    address: "Col. Palmira, frente al parque, Tegucigalpa",
+    mapsUrl: "",
+    latitude: 14.0941,
+    longitude: -87.1893,
+  };
+
+  return {
+    conversations,
+    messages,
+    products,
+    contacts,
+    templates,
+    business,
+    members,
+    notifications,
+    channels,
+    chekelinInfo,
+    storeLocation,
+    storeName: DEMO_STORE.name,
+  };
 }

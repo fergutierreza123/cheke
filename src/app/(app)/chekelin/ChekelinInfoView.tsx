@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import type { StoreRef } from "@/lib/stores";
 import type { AddressForm, ChekelinInfo } from "@/lib/types";
+import { ADDRESS_MAX, mapsLinkFor, type StoreLocation } from "@/lib/storeLocation";
 import { saveChekelinInfo } from "./actions";
 
 const FIELDS: Array<{ key: keyof Omit<ChekelinInfo, "address_form">; label: string; hint: string; placeholder: string; max: number }> = [
@@ -56,27 +57,76 @@ export function ChekelinInfoView({
   store,
   stores,
   info,
+  location: initialLocation = null,
   canEdit,
+  demo = false,
 }: {
   store: StoreRef;
   // The Tiendas to switch between (empty with only one).
   stores: StoreRef[];
   info: ChekelinInfo;
+  // The Tienda's location for Chat's "Ubicación". Null = not available yet
+  // (migration 0034 not run): the section is hidden.
+  location?: StoreLocation | null;
   canEdit: boolean;
+  // The public /demo: saving only says it would save.
+  demo?: boolean;
 }) {
   const [form, setForm] = useState<ChekelinInfo>(info);
+  const [savedLocation, setSavedLocation] = useState<StoreLocation | null>(initialLocation);
+  const [location, setLocation] = useState<StoreLocation | null>(initialLocation);
+  const [locating, setLocating] = useState(false);
+  const [locationNote, setLocationNote] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const dirty = JSON.stringify(form) !== JSON.stringify(info);
+  const dirty = JSON.stringify(form) !== JSON.stringify(info) || JSON.stringify(location) !== JSON.stringify(savedLocation);
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
+    if (demo) {
+      setMessage({ ok: true, text: "En la demo no se guarda nada." });
+      return;
+    }
     startTransition(async () => {
-      const result = await saveChekelinInfo(store.id, form);
-      setMessage(result.error ? { ok: false, text: result.error } : { ok: true, text: "Guardado. chekelin ya lo usa." });
+      const result = await saveChekelinInfo(store.id, form, location ?? undefined);
+      if (result.error) {
+        setMessage({ ok: false, text: result.error });
+        return;
+      }
+      if (result.location) {
+        setLocation(result.location);
+        setSavedLocation(result.location);
+      }
+      setMessage({ ok: true, text: "Guardado. chekelin ya lo usa." });
     });
   }
+
+  // Standing in the shop: the phone's GPS gives the pin. Replaces a pasted
+  // link (the newest choice wins).
+  function pinCurrentPosition() {
+    if (!location) return;
+    setLocationNote(null);
+    if (!("geolocation" in navigator)) {
+      setLocationNote("Este dispositivo no puede dar tu ubicación. Pega el link de Google Maps.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const round = (n: number) => Math.round(n * 1e6) / 1e6;
+        setLocation((l) => l && { ...l, mapsUrl: "", latitude: round(pos.coords.latitude), longitude: round(pos.coords.longitude) });
+      },
+      () => {
+        setLocating(false);
+        setLocationNote("No se pudo leer tu ubicación. Revisa que el navegador tenga permiso, o pega el link de Google Maps.");
+      },
+      { enableHighAccuracy: true, timeout: 15_000 },
+    );
+  }
+
+  const locationLink = location ? mapsLinkFor(location) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -148,6 +198,68 @@ export function ChekelinInfoView({
             ))}
           </div>
 
+          {location && (
+            <fieldset className="flex flex-col gap-3 rounded-2xl border border-border bg-surface px-4 py-4 lg:px-5">
+              <legend className="px-1 text-[13.5px] font-semibold text-ink">Ubicación de la tienda</legend>
+              <p className="-mt-1 text-[12px] text-ink-soft">
+                Para «¿Dónde quedan?»: en Chat, toca el botón del pin (en el teléfono, + y «Ubicación»). Por WhatsApp
+                llega como un mapa; por Instagram y Facebook, como un link de Google Maps.
+              </p>
+              <label className="flex flex-col gap-1">
+                <span className="text-[13px] font-semibold text-ink">Dirección</span>
+                <input
+                  value={location.address}
+                  onChange={(e) => setLocation((l) => l && { ...l, address: e.target.value })}
+                  placeholder="Ej. Col. Palmira, frente al parque, Tegucigalpa"
+                  readOnly={!canEdit}
+                  maxLength={ADDRESS_MAX}
+                  className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-[16px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint lg:text-[13.5px]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[13px] font-semibold text-ink">Link de Google Maps</span>
+                <span className="text-[12px] text-ink-soft">
+                  En Google Maps busca tu tienda, toca «Compartir», copia el link y pégalo aquí.
+                </span>
+                <input
+                  value={location.mapsUrl}
+                  // A new link brings its own pin (read when saving).
+                  onChange={(e) => setLocation((l) => l && { ...l, mapsUrl: e.target.value, latitude: null, longitude: null })}
+                  placeholder="https://maps.app.goo.gl/…"
+                  inputMode="url"
+                  readOnly={!canEdit}
+                  className="mt-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[16px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint lg:text-[13.5px]"
+                />
+              </label>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={pinCurrentPosition}
+                  disabled={locating}
+                  className="flex min-h-10 items-center justify-center gap-2 self-start rounded-lg border border-border bg-surface-2 px-3.5 text-[13px] font-semibold text-brand-dark hover:bg-surface-3 disabled:opacity-60"
+                >
+                  <PinIcon className="h-4 w-4" />
+                  {locating ? "Buscando tu ubicación…" : "Estoy en la tienda: usar mi ubicación actual"}
+                </button>
+              )}
+              {locationNote && <p className="text-[12.5px] text-danger">{locationNote}</p>}
+              {locationLink && (
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-muted">
+                  <span>
+                    {location.latitude !== null
+                      ? "Punto en el mapa listo."
+                      : location.mapsUrl
+                        ? "El punto se lee del link al guardar."
+                        : "Sin punto en el mapa: se enviará la dirección con un link de búsqueda."}
+                  </span>
+                  <a href={locationLink} target="_blank" rel="noreferrer" className="font-semibold text-brand underline underline-offset-2">
+                    Ver en Google Maps
+                  </a>
+                </p>
+              )}
+            </fieldset>
+          )}
+
           <fieldset className="flex flex-col gap-2 rounded-2xl border border-border bg-surface px-4 py-4 lg:px-5">
             <legend className="px-1 text-[13.5px] font-semibold text-ink">¿Cómo le habla chekelin al cliente?</legend>
             {ADDRESS_OPTIONS.map((o) => (
@@ -184,5 +296,14 @@ export function ChekelinInfoView({
         </form>
       </div>
     </div>
+  );
+}
+
+function PinIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
   );
 }

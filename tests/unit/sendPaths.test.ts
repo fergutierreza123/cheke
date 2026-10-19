@@ -173,3 +173,39 @@ describe("reply windows", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("the Tienda's location («Ubicación»)", () => {
+  const pin = { latitude: 14.0723, longitude: -87.1921, name: "Tienda Luna", address: "Col. Palmira" };
+
+  it("WhatsApp: goes out as a native location message (a map pin)", async () => {
+    fakeMeta({ status: 200, body: { messages: [{ id: "wamid.loc" }] } });
+    const result = await sendOnChannel({
+      channel: whatsappChannel(),
+      contact,
+      windowExpiresAt: openWindow(),
+      text: "📍 Tienda Luna\nCol. Palmira\nhttps://maps",
+      location: pin,
+      author: "human",
+    });
+    expect(result).toEqual({ externalMessageId: "wamid.loc" });
+    expect(calls[0].body).toEqual({
+      messaging_product: "whatsapp",
+      to: "50499223843",
+      type: "location",
+      location: { latitude: 14.0723, longitude: -87.1921, name: "Tienda Luna", address: "Col. Palmira" },
+    });
+  });
+
+  it("Instagram: no location message exists, so the text with the Maps link goes", async () => {
+    fakeMeta({ status: 200, body: { message_id: "mid.loc" } });
+    await sendOnChannel({
+      channel: instagramChannel(),
+      contact,
+      windowExpiresAt: openWindow(),
+      text: "📍 Tienda Luna\nhttps://maps",
+      location: pin,
+      author: "human",
+    });
+    expect(calls[0].body).toMatchObject({ message: { text: "📍 Tienda Luna\nhttps://maps" } });
+  });
+});

@@ -23,6 +23,8 @@ import type { ConversationNote, Message } from "@/lib/types";
 // Images sent to customers must come from our own storage.
 import { isOwnStorageUrl } from "@/lib/storageUrl";
 import { friendlyError } from "@/lib/dbErrors";
+import { locationSendPlan } from "@/lib/storeLocation";
+import { getStoreLocation, NO_STORE_LOCATION } from "@/lib/storeLocationServer";
 
 
 // The app reviewers' demo Negocio (businesses.is_demo, migration 0015) runs
@@ -130,6 +132,80 @@ export async function sendChatMessage(
       .eq("id", message.id);
   }
 
+  return { message };
+}
+
+// "Ubicación" in the "+" sheet: the Tienda's location saved in "Lo que
+// chekelin sabe". WhatsApp gets a map pin (when there is one); Instagram and
+// Messenger get the address with a Google Maps link as text. The location is
+// read here from the conversation's own Tienda, never taken from the browser.
+export async function sendStoreLocation(
+  conversationId: string,
+): Promise<{ message?: Message; error?: string; sendError?: string }> {
+  const supabase = await createClient();
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select(
+      `id, business_id, store_id, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(name, archived_at)`,
+    )
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (!conversation) return { error: "No se encontró la conversación." };
+  if (isArchivedStore(conversation.store)) return { error: ARCHIVED_STORE_READ_ONLY };
+  const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
+  const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
+  const store = Array.isArray(conversation.store) ? conversation.store[0] : conversation.store;
+  if (replyWindow(channel?.type, conversation.window_expires_at, Date.now()) === "closed") {
+    return { error: windowClosedMessage(channel?.type) };
+  }
+
+  const location = await getStoreLocation(supabase, conversation.store_id);
+  const plan = location ? locationSendPlan(channel?.type, location, store?.name ?? "") : null;
+  if (!plan) return { error: NO_STORE_LOCATION };
+
+  const { data: message, error: insertError } = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      business_id: conversation.business_id,
+      direction: "out",
+      body: plan.text,
+      media_url: null,
+      // WhatsApp's pin shows as the same map card as a customer's location.
+      ...(plan.location
+        ? {
+            media_kind: "location",
+            media_info: {
+              latitude: plan.location.latitude,
+              longitude: plan.location.longitude,
+              ...(plan.location.name ? { place: plan.location.name } : {}),
+              ...(plan.location.address ? { address: plan.location.address } : {}),
+            },
+          }
+        : {}),
+    })
+    .select("*")
+    .single();
+  if (insertError || !message) return { error: friendlyError(insertError, "No se pudo guardar el mensaje.") };
+  await supabase.from("conversations").update({ last_message_at: message.created_at }).eq("id", conversationId);
+
+  const result: SendResult = (await isDemoBusiness(supabase, conversation.business_id))
+    ? { notSent: true }
+    : await sendOnChannel({
+        channel,
+        contact,
+        windowExpiresAt: conversation.window_expires_at,
+        text: plan.text,
+        location: plan.location,
+        author: "human",
+      });
+  if (result.error) {
+    const failed = await markMessageFailed(supabase, message.id, result);
+    return { message: { ...message, ...failed }, sendError: result.error };
+  }
+  if (!result.notSent && result.externalMessageId) {
+    await supabase.from("messages").update({ external_message_id: result.externalMessageId }).eq("id", message.id);
+  }
   return { message };
 }
 
