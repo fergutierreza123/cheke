@@ -20,7 +20,12 @@ const LINK_SECONDS = 60 * 60;
 export function mediaReplacesBody(m: Message): boolean {
   if (m.media_kind === "location") return typeof m.media_info?.latitude === "number";
   if (m.media_kind === "contacts") return Boolean(m.media_info?.contacts?.length);
-  return Boolean(m.media_kind && m.media_path);
+  return Boolean(m.media_kind && m.media_path) || Boolean(localVoiceUrl(m));
+}
+
+// /demo has no storage: a voice note recorded there plays from the device.
+function localVoiceUrl(m: Message): string | null {
+  return m.media_kind === "voice" && !m.media_path && m.media_url?.startsWith("blob:") ? m.media_url : null;
 }
 
 export function MessageMedia({ message }: { message: Message }) {
@@ -34,13 +39,16 @@ export function MessageMedia({ message }: { message: Message }) {
       return <ContactCards contacts={info.contacts ?? []} />;
     case "document":
       return <DocumentCard path={message.media_path!} filename={info.filename} size={info.size} fallback={message.body} />;
-    default:
+    default: {
+      const local = localVoiceUrl(message);
+      if (local) return <AudioPlayer url={local} onError={() => undefined} />;
       return (
         <>
           <FileMedia message={message} />
           {message.transcription && <Transcription text={message.transcription} />}
         </>
       );
+    }
   }
 }
 

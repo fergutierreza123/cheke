@@ -438,6 +438,72 @@ describe("Instagram and Messenger: whole conversations", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Round 2: media in quotes, reactions, edits and receipts
+// ---------------------------------------------------------------------------
+
+describe("round 2: media in quotes, reactions, edits and receipts", () => {
+  it("Instagram: the customer quotes and reacts to the photo the business sent; Chat links both", async () => {
+    await toMeta(metaEvent("instagram", "IG1", [igFrom({ message: { mid: "i.ask", text: "¿tienen rojo?" } })]));
+    const conversationId = byExternal("i.ask").conversation_id as string;
+    state.graphReplies.push({ status: 200, body: { message_id: "mid.photo" } });
+    const photo = await sendFromComposer(conversationId, { kind: "image", mime: "image/jpeg", filename: "rojo.jpg" });
+    expect(photo.error ?? photo.sendError).toBeUndefined();
+    const ours = messages().find((m) => m.id === photo.message!.id)!;
+    expect(ours.external_message_id).toBe("mid.photo");
+
+    await toMeta(metaEvent("instagram", "IG1", [igFrom({ message: { mid: "i.quote", text: "¡ese!", reply_to: { mid: "mid.photo" } } }, Date.now())]));
+    await toMeta(metaEvent("instagram", "IG1", [igFrom({ reaction: { mid: "mid.photo", action: "react", reaction: "love" } }, Date.now())]));
+    expect(byExternal("i.quote").reply_to_id).toBe(ours.id);
+    expect(byExternal("mid.photo").reaction_in).toBe("❤️");
+  });
+
+  it("Instagram: opening the chat sends «Visto» to the customer", async () => {
+    const { markConversationRead } = await import("@/app/(app)/chat/actions");
+    await toMeta(metaEvent("instagram", "IG1", [igFrom({ message: { mid: "i.seen", text: "hola" } })]));
+    state.graph = [];
+    await markConversationRead(byExternal("i.seen").conversation_id as string);
+    expect(state.graph.at(-1)?.body).toMatchObject({ recipient: { id: "IGSID1" }, sender_action: "mark_seen" });
+    expect(byExternal("i.seen").status).toBe("read");
+  });
+
+  it("WhatsApp: editing a photo's caption updates the caption under the photo", async () => {
+    await toWhatsApp(fromCustomer({ id: "w.cap", type: "image", image: { id: "M9", caption: "talla S" } }));
+    byExternal("w.cap").media_kind = "image";
+    byExternal("w.cap").media_path = "biz-1/store-1/x.jpg";
+    byExternal("w.cap").media_info = { caption: "talla S" };
+    await toWhatsApp(fromCustomer({ id: "w.cap2", type: "edit", edit: { original_message_id: "w.cap", message: { type: "image", image: { caption: "talla M" } } } }));
+    expect(byExternal("w.cap")).toMatchObject({ body: "📷 talla M", media_info: { caption: "talla M" } });
+    expect(byExternal("w.cap").edited_at).toBeTruthy();
+  });
+
+  it("Messenger: a read receipt marks only what was sent before it as read", async () => {
+    const { sendChatMessage } = await import("@/app/(app)/chat/actions");
+    await toMeta(metaEvent("page", "PAGE1", [fbFrom({ message: { mid: "f.r", text: "hola" } })]));
+    const conversationId = byExternal("f.r").conversation_id as string;
+    const before = await sendChatMessage(conversationId, "primero");
+    const watermark = Date.now() + 5;
+    // A second reply written after the customer read the first one.
+    const after = await sendChatMessage(conversationId, "segundo");
+    messages().find((m) => m.id === after.message!.id)!.created_at = new Date(watermark + 60_000).toISOString();
+
+    await toMeta(metaEvent("page", "PAGE1", [fbFrom({ read: { watermark } }, watermark)]));
+    expect(messages().find((m) => m.id === before.message!.id)!.status).toBe("read");
+    expect(messages().find((m) => m.id === after.message!.id)!.status).toBe("sent");
+  });
+
+  it("WhatsApp: a customer deleting a photo the business already quoted leaves the quote reading «Mensaje eliminado»", async () => {
+    const { sendChatMessage } = await import("@/app/(app)/chat/actions");
+    const { quoteText } = await import("@/app/(app)/chat/MessageExtras");
+    await toWhatsApp(fromCustomer({ id: "w.pic", type: "image", image: { id: "M7" } }));
+    const photo = byExternal("w.pic");
+    const reply = await sendChatMessage(photo.conversation_id as string, "¡Qué bonita!", null, photo.id as string);
+    await toWhatsApp(fromCustomer({ id: "w.unsend", type: "revoke", revoke: { original_message_id: "w.pic" } }));
+    const quoted = messages().find((m) => m.id === messages().find((r) => r.id === reply.message!.id)!.reply_to_id)!;
+    expect(quoteText(quoted as never)).toBe("Mensaje eliminado");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Reintentar: a failed send goes out again from the same bubble
 // ---------------------------------------------------------------------------
 

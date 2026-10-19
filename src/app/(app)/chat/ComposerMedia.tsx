@@ -157,8 +157,10 @@ export function useComposerMedia({
               business_id: "demo",
               direction: asCustomer ? "in" : "out",
               body: outgoingBody(kind, extra.filename, extra.caption),
-              // The demo has no storage: a photo shows from the phone itself.
-              media_url: kind === "image" ? URL.createObjectURL(blob) : null,
+              // The demo has no storage: a photo or voice note plays from
+              // the device itself.
+              media_url: kind === "image" || kind === "voice" ? URL.createObjectURL(blob) : null,
+              ...(kind === "voice" ? { media_kind: "voice" as const } : {}),
               status: "sent",
               is_bot: false,
               created_at: new Date().toISOString(),
