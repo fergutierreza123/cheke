@@ -392,6 +392,7 @@ export function TemplatesView({
                 <Field label="Nombre de la plantilla">
                   <input
                     name="name"
+                    maxLength={60}
                     defaultValue={draft.name}
                     placeholder="Ej. Precio con envío"
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
@@ -406,6 +407,7 @@ export function TemplatesView({
                   <textarea
                     ref={bodyRef}
                     name="body"
+                    maxLength={4096}
                     defaultValue={draft.body}
                     placeholder="Escribe el mensaje que quieres reutilizar…"
                     className="min-h-[130px] w-full resize-y rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"

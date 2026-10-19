@@ -30,6 +30,8 @@ const { saveContact } = await import("@/app/(app)/contacts/actions");
 const { createBusiness } = await import("@/app/onboarding/actions");
 const { deleteAccount } = await import("@/app/(app)/account/actions");
 const { updateMemberRole, cancelInvitation } = await import("@/app/(app)/team/actions");
+const { renameStore } = await import("@/app/(app)/stores/actions");
+const { saveTemplate } = await import("@/app/(app)/templates/actions");
 
 const OPEN = { id: "A", name: "Centro", archived: false };
 
@@ -109,10 +111,10 @@ describe("Contactos: saveContact limits what one contact can hold", () => {
 });
 
 describe("onboarding: createBusiness", () => {
-  it("refuses a Negocio name over 60 letters before creating anything", async () => {
+  it("refuses a Negocio name over 80 letters (the form's own limit) before creating anything", async () => {
     const rpc = vi.spyOn(db.client, "rpc");
-    const result = await createBusiness({}, form({ full_name: "Fernando", name: "x".repeat(61) }));
-    expect(result.error).toBe("El nombre del negocio es muy largo (máximo 60 letras).");
+    const result = await createBusiness({}, form({ full_name: "Fernando", name: "x".repeat(81) }));
+    expect(result.error).toBe("El nombre del negocio es muy largo (máximo 80 letras).");
     expect(rpc).not.toHaveBeenCalled();
   });
 });
@@ -128,6 +130,31 @@ describe("Equipo", () => {
   it("cancelling an invitation that was already used or isn't yours says so", async () => {
     db.queue("invitations", { data: [] });
     expect((await cancelInvitation("inv-1")).error).toBe("Esta invitación ya se usó o ya no existe.");
+  });
+});
+
+describe("Tiendas", () => {
+  it("renaming a Tienda that isn't this Negocio's says so instead of «saved»", async () => {
+    expect((await renameStore("other-biz-store", "Centro"))).toEqual({ error: "No se encontró la tienda." });
+    expect(db.writes("stores", "update")).toHaveLength(0);
+  });
+
+  it("renames this Negocio's Tienda", async () => {
+    expect(await renameStore("A", "  Centro   Histórico ")).toEqual({});
+    const update = db.writes("stores", "update")[0].ops.find((o) => o.op === "update")!.args[0];
+    expect(update).toEqual({ name: "Centro Histórico" });
+  });
+});
+
+describe("Plantillas: saveTemplate limits", () => {
+  it("refuses a name over 60 letters or a message longer than WhatsApp allows", async () => {
+    expect((await saveTemplate(form({ name: "x".repeat(61), body: "hola", category: "precios" }))).error).toBe(
+      "El nombre es muy largo (máximo 60 letras).",
+    );
+    expect((await saveTemplate(form({ name: "Precio", body: "x".repeat(4097), category: "precios" }))).error).toBe(
+      "El mensaje es muy largo (máximo 4096 letras).",
+    );
+    expect(db.writes("templates", "insert")).toHaveLength(0);
   });
 });
 

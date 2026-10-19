@@ -15,7 +15,7 @@ export async function createBusiness(_prev: OnboardingState, formData: FormData)
   if (!fullName) return { error: "Escribe tu nombre." };
   if (fullName.length > 60) return { error: "Tu nombre es muy largo (máximo 60 letras)." };
   if (!name) return { error: "Ponle un nombre a tu negocio." };
-  if (name.length > 60) return { error: "El nombre del negocio es muy largo (máximo 60 letras)." };
+  if (name.length > 80) return { error: "El nombre del negocio es muy largo (máximo 80 letras)." };
 
   const supabase = await createClient();
   const {

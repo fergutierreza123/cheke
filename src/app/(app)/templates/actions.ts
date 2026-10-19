@@ -7,6 +7,10 @@ import { TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
 import type { TemplateCategory } from "@/lib/types";
 import { friendlyError } from "@/lib/dbErrors";
 
+const NAME_MAX = 60;
+// The longest text message WhatsApp sends.
+const BODY_MAX = 4096;
+
 export async function saveTemplate(formData: FormData): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
@@ -17,6 +21,8 @@ export async function saveTemplate(formData: FormData): Promise<{ error?: string
   const category = String(formData.get("category") ?? "precios") as TemplateCategory;
 
   if (!name || !body) return { error: "Ponle un nombre y un mensaje a la plantilla." };
+  if (name.length > NAME_MAX) return { error: `El nombre es muy largo (máximo ${NAME_MAX} letras).` };
+  if (body.length > BODY_MAX) return { error: `El mensaje es muy largo (máximo ${BODY_MAX} letras).` };
   if (!TEMPLATE_CATEGORY_ORDER.includes(category)) return { error: "Elige una categoría." };
 
   const supabase = await createClient();

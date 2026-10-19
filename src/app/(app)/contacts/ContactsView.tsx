@@ -313,6 +313,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                 <Field label="Nombre">
                   <input
                     name="name"
+                    maxLength={100}
                     defaultValue={draft.name}
                     placeholder="Nombre completo"
                     className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
@@ -350,6 +351,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                 <Field label="Notas">
                   <textarea
                     name="notes"
+                    maxLength={2000}
                     defaultValue={draft.notes}
                     placeholder="Preferencias, historial, detalles útiles…"
                     className="min-h-[100px] w-full resize-y rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
