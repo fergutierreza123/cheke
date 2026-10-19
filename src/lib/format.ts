@@ -99,8 +99,30 @@ export const TEMPLATE_CATEGORY_ORDER: TemplateCategory[] = [
   "seguimiento",
 ];
 
-export function formatLempiras(value: number): string {
-  return "L " + value.toLocaleString("es-HN");
+// "L 1,500" for whole amounts, "L 1,500.50" with cents (never "1,500.5" or
+// three decimals). Fixed en-US grouping (what Honduras writes: comma for
+// thousands, dot for cents) instead of the es-HN locale, whose data differs
+// between Node and phones and made server and browser disagree. Accepts the
+// text Postgres numeric columns can arrive as.
+const WHOLE = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const CENTS = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export function formatLempiras(value: number | string): string {
+  const amount = Math.round(Number(value) * 100) / 100;
+  if (!Number.isFinite(amount)) return "L 0";
+  return "L " + (Number.isInteger(amount) ? WHOLE : CENTS).format(amount);
+}
+
+// An amount typed by a person: "950", "1,500", "1,500.50", "L 2,300", or
+// "1500,50" from a Spanish phone keyboard whose only decimal key is a comma
+// (a comma followed by 1–2 digits at the end is cents; followed by 3 it
+// separates thousands). Rounded to cents. null when it isn't an amount.
+export function parseLempiras(text: string): number | null {
+  let t = text.trim().replace(/^L\.?\s*/i, "").replace(/\s/g, "");
+  if (!t.includes(".") && /,\d{1,2}$/.test(t)) t = t.replace(/,(\d{1,2})$/, ".$1");
+  if (!/^(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(t)) return null;
+  const n = Number(t.replace(/,/g, ""));
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
 
 // The text that goes with a product photo in a chat ("Enviar producto" in

@@ -8,11 +8,15 @@ import { ARCHIVED_STORE_READ_ONLY, canWriteToStore, getCurrentBusiness, writable
 import { isOwnStorageUrl } from "@/lib/storageUrl";
 import { removeBackgroundToWhite } from "@/lib/images";
 import { friendlyError } from "@/lib/dbErrors";
+import { parseLempiras } from "@/lib/format";
 
 // Matches src/lib/shrinkPhoto.ts, which keeps uploads under Vercel's 4.5 MB
 // request limit. (Not imported: a "use server" file may only export actions.)
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp"];
+// WhatsApp's catalog (Meta Commerce) cuts product names at 150 characters.
+const NAME_MAX = 150;
+const PRICE_MAX = 10_000_000;
 
 export async function saveProduct(formData: FormData): Promise<{ error?: string; photoWarning?: string }> {
   const business = await getCurrentBusiness();
@@ -25,13 +29,16 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   const id = String(formData.get("id") ?? "").trim() || null;
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Ponle un nombre al producto." };
+  if (name.length > NAME_MAX) return { error: `El nombre es muy largo (máximo ${NAME_MAX} letras).` };
 
   const category = String(formData.get("category") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim() || null;
-  // Rounds to cents only — `price_hnl` is numeric(12,2), and the old
-  // Math.round() here was silently discarding decimals entirely.
-  const priceRaw = Number(formData.get("price") ?? 0);
-  const price = Math.max(0, Number.isFinite(priceRaw) ? Math.round(priceRaw * 100) / 100 : 0);
+  // "1,500.50", "1500,50" (Spanish keyboards) or empty (L 0, price to be
+  // confirmed), rounded to cents. Anything else is refused instead of
+  // being saved as L 0 without a word.
+  const priceText = String(formData.get("price") ?? "").trim();
+  const price = priceText ? parseLempiras(priceText) : 0;
+  if (price === null || price > PRICE_MAX) return { error: "Escribe un precio válido en Lempiras, por ejemplo 1,500." };
   const visible = formData.get("visible") === "on";
   // The photo the product already had. Only our own storage: the browser
   // could send any address, and this photo goes out to customers.

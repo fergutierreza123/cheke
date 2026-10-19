@@ -6,7 +6,7 @@ import { saveProduct, deleteProduct } from "./actions";
 import { copyProductToStore } from "../stores/actions";
 import type { StoreRef } from "@/lib/stores";
 import { sendProductToConversation } from "../actions";
-import { initialsFor, formatLempiras } from "@/lib/format";
+import { initialsFor, formatLempiras, parseLempiras } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ConversationWithContact, Product } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
@@ -403,8 +403,8 @@ export function InventoryView({
                       <div className="text-[12.5px] font-semibold text-ink">
                         {!imageRemoved && (newImagePreview || draft.imageUrl) ? "Foto cargada" : "Sin foto todavía"}
                       </div>
-                      <div className="truncate text-[11.5px] text-ink-soft">
-                        {newImageName ?? "Haz clic en la imagen para subir o cambiar"}
+                      <div className="line-clamp-2 [overflow-wrap:anywhere] text-[11.5px] text-ink-soft">
+                        {newImageName ?? "Toca la imagen para subir o cambiar la foto"}
                       </div>
                       {!imageRemoved && (newImagePreview || draft.imageUrl) && (
                         <button
@@ -673,10 +673,11 @@ function PriceInput({ defaultValue }: { defaultValue: string }) {
   const [focused, setFocused] = useState(false);
   const [raw, setRaw] = useState(defaultValue);
 
-  const numeric = Number(raw) || 0;
-  const display = focused
-    ? raw
-    : numeric.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // What the server will read (src/lib/format.ts parseLempiras); text it
+  // can't read stays as typed so the person sees what to fix.
+  // Empty stays empty (the "0.00" placeholder shows).
+  const numeric = raw.trim() ? parseLempiras(raw) : null;
+  const display = focused || numeric === null ? raw : formatLempiras(numeric).replace(/^L /, "");
 
   return (
     <div className="relative">
@@ -692,7 +693,8 @@ function PriceInput({ defaultValue }: { defaultValue: string }) {
         value={display}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        onChange={(e) => setRaw(e.target.value.replace(/[^0-9.]/g, ""))}
+        // Commas stay: a Spanish keyboard's decimal key is a comma ("1500,50").
+        onChange={(e) => setRaw(e.target.value.replace(/[^0-9.,]/g, ""))}
         placeholder="0.00"
         className="w-full rounded-lg border border-border bg-surface-2 py-2.5 pl-7 pr-3 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
       />

@@ -7,6 +7,7 @@ import { setConversationStage, setConversationValue, createLead } from "../actio
 import { ChannelIcon } from "@/components/ChannelIcon";
 import {
   initialsFor,
+  parseLempiras,
   relativeTime,
   CHANNEL_META,
   STAGE_META,
@@ -95,9 +96,15 @@ export function ChekeoView({
   }
 
   async function handleSetValue(id: string, raw: string) {
+    // "1,500", "1500,50" (Spanish keyboards)… Empty clears the value; text
+    // that isn't an amount says so instead of being dropped (or, with the
+    // old number field, silently clearing the value already saved).
     const trimmed = raw.trim();
-    const value = trimmed ? Number(trimmed) : null;
-    if (value !== null && Number.isNaN(value)) return;
+    const value = trimmed ? parseLempiras(trimmed) : null;
+    if (trimmed && value === null) {
+      setBoardError("Escribe un valor válido en Lempiras, por ejemplo 1,500.");
+      return;
+    }
     const previous = conversations.find((c) => c.id === id)?.value_hnl ?? null;
     setBoardError(null);
     updateLocal(id, { value_hnl: value });
@@ -121,7 +128,7 @@ export function ChekeoView({
           if (b.id === justMovedId) return 1;
           return (b.last_message_at ?? "").localeCompare(a.last_message_at ?? "");
         });
-      const total = items.reduce((sum, c) => sum + (c.value_hnl ?? 0), 0);
+      const total = items.reduce((sum, c) => sum + Number(c.value_hnl ?? 0), 0);
       return { stage, items, total };
     });
   }, [conversations, justMovedId]);
@@ -129,7 +136,7 @@ export function ChekeoView({
   const activeConversations = conversations.filter((c) => c.stage !== "ganado" && c.stage !== "perdido");
   const wonCount = conversations.filter((c) => c.stage === "ganado").length;
   const lostCount = conversations.filter((c) => c.stage === "perdido").length;
-  const totalPipelineValue = activeConversations.reduce((sum, c) => sum + (c.value_hnl ?? 0), 0);
+  const totalPipelineValue = activeConversations.reduce((sum, c) => sum + Number(c.value_hnl ?? 0), 0);
   const winRate = wonCount + lostCount > 0 ? Math.round((wonCount / (wonCount + lostCount)) * 100) : 0;
   const staleCount = activeConversations.filter(isStale).length;
 
@@ -445,7 +452,9 @@ export function ChekeoView({
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-soft">L</span>
                   <input
                     key={selected.id}
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
+                    aria-label="Valor del negocio en Lempiras"
                     defaultValue={selected.value_hnl ?? ""}
                     placeholder="0"
                     onBlur={(e) => handleSetValue(selected.id, e.target.value)}

@@ -6,9 +6,9 @@ import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ChannelType, ConversationWithContact } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
 import type { StoreNames } from "@/components/StoreTag";
+import { channelShares, periodStart, salesSummary, type AnalyticsRange } from "@/lib/analytics";
 
-type Range = "semana" | "mes" | "trimestre";
-const RANGE_DAYS: Record<Range, number> = { semana: 7, mes: 30, trimestre: 90 };
+type Range = AnalyticsRange;
 const RANGE_LABEL: Record<Range, string> = { semana: "Esta semana", mes: "Este mes", trimestre: "Este trimestre" };
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -32,18 +32,15 @@ export function AnalyticsView({
   const [now] = useState(() => Date.now());
 
   const inRange = useMemo(() => {
-    const cutoff = now - RANGE_DAYS[range] * 24 * 60 * 60 * 1000;
+    const cutoff = periodStart(range, now);
     return conversations.filter((c) => new Date(c.created_at).getTime() >= cutoff);
   }, [conversations, range, now]);
 
-  const won = inRange.filter((c) => c.stage === "ganado");
-  const lost = inRange.filter((c) => c.stage === "perdido");
-  const revenue = won.reduce((sum, c) => sum + (c.value_hnl ?? 0), 0);
-  const conversionRate = won.length + lost.length > 0 ? Math.round((won.length / (won.length + lost.length)) * 100) : 0;
+  const { won, revenue, conversionRate } = salesSummary(inRange);
   const activeNow = conversations.filter((c) => c.stage !== "ganado" && c.stage !== "perdido").length;
 
   const kpis = [
-    { label: "Ventas cerradas", value: formatLempiras(revenue), hint: `${won.length} venta${won.length === 1 ? "" : "s"} ganada${won.length === 1 ? "" : "s"}` },
+    { label: "Ventas cerradas", value: formatLempiras(revenue), hint: `${won} venta${won === 1 ? "" : "s"} ganada${won === 1 ? "" : "s"}` },
     { label: "Tasa de conversión", value: `${conversionRate}%`, hint: "de las conversaciones cerradas" },
     { label: "Contactos nuevos", value: String(inRange.length), hint: RANGE_LABEL[range].toLowerCase() },
     { label: "Conversaciones activas", value: String(activeNow), hint: "en el chekeo ahora" },
@@ -61,11 +58,13 @@ export function AnalyticsView({
   }, [inRange]);
 
   const channelBreakdown = useMemo(() => {
-    const total = inRange.length || 1;
-    return (["whatsapp", "instagram", "facebook"] as ChannelType[]).map((type) => {
-      const count = inRange.filter((c) => c.channel?.type === type).length;
-      return { type, label: CHANNEL_META[type].label, color: CHANNEL_META[type].color, pct: Math.round((count / total) * 100) };
-    });
+    const shares = channelShares(inRange);
+    return (["whatsapp", "instagram", "facebook"] as ChannelType[]).map((type) => ({
+      type,
+      label: CHANNEL_META[type].label,
+      color: CHANNEL_META[type].color,
+      pct: shares[type],
+    }));
   }, [inRange]);
 
   const trend = useMemo(() => {
@@ -91,17 +90,8 @@ export function AnalyticsView({
     if (!storeNames) return [];
     return Object.entries(storeNames).map(([id, name]) => {
       const rows = inRange.filter((c) => c.store_id === id);
-      const wonRows = rows.filter((c) => c.stage === "ganado");
-      const lostRows = rows.filter((c) => c.stage === "perdido");
-      const closed = wonRows.length + lostRows.length;
-      return {
-        id,
-        name,
-        revenue: wonRows.reduce((sum, c) => sum + (c.value_hnl ?? 0), 0),
-        won: wonRows.length,
-        conversion: closed > 0 ? Math.round((wonRows.length / closed) * 100) : 0,
-        fresh: rows.length,
-      };
+      const summary = salesSummary(rows);
+      return { id, name, revenue: summary.revenue, won: summary.won, conversion: summary.conversionRate, fresh: rows.length };
     });
   }, [storeNames, inRange]);
   const topStoreRevenue = Math.max(1, ...byStore.map((s) => s.revenue));
@@ -111,8 +101,8 @@ export function AnalyticsView({
     if (people.length === 0) return [];
     return people
       .map((p) => {
-        const wonRows = inRange.filter((c) => c.assigned_to === p.id && c.stage === "ganado");
-        return { ...p, won: wonRows.length, revenue: wonRows.reduce((sum, c) => sum + (c.value_hnl ?? 0), 0) };
+        const summary = salesSummary(inRange.filter((c) => c.assigned_to === p.id));
+        return { ...p, won: summary.won, revenue: summary.revenue };
       })
       .filter((p) => p.won > 0)
       .sort((a, b) => b.revenue - a.revenue);

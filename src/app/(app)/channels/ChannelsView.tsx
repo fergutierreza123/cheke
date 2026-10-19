@@ -152,7 +152,7 @@ function StoreChannels({
                 <div className="flex items-center gap-2">
                   <h2 className="font-heading text-[15.5px] font-semibold text-ink">WhatsApp</h2>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                       whatsappReconnect === "required"
                         ? "bg-danger-tint text-danger"
                         : whatsappConnected
@@ -278,7 +278,7 @@ function MetaChannelsCard({
           <div className="flex items-center gap-2">
             <h2 className="font-heading text-[15.5px] font-semibold text-ink">Instagram y Facebook</h2>
             <span
-              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                 anyRequired
                   ? "bg-danger-tint text-danger"
                   : pages.length > 0

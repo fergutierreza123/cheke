@@ -100,7 +100,7 @@ export function NotificationsView({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="truncate text-[14px] font-semibold text-ink lg:text-[12.5px]">{n.title}</span>
+                    <span className="line-clamp-2 min-w-0 text-[14px] font-semibold text-ink lg:truncate lg:text-[12.5px]">{n.title}</span>
                     <span className="shrink-0 text-[12px] text-ink-soft lg:text-[11px]">· {relativeTime(n.time)}</span>
                     {storeNames && n.storeId && <StoreTag name={storeNames[n.storeId]} className="ml-auto self-center" />}
                   </div>
