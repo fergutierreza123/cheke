@@ -1,6 +1,8 @@
 import type { ChannelType } from "@/lib/types";
+import { visualBody, visualMime, visualUploadProblem, type VisualKind } from "@/lib/outgoingVisual";
 
-// Voice notes and documents a person sends from Chat (issue #50). Kept free
+// Voice notes, documents, photos and videos a person sends from Chat
+// (issue #50; photos/videos in src/lib/outgoingVisual.ts). Kept free
 // of server-only imports: the composer and the server check the same rules.
 //
 // How a send works:
@@ -10,7 +12,11 @@ import type { ChannelType } from "@/lib/types";
 //   3. It asks /api/chat/media to send it: voice notes become OGG/Opus for
 //      WhatsApp plus an M4A copy, then the message goes out on the channel.
 
-export type OutgoingKind = "voice" | "document";
+export type OutgoingKind = "voice" | "document" | VisualKind;
+
+export function isOutgoingKind(value: unknown): value is OutgoingKind {
+  return value === "voice" || value === "document" || value === "image" || value === "video";
+}
 
 // Recordings stop on their own at 2 minutes: WhatsApp only shows the play
 // button for voice notes up to 512 KB, which is ~2 minutes at 24 kbps.
@@ -97,6 +103,14 @@ export function uploadProblem(input: {
   filename?: string;
 }): string | null {
   if (!Number.isFinite(input.size) || input.size <= 0) return "El archivo está vacío.";
+  if (input.kind === "image" || input.kind === "video") {
+    const filename = input.filename ?? "";
+    const visual = visualMime(input.mime, filename);
+    if (visual && visual.kind !== input.kind) {
+      return input.kind === "image" ? "Ese archivo no es una foto." : "Ese archivo no es un video.";
+    }
+    return visualUploadProblem({ channelType: input.channelType, mime: input.mime, filename, size: input.size });
+  }
   if (input.kind === "voice") {
     if (!recordingExtension(input.mime)) return "Este formato de audio no se puede enviar.";
     if (input.size > MAX_RECORDING_BYTES) return "La nota de voz es muy larga.";
@@ -124,7 +138,8 @@ export function cleanFilename(name: string, fallback = "Documento"): string {
 
 // The text kept in `body` (chat list preview, chekelin, fallback), the same
 // words the webhooks use for received media.
-export function outgoingBody(kind: OutgoingKind, filename?: string): string {
+export function outgoingBody(kind: OutgoingKind, filename?: string, caption?: string | null): string {
+  if (kind === "image" || kind === "video") return visualBody(kind, caption);
   return kind === "voice" ? "🎤 Nota de voz" : `📄 ${filename ?? "Documento"}`;
 }
 

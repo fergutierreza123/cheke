@@ -24,6 +24,11 @@ type GraphBody = any;
 //   - Instagram / Messenger: an attachment by link (a signed link to the
 //     file in our bucket). Voice notes as `audio` (M4A; there is no voice-
 //     note flag), documents as `file`.
+// Photos and videos (picked or taken with the camera) work the same way:
+//   - WhatsApp: uploaded to /media, sent as `image` / `video` by id with the
+//     typed text as the caption under it.
+//   - Instagram / Messenger: an `image` / `video` attachment by link; they
+//     have no captions, so the text follows as its own message.
 // Same window rules as text (sendOnChannel): a person may still answer on
 // Instagram/Facebook between 24 h and 7 days (HUMAN_AGENT tag).
 
@@ -31,7 +36,41 @@ const GRAPH = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 export type OutgoingFile =
   | { kind: "voice"; ogg: Buffer; m4aUrl: string }
-  | { kind: "document"; bytes: Buffer; mime: string; filename: string; url: string };
+  | { kind: "document"; bytes: Buffer; mime: string; filename: string; url: string }
+  | { kind: "image" | "video"; bytes: Buffer; mime: string; url: string; caption?: string | null };
+
+// The WhatsApp message content for a file already uploaded to /media.
+export function whatsappMediaContent(file: OutgoingFile, mediaId: string): Record<string, unknown> {
+  switch (file.kind) {
+    case "voice":
+      return { type: "audio", audio: { id: mediaId, voice: true } };
+    case "document":
+      return { type: "document", document: { id: mediaId, filename: file.filename } };
+    default: {
+      const caption = file.caption?.trim();
+      return { type: file.kind, [file.kind]: { id: mediaId, ...(caption ? { caption } : {}) } };
+    }
+  }
+}
+
+// The Instagram/Messenger attachment (Meta downloads it from our signed link).
+export function metaAttachment(file: OutgoingFile): { type: string; payload: { url: string; is_reusable: false } } {
+  if (file.kind === "voice") return { type: "audio", payload: { url: file.m4aUrl, is_reusable: false } };
+  if (file.kind === "document") return { type: "file", payload: { url: file.url, is_reusable: false } };
+  return { type: file.kind, payload: { url: file.url, is_reusable: false } };
+}
+
+// Instagram/Messenger have no captions: the text sent right after the photo.
+export function metaFollowUpText(file: OutgoingFile): string | null {
+  if (file.kind !== "image" && file.kind !== "video") return null;
+  return file.caption?.trim() || null;
+}
+
+function uploadName(file: OutgoingFile): string {
+  if (file.kind === "voice") return "nota-de-voz.ogg";
+  if (file.kind === "document") return file.filename;
+  return file.kind === "image" ? `foto.${file.mime === "image/png" ? "png" : "jpg"}` : `video.${file.mime === "video/3gpp" ? "3gp" : "mp4"}`;
+}
 
 export async function sendMediaOnChannel(input: {
   channel: SendChannel | null | undefined;
@@ -64,10 +103,7 @@ export async function sendMediaOnChannel(input: {
 
   const routing =
     state === "human_agent" ? { messaging_type: "MESSAGE_TAG", tag: "HUMAN_AGENT" } : { messaging_type: "RESPONSE" };
-  const attachment =
-    file.kind === "voice"
-      ? { type: "audio", payload: { url: file.m4aUrl, is_reusable: false } }
-      : { type: "file", payload: { url: file.url, is_reusable: false } };
+  const attachment = metaAttachment(file);
   const recipient = { id: recipientId };
   const send = async (using: MetaCredentials) => {
     if (replyToExternalId) {
@@ -81,17 +117,29 @@ export async function sendMediaOnChannel(input: {
     }
     return postMessage(using, { recipient, ...routing, message: { attachment } });
   };
-  let result = await send(credentials);
+  let using = credentials;
+  let result = await send(using);
   if (isMetaAuthError(result.graphError) && channel.id) {
     // Same as text replies: a fresh Page token first, then "Reconectar".
     const fresh = await regeneratePageToken(channel.id);
-    if (fresh) result = await send(fresh);
+    if (fresh) {
+      using = fresh;
+      result = await send(using);
+    }
     if (isMetaAuthError(result.graphError)) {
       await markChannelNeedsReconnect(channel.id, `meta_${result.graphError?.code ?? "auth"}`);
       return { error: RECONNECT_MESSAGE, errorDetails: result.error };
     }
   }
-  return result.error ? { error: result.error } : { externalMessageId: result.externalMessageId };
+  if (result.error) return { error: result.error };
+  // No captions on Instagram/Messenger: the typed text follows the photo.
+  const text = metaFollowUpText(file);
+  if (text) {
+    const caption = await postMessage(using, { recipient, ...routing, message: { text } });
+    // The photo itself arrived, so the message isn't marked as failed.
+    if (caption.error) console.error("caption after attachment failed", caption.error);
+  }
+  return { externalMessageId: result.externalMessageId };
 }
 
 async function sendWhatsAppFile(
@@ -104,14 +152,11 @@ async function sendWhatsAppFile(
 
   const upload =
     file.kind === "voice"
-      ? await uploadWhatsAppMedia(credentials, file.ogg, "audio/ogg", "nota-de-voz.ogg")
-      : await uploadWhatsAppMedia(credentials, file.bytes, file.mime, file.filename);
+      ? await uploadWhatsAppMedia(credentials, file.ogg, "audio/ogg", uploadName(file))
+      : await uploadWhatsAppMedia(credentials, file.bytes, file.mime, uploadName(file));
   if (!("id" in upload)) return upload;
 
-  const content =
-    file.kind === "voice"
-      ? { type: "audio", audio: { id: upload.id, voice: true } }
-      : { type: "document", document: { id: upload.id, filename: file.filename } };
+  const content = whatsappMediaContent(file, upload.id);
   return postWhatsApp(credentials, {
     messaging_product: "whatsapp",
     recipient_type: "individual",

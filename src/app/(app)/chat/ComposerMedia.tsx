@@ -15,6 +15,12 @@ import {
   uploadProblem,
   type OutgoingKind,
 } from "@/lib/outgoingMedia";
+import { captionProblem, visualMime, type VisualKind } from "@/lib/outgoingVisual";
+import { prepareChatPhoto } from "@/lib/chatPhoto";
+
+// Gallery and camera: any photo or video; the rules check it after picking
+// (a narrower list hides valid iPhone photos in some pickers).
+const VISUAL_ACCEPT = "image/*,video/*";
 import type { ChannelType, Message } from "@/lib/types";
 
 // Voice notes and documents in the Chat composer (issue #50), WhatsApp-style:
@@ -22,6 +28,10 @@ import type { ChannelType, Message } from "@/lib/types";
 //     release to send, slide left to cancel. A quick tap keeps recording
 //     hands-free, with a trash button and Send. Stops and sends at 2 minutes.
 //   - Clip: pick a PDF (or Word/Excel…) and confirm in the strip above.
+//   - Fotos y videos / Cámara: pick or take one; big photos are shrunk in
+//     the browser, the strip shows a preview, and Send sends it with the
+//     typed text as its caption. The mic stays visible (grey) when nothing
+//     can be sent and says why when tapped.
 // The file is uploaded straight to storage, then /api/chat/media converts
 // and sends it (see src/lib/outgoingMedia.ts).
 
@@ -36,6 +46,9 @@ export function useComposerMedia({
   conversationId,
   channelType,
   disabled,
+  blockedReason = null,
+  caption = "",
+  onCaptionUsed,
   demo = false,
   replyToId = null,
   onSendStart,
@@ -45,6 +58,12 @@ export function useComposerMedia({
   conversationId: string | null;
   channelType: ChannelType | null | undefined;
   disabled: boolean;
+  // Why nothing can be sent right now (window closed, Modo prueba). The mic
+  // stays visible and explains it when tapped.
+  blockedReason?: string | null;
+  // The typed text, sent as the caption of a photo or video.
+  caption?: string;
+  onCaptionUsed?: () => void;
   // The public demo (/demo): nothing is uploaded or sent; the bubble only
   // shows in the screen.
   demo?: boolean;
@@ -65,6 +84,23 @@ export function useComposerMedia({
   const [pickedDoc, setPendingDoc] = useState<{ conversationId: string; file: File; mime: string } | null>(null);
   const pendingDoc = pickedDoc && pickedDoc.conversationId === conversationId ? pickedDoc : null;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // A photo or video picked (or just taken), waiting for Send, per chat.
+  const [pickedVisual, setPendingVisual] = useState<{
+    conversationId: string;
+    file: File;
+    kind: VisualKind;
+    previewUrl: string;
+  } | null>(null);
+  const pendingVisual = pickedVisual && pickedVisual.conversationId === conversationId ? pickedVisual : null;
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [preparing, setPreparing] = useState(false);
+  // The preview's object URL is freed when the photo is sent or dropped.
+  useEffect(() => {
+    if (!pickedVisual) return;
+    const url = pickedVisual.previewUrl;
+    return () => URL.revokeObjectURL(url);
+  }, [pickedVisual]);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -88,8 +124,21 @@ export function useComposerMedia({
   }, [onResult, onError, onSendStart, replyToId]);
 
   const upload = useCallback(
-    async (targetId: string, kind: OutgoingKind, blob: Blob, extra: { filename?: string; duration?: number }) => {
-      setBusy(kind === "voice" ? "Enviando nota de voz…" : `Enviando ${extra.filename ?? "documento"}…`);
+    async (
+      targetId: string,
+      kind: OutgoingKind,
+      blob: Blob,
+      extra: { filename?: string; duration?: number; caption?: string },
+    ) => {
+      setBusy(
+        kind === "voice"
+          ? "Enviando nota de voz…"
+          : kind === "image"
+            ? "Enviando foto…"
+            : kind === "video"
+              ? "Enviando video… (puede tardar un poco)"
+              : `Enviando ${extra.filename ?? "documento"}…`,
+      );
       onErrorRef.current(null);
       const quoted = replyToIdRef.current;
       onSendStartRef.current?.();
@@ -102,8 +151,9 @@ export function useComposerMedia({
               conversation_id: targetId,
               business_id: "demo",
               direction: "out",
-              body: outgoingBody(kind, extra.filename),
-              media_url: null,
+              body: outgoingBody(kind, extra.filename, extra.caption),
+              // The demo has no storage: a photo shows from the phone itself.
+              media_url: kind === "image" ? URL.createObjectURL(blob) : null,
               status: "sent",
               is_bot: false,
               created_at: new Date().toISOString(),
@@ -232,7 +282,9 @@ export function useComposerMedia({
   }, [conversationId, disabled, cancelRecording]);
 
   function onPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    if (disabled || busy || e.button !== 0) return;
+    if (e.button !== 0) return;
+    if (blockedReason) return onErrorRef.current(blockedReason);
+    if (disabled || busy) return;
     e.preventDefault(); // no text selection / iOS callout while holding
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -269,7 +321,9 @@ export function useComposerMedia({
 
   // Keyboard (Enter/Space) has no pointer events: start, then send.
   function onClick(e: React.MouseEvent<HTMLButtonElement>) {
-    if (e.detail !== 0 || disabled || busy) return;
+    if (e.detail !== 0) return;
+    if (blockedReason) return onErrorRef.current(blockedReason);
+    if (disabled || busy) return;
     if (recordingRef.current) stopAndSend();
     else {
       pressRef.current.down = false;
@@ -287,6 +341,7 @@ export function useComposerMedia({
     if (problem) return onErrorRef.current(problem);
     if (!conversationId) return;
     onErrorRef.current(null);
+    setPendingVisual(null);
     setPendingDoc({ conversationId, file, mime: documentMime(channelType, file.type, file.name)! });
   }
 
@@ -298,22 +353,106 @@ export function useComposerMedia({
     void upload(conversationId, "document", blob, { filename: file.name });
   }
 
+  // ---- Photos and videos ---------------------------------------------------
+
+  async function onPickVisual(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0];
+    e.target.value = ""; // picking the same photo again still fires
+    if (!picked || !conversationId) return;
+    const targetId = conversationId;
+    const visual = visualMime(picked.type, picked.name);
+    if (!visual) return onErrorRef.current("Solo puedes enviar una foto o un video desde aquí. Para otros archivos usa Documento.");
+    onErrorRef.current(null);
+    let file: File = picked;
+    if (visual.kind === "image") {
+      setPreparing(true);
+      const ready = await prepareChatPhoto(picked, visual.mime, channelType);
+      setPreparing(false);
+      if (!ready.file) return onErrorRef.current(ready.error ?? "No se pudo leer la foto.");
+      file = ready.file;
+    } else if (picked.type !== visual.mime) {
+      file = new File([picked], picked.name, { type: visual.mime });
+    }
+    const problem = uploadProblem({ kind: visual.kind, channelType, mime: file.type, size: file.size, filename: file.name });
+    if (problem) return onErrorRef.current(problem);
+    setPendingDoc(null);
+    setPendingVisual({ conversationId: targetId, file, kind: visual.kind, previewUrl: URL.createObjectURL(file) });
+  }
+
+  function sendVisual() {
+    if (!pendingVisual || !conversationId) return;
+    const text = caption.trim();
+    const problem = text ? captionProblem(channelType, text) : null;
+    if (problem) return onErrorRef.current(problem);
+    const { file, kind } = pendingVisual;
+    setPendingVisual(null);
+    onCaptionUsed?.();
+    void upload(conversationId, kind, file, { filename: file.name, ...(text ? { caption: text } : {}) });
+  }
+
+  const blocked = disabled || Boolean(busy) || preparing;
+  const openGallery = () => !blocked && galleryInputRef.current?.click();
+  const openCamera = () => !blocked && cameraInputRef.current?.click();
+  const openDocument = () => !blocked && fileInputRef.current?.click();
+
   // ---- UI ------------------------------------------------------------------
 
-  const attachButton = (
+  // The hidden pickers. "Cámara" asks the phone to open the camera
+  // (`capture`); on a computer it opens the normal file picker.
+  const inputs = (
     <>
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={disabled || Boolean(busy)}
-        title="Enviar un documento (PDF…)"
-        aria-label="Adjuntar documento"
-        className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 text-ink-muted transition-colors hover:bg-surface-3 disabled:opacity-50"
-      >
-        <ClipIcon className="h-4 w-4" />
-      </button>
       <input ref={fileInputRef} type="file" accept={documentAccept(channelType)} onChange={onPickFile} className="hidden" />
+      <input ref={galleryInputRef} type="file" accept={VISUAL_ACCEPT} onChange={onPickVisual} className="hidden" />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept={VISUAL_ACCEPT}
+        capture="environment"
+        onChange={onPickVisual}
+        className="hidden"
+      />
     </>
+  );
+
+  const roundButton =
+    "flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 text-ink-muted transition-colors hover:bg-surface-3 disabled:opacity-50";
+
+  // Computers: inline buttons, like design/Inbox.html.
+  const attachButton = (
+    <button
+      type="button"
+      onClick={openDocument}
+      disabled={blocked}
+      title="Enviar un documento (PDF…)"
+      aria-label="Adjuntar documento"
+      className={roundButton}
+    >
+      <ClipIcon className="h-4 w-4" />
+    </button>
+  );
+  const photoButton = (
+    <button
+      type="button"
+      onClick={openGallery}
+      disabled={blocked}
+      title="Enviar fotos o videos"
+      aria-label="Enviar foto o video"
+      className={roundButton}
+    >
+      <PhotoIcon className="h-4 w-4" />
+    </button>
+  );
+  // Phones: WhatsApp's camera next to the mic while the box is empty.
+  const cameraButton = (
+    <button
+      type="button"
+      onClick={openCamera}
+      disabled={blocked}
+      aria-label="Tomar foto o video"
+      className="flex h-[38px] w-[34px] shrink-0 items-center justify-center rounded-full text-ink-muted disabled:opacity-50"
+    >
+      <CameraIcon className="h-[21px] w-[21px]" />
+    </button>
   );
 
   const hold = recording?.mode === "hold";
@@ -372,14 +511,25 @@ export function useComposerMedia({
         onPointerCancel={onPointerUp}
         onClick={onClick}
         onContextMenu={(e) => e.preventDefault()}
-        disabled={disabled || Boolean(busy)}
-        aria-label={recording ? "Enviar nota de voz" : "Grabar nota de voz (mantén presionado)"}
-        title={recording ? "Enviar nota de voz" : "Mantén presionado para grabar, o toca para grabar sin sostener"}
+        // Blocked (window closed, Modo prueba): still tappable, so it can
+        // say why instead of looking broken.
+        disabled={(disabled && !blockedReason) || Boolean(busy)}
+        aria-disabled={Boolean(blockedReason) || undefined}
+        aria-label={
+          blockedReason
+            ? `Nota de voz no disponible: ${blockedReason}`
+            : recording
+              ? "Enviar nota de voz"
+              : "Grabar nota de voz (mantén presionado)"
+        }
+        title={
+          blockedReason ?? (recording ? "Enviar nota de voz" : "Mantén presionado para grabar, o toca para grabar sin sostener")
+        }
         animate={reduceMotion ? undefined : { scale: hold ? 1.18 : 1 }}
         transition={{ type: "spring", bounce: 0, duration: 0.3 }}
         style={{ touchAction: "none", WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
-        className={`relative z-30 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-white disabled:opacity-60 ${
-          hold ? "bg-[#E5484D]" : "bg-brand"
+        className={`relative z-30 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full disabled:opacity-60 ${
+          blockedReason ? "bg-surface-3 text-ink-soft" : hold ? "bg-[#E5484D] text-white" : "bg-brand text-white"
         }`}
       >
         {tap ? <SendIcon className="h-4 w-4" /> : <MicIcon className="h-[18px] w-[18px]" />}
@@ -387,10 +537,49 @@ export function useComposerMedia({
     </>
   );
 
-  const strip = busy ? (
+  const strip = busy || preparing ? (
     <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface-2 px-4 py-2 text-[12.5px] text-ink-muted lg:px-6">
       <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-      {busy}
+      {busy ?? "Preparando foto…"}
+    </div>
+  ) : pendingVisual ? (
+    <div className="flex shrink-0 items-center gap-3 border-t border-accent bg-accent-tint px-4 py-2.5 lg:px-6">
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-surface">
+        {pendingVisual.kind === "image" ? (
+          // eslint-disable-next-line @next/next/no-img-element -- local preview of the picked photo
+          <img src={pendingVisual.previewUrl} alt="Foto a enviar" className="h-full w-full object-cover" />
+        ) : (
+          <>
+            <video src={pendingVisual.previewUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/25 text-white">
+              <PlayIcon className="h-5 w-5" />
+            </span>
+          </>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[12.5px] font-semibold text-brand-dark">
+          {pendingVisual.kind === "image" ? "Foto" : "Video"} · {formatFileSize(pendingVisual.file.size)}
+        </div>
+        <div className="text-[11.5px] leading-snug text-brand-dark/80">
+          {caption.trim() ? "Se enviará con el texto que escribiste." : "Escribe abajo si quieres agregar un texto."}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => setPendingVisual(null)}
+        className="min-h-8 shrink-0 rounded-lg border border-border bg-surface px-3 text-[12px] text-ink-muted"
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        onClick={sendVisual}
+        disabled={disabled}
+        className="min-h-8 shrink-0 rounded-lg bg-brand px-3 text-[12px] font-semibold text-white disabled:opacity-60"
+      >
+        Enviar
+      </button>
     </div>
   ) : pendingDoc ? (
     <div className="flex shrink-0 items-center gap-3 border-t border-accent bg-accent-tint px-4 py-2.5 lg:px-6">
@@ -421,8 +610,48 @@ export function useComposerMedia({
     </div>
   ) : null;
 
-  return { attachButton, micButton, strip, recording: Boolean(recording) };
+  return {
+    inputs,
+    attachButton,
+    photoButton,
+    cameraButton,
+    micButton,
+    strip,
+    recording: Boolean(recording),
+    hasPendingVisual: Boolean(pendingVisual),
+    sendVisual,
+    openGallery,
+    openCamera,
+    openDocument,
+    pickBlocked: blocked,
+  };
 }
+
+function PhotoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="m21 15-5-5L5 21" />
+    </svg>
+  );
+}
+function CameraIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  );
+}
+function PlayIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+export { PhotoIcon, CameraIcon, ClipIcon };
 
 function MicIcon({ className }: { className?: string }) {
   return (
