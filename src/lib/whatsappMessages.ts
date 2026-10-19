@@ -38,7 +38,8 @@ export function describeMessage(message: WhatsAppMessage): string | null {
     case "video":
       return message.video?.caption ? `🎥 ${message.video.caption}` : "🎥 Video";
     case "audio":
-      return "🎤 Nota de voz";
+      // A recorded voice note, or an audio file (forwarded, a song…).
+      return message.audio?.voice ? "🎤 Nota de voz" : "🎵 Audio";
     case "document":
       return `📄 ${message.document?.filename ?? message.document?.caption ?? "Documento"}`;
     case "sticker":

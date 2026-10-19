@@ -7,6 +7,7 @@ import { saveMessageMedia, type MediaJob } from "@/lib/messageMedia";
 import { explainWhatsAppError } from "@/lib/whatsappErrors";
 import { deletedFields, whatsappChange, whatsappReaction, whatsappReplyTo } from "@/lib/messageEvents";
 import { findMessageId, insertMessage } from "@/lib/messageRows";
+import { createMessageClock } from "@/lib/messageClock";
 import type { MediaInfo } from "@/lib/types";
 
 // Meta resends if we answer slowly, so the push alert and Chekelin's AI reply
@@ -100,6 +101,7 @@ function latestPerConversation(saved: SavedMessage[]): SavedMessage[] {
 }
 
 type Admin = ReturnType<typeof createAdminClient>;
+type MessageClock = ReturnType<typeof createMessageClock>;
 // A channel belongs to one Tienda: its conversations (and their messages)
 // go to that Tienda. Contacts are matched across the whole Negocio.
 // Its token downloads the media customers send.
@@ -119,6 +121,8 @@ async function handlePayload(payload: WhatsAppWebhookPayload, media: MediaJob[])
   const supabase = createAdminClient();
   const book: ContactBook = new Map();
   const saved: SavedMessage[] = [];
+  // Each message its own instant, in arrival order (src/lib/messageClock.ts).
+  const clock = createMessageClock();
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
@@ -163,7 +167,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload, media: MediaJob[])
         try {
           // A reaction, edit or delete changes a message already saved.
           if (await applyMessageChange(supabase, channel, message, "in")) continue;
-          const result = await saveInboundMessage(supabase, book, channel, value, message, media);
+          const result = await saveInboundMessage(supabase, book, channel, value, message, media, clock);
           if (result) saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...result });
         } catch (error) {
           console.error("whatsapp inbound message error", message?.id, error);
@@ -173,7 +177,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload, media: MediaJob[])
       for (const echo of value.message_echoes ?? []) {
         try {
           if (await applyMessageChange(supabase, channel, echo, "out")) continue;
-          await saveEchoMessage(supabase, book, channel, echo, media);
+          await saveEchoMessage(supabase, book, channel, echo, media, clock);
         } catch (error) {
           console.error("whatsapp echo error", echo?.id, error);
         }
@@ -197,6 +201,7 @@ async function saveInboundMessage(
   value: WhatsAppValue,
   message: WhatsAppMessage,
   media: MediaJob[],
+  clock: MessageClock,
 ): Promise<{ conversationId: string; contactName: string; body: string | null } | null> {
   // Reactions, edits and deletes were applied before getting here.
   const body = describeMessage(message);
@@ -223,7 +228,7 @@ async function saveInboundMessage(
     body,
     external_message_id: message.id,
     status: "sent",
-    created_at: messageTime(message.timestamp, now),
+    created_at: clock(message.timestamp, now.getTime()),
     reply_to_id: await findMessageId(supabase, channel.business_id, whatsappReplyTo(message)),
   });
   if (insertError) {
@@ -247,6 +252,7 @@ async function saveEchoMessage(
   channel: Channel,
   echo: WhatsAppEcho,
   media: MediaJob[],
+  clock: MessageClock,
 ) {
   const body = describeMessage(echo);
   if (body === null || !echo.to) return;
@@ -254,7 +260,7 @@ async function saveEchoMessage(
 
   const contactId = await findOrCreateContact(supabase, book, channel.business_id, echo.to, echo.to);
   const conversation = await findOrCreateConversation(supabase, channel, contactId);
-  const sentAt = messageTime(echo.timestamp, new Date());
+  const sentAt = clock(echo.timestamp, Date.now());
 
   const { error } = await insertMessage(supabase, {
     conversation_id: conversation.id,

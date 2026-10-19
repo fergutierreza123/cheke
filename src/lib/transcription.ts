@@ -120,12 +120,14 @@ export function textForChekelin(m: { body: string | null; transcription?: string
 // its file is saved the message only has its text, the same for both
 // channels' webhooks (src/lib/whatsappMessages.ts, src/app/api/meta/webhook).
 export const VOICE_NOTE_BODY = "🎤 Nota de voz";
+// An audio file (forwarded, or a song) rather than a recorded voice note.
+export const AUDIO_BODY = "🎵 Audio";
 
 export function awaitsTranscription(m: {
   body: string | null;
   media_kind?: string | null;
   transcription_status?: string | null;
 }): boolean {
-  const isAudio = m.media_kind === "voice" || m.media_kind === "audio" || (!m.media_kind && m.body === VOICE_NOTE_BODY);
+  const isAudio = m.media_kind === "voice" || m.media_kind === "audio" || (!m.media_kind && (m.body === VOICE_NOTE_BODY || m.body === AUDIO_BODY));
   return isAudio && !m.transcription_status;
 }

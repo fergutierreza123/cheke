@@ -8,6 +8,11 @@ import { randomUUID } from "node:crypto";
 type Row = Record<string, unknown>;
 type Filter = (row: Row) => boolean;
 
+// Column defaults the real tables have (supabase/migrations).
+const DEFAULTS: Record<string, Row> = {
+  messages: { status: "sent", is_bot: false, source: "cheke" },
+};
+
 const UNIQUE: Record<string, string[]> = {
   messages: ["external_message_id"],
   post_comments: ["external_comment_id"],
@@ -40,7 +45,7 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
       let out: Row[] = [];
       if (action === "insert" || action === "upsert") {
         for (const input of Array.isArray(payload) ? payload : [payload!]) {
-          const row: Row = { id: randomUUID(), created_at: new Date().toISOString(), ...input };
+          const row: Row = { id: randomUUID(), created_at: new Date().toISOString(), ...DEFAULTS[table], ...input };
           if (duplicate(table, row)) {
             if (action === "upsert" && upsertOptions.ignoreDuplicates) continue;
             return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };

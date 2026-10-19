@@ -89,8 +89,7 @@ export async function POST(request: NextRequest) {
         const media: MediaJob[] = [];
         for (const echo of result.echoes) {
           try {
-            const job = await saveEchoMessage(supabase, echo);
-            if (job) media.push(job);
+            media.push(...(await saveEchoMessage(supabase, echo)));
           } catch (error) {
             console.error("meta echo error", echo.event.message?.mid, error);
           }
@@ -187,12 +186,18 @@ async function handlePayload(payload: MetaWebhookPayload): Promise<HandleResult>
         } else if (event.message || event.postback) {
           const saved = await saveInboundMessage(supabase, channel, event);
           if (saved) {
-            result.saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...saved });
-            const job = mediaJob(event.message);
-            if (job) result.media.push(job);
+            const { media, ...message } = saved;
+            result.saved.push({ businessId: channel.business_id, storeId: channel.store_id, ...message });
+            result.media.push(...media);
           }
         } else if (event.delivery) {
-          for (const mid of event.delivery.mids ?? []) await advanceStatus(supabase, mid, "delivered");
+          const mids = event.delivery.mids ?? [];
+          for (const mid of mids) await advanceStatus(supabase, mid, "delivered");
+          // Older Messenger clients send only a watermark: "everything sent
+          // before this time was delivered".
+          if (mids.length === 0 && event.delivery.watermark) {
+            await advanceUpTo(supabase, channel, event.sender?.id, new Date(event.delivery.watermark).toISOString(), "delivered");
+          }
         } else if (event.read) {
           await markRead(supabase, channel, event);
         }
@@ -208,7 +213,7 @@ async function saveInboundMessage(
   supabase: Admin,
   channel: Channel,
   event: MessagingEvent,
-): Promise<{ conversationId: string; contactName: string; body: string | null } | null> {
+): Promise<{ conversationId: string; contactName: string; body: string | null; media: MediaJob[] } | null> {
   const customerId = event.sender?.id;
   // Anything the account itself "sent to itself" isn't a customer message.
   if (!customerId || customerId === channel.external_id) return null;
@@ -230,6 +235,7 @@ async function saveInboundMessage(
     .update({ last_message_at: now.toISOString(), window_expires_at: windowExpiresAt, status: "open" })
     .eq("id", conversation.id);
 
+  const createdAt = messageTime(event.timestamp, now);
   const { error } = await insertMessage(supabase, {
     conversation_id: conversation.id,
     business_id: channel.business_id,
@@ -237,7 +243,7 @@ async function saveInboundMessage(
     body,
     external_message_id: mid,
     status: "sent",
-    created_at: messageTime(event.timestamp, now),
+    created_at: createdAt,
     reply_to_id: await findMessageId(supabase, channel.business_id, metaReplyTo(event.message)),
   });
   if (error) {
@@ -245,8 +251,15 @@ async function saveInboundMessage(
     if (error.code === "23505") return null;
     throw new Error(error.message);
   }
+  const first = mediaJob(event.message);
+  const extras = await saveExtraAttachments(
+    supabase,
+    event.message,
+    { conversation_id: conversation.id, business_id: channel.business_id, direction: "in" },
+    createdAt,
+  );
 
-  return { conversationId: conversation.id, contactName: contact.name, body };
+  return { conversationId: conversation.id, contactName: contact.name, body, media: [...(first ? [first] : []), ...extras] };
 }
 
 // A reply the business wrote outside cheke (Instagram app, Meta Business
@@ -254,13 +267,13 @@ async function saveInboundMessage(
 // a person replying: chekelin goes silent, the timers stop and an unassigned
 // chat goes to the Dueño (database trigger, migration 0021). It doesn't touch
 // the reply window: only the customer's messages open it.
-async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho): Promise<MediaJob | null> {
+async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho): Promise<MediaJob[]> {
   const message = event.message;
   const customerId = event.recipient?.id;
-  if (!message?.mid || !customerId) return null;
+  if (!message?.mid || !customerId) return [];
   const body = describeMessage(message);
-  if (body === null) return null;
-  if (await alreadySaved(supabase, message.mid)) return null;
+  if (body === null) return [];
+  if (await alreadySaved(supabase, message.mid)) return [];
 
   const contact = await findOrCreateContact(supabase, channel, customerId);
   const conversation = await findOrCreateConversation(supabase, channel, contact.id);
@@ -278,15 +291,22 @@ async function saveEchoMessage(supabase: Admin, { channel, event }: PendingEcho)
     reply_to_id: await findMessageId(supabase, channel.business_id, metaReplyTo(message)),
   });
   if (error) {
-    if (error.code === "23505") return null;
+    if (error.code === "23505") return [];
     throw new Error(error.message);
   }
+  const first = mediaJob(message);
+  const extras = await saveExtraAttachments(
+    supabase,
+    message,
+    { conversation_id: conversation.id, business_id: channel.business_id, direction: "out", source: "meta_app" },
+    sentAt,
+  );
 
   await supabase
     .from("conversations")
     .update({ last_message_at: later(conversation.last_message_at, sentAt) })
     .eq("id", conversation.id);
-  return mediaJob(message);
+  return [...(first ? [first] : []), ...extras];
 }
 
 // A ❤️ (or any reaction) on a message, or taking it back.
@@ -331,6 +351,10 @@ function describeMessage(message: MetaMessage): string | null {
   if (message.text) return message.text;
   const attachment = message.attachments?.[0];
   if (!attachment) return message.is_unsupported ? "Mensaje de un tipo que cheke todavía no puede mostrar" : null;
+  return describeAttachment(attachment);
+}
+
+function describeAttachment(attachment: MetaAttachment): string {
   switch (attachment.type) {
     case "image":
       return "📷 Foto";
@@ -360,6 +384,40 @@ function mediaJob(message: MetaMessage | undefined): MediaJob | null {
   const attachment = message?.attachments?.[0];
   const mid = message?.mid;
   if (!mid || !attachment) return null;
+  return attachmentJob(mid, attachment);
+}
+
+// Messenger sends several photos (an album) as one message with several
+// attachments; Instagram can too. The first one is the message itself; each
+// other one gets its own bubble, like WhatsApp shows them, with the id
+// "<mid>#2", "<mid>#3"… (reactions and replies point at the first).
+async function saveExtraAttachments(
+  supabase: Admin,
+  message: MetaMessage | undefined,
+  row: { conversation_id: string; business_id: string; direction: "in" | "out"; source?: string },
+  firstAt: string,
+): Promise<MediaJob[]> {
+  const extras = (message?.attachments ?? []).slice(1);
+  if (!message?.mid || extras.length === 0 || message.text) return [];
+  const jobs: MediaJob[] = [];
+  for (const [i, attachment] of extras.entries()) {
+    const externalId = `${message.mid}#${i + 2}`;
+    const { error } = await supabase.from("messages").insert({
+      ...row,
+      body: describeAttachment(attachment),
+      external_message_id: externalId,
+      status: "sent",
+      // Right after the first one, in the order Meta listed them.
+      created_at: new Date(new Date(firstAt).getTime() + i + 1).toISOString(),
+    });
+    if (error && error.code !== "23505") throw new Error(error.message);
+    const job = error ? null : attachmentJob(externalId, attachment);
+    if (job) jobs.push(job);
+  }
+  return jobs;
+}
+
+function attachmentJob(mid: string, attachment: MetaAttachment): MediaJob | null {
   const url = attachment.payload?.url;
 
   if (attachment.type === "location") {
@@ -487,9 +545,6 @@ async function advanceStatus(supabase: Admin, mid: string, status: "delivered" |
 // Messenger reports "read up to this time" (watermark); Instagram names the
 // message that was read. Either way, everything we sent before it is read.
 async function markRead(supabase: Admin, channel: Channel, event: MessagingEvent) {
-  const customerId = event.sender?.id;
-  if (!customerId) return;
-
   let upTo: string | null = null;
   if (event.read?.watermark) {
     upTo = new Date(event.read.watermark).toISOString();
@@ -502,7 +557,19 @@ async function markRead(supabase: Admin, channel: Channel, event: MessagingEvent
     upTo = data?.created_at ?? null;
   }
   if (!upTo) return;
+  await advanceUpTo(supabase, channel, event.sender?.id, upTo, "read");
+}
 
+// Everything the business sent this customer up to `upTo` moves forward to
+// "delivered" or "read" (never back).
+async function advanceUpTo(
+  supabase: Admin,
+  channel: Channel,
+  customerId: string | undefined,
+  upTo: string,
+  status: "delivered" | "read",
+) {
+  if (!customerId) return;
   const column = channel.type === "instagram" ? "ig_id" : "fb_psid";
   const { data: contact } = await supabase
     .from("contacts")
@@ -524,10 +591,10 @@ async function markRead(supabase: Admin, channel: Channel, event: MessagingEvent
 
   await supabase
     .from("messages")
-    .update({ status: "read" })
+    .update({ status })
     .in("conversation_id", ids)
     .eq("direction", "out")
-    .in("status", ["sent", "delivered"])
+    .in("status", status === "delivered" ? ["sent"] : ["sent", "delivered"])
     .lte("created_at", upTo);
 }
 
@@ -559,11 +626,12 @@ type MetaMessage = {
   is_deleted?: boolean;
   is_unsupported?: boolean;
   reply_to?: { mid?: string; story?: { url?: string; id?: string } };
-  attachments?: Array<{
-    type?: string;
-    title?: string;
-    payload?: { url?: string; sticker_id?: number; coordinates?: { lat?: number; long?: number } };
-  }>;
+  attachments?: MetaAttachment[];
+};
+type MetaAttachment = {
+  type?: string;
+  title?: string;
+  payload?: { url?: string; sticker_id?: number; coordinates?: { lat?: number; long?: number } };
 };
 type MessagingEvent = {
   sender?: { id?: string };
