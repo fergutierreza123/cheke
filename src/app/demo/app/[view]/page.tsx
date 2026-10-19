@@ -45,7 +45,19 @@ export default async function DemoScreen({
       />
     ),
     contacts: <ContactsView contacts={d.contacts} />,
-    templates: <TemplatesView templates={d.templates} />,
+    templates: (
+      <TemplatesView
+        templates={d.templates}
+        whatsapp={{
+          channels: [{ id: "ch1", label: "+504 9100-1214" }],
+          approvals: [
+            { id: "wa-t2", channel_id: "ch1", source_template_id: "t2", name: "datos_de_pago", status: "APPROVED", category: "UTILITY", rejected_reason: null },
+          ],
+          canSubmit: true,
+        }}
+        demo
+      />
+    ),
     inventory: <InventoryView products={d.products} conversations={d.conversations} />,
     team: <TeamView business={d.business} members={d.members} currentUserId="u1" demo />,
     notifications: <NotificationsView notifications={d.notifications} />,

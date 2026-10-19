@@ -32,6 +32,7 @@ import type { QuickReply } from "@/lib/quickReplies";
 import { useQuickReplyPicker } from "./QuickReplyPicker";
 import { CameraIcon, ClipIcon, PhotoIcon, useComposerMedia, type MediaSendResult } from "./ComposerMedia";
 import { AttachSheet } from "./AttachSheet";
+import { WhatsAppTemplateSender } from "./WhatsAppTemplateSender";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
 export type ChekelinStore = { id: string; name: string; offUntil: string | null; canManage: boolean };
@@ -168,6 +169,9 @@ export function ChatView({
   // one inserts its text into the compose box (placeholders and all) for
   // the agent to fill in/edit, rather than sending it outright.
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  // WhatsApp after 24 h: which conversation has "Enviar plantilla" open
+  // (the "+" sheet's "Plantilla" opens it instead of the fill-in picker).
+  const [templateSenderFor, setTemplateSenderFor] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   // Phones/tablets: WhatsApp's "+" sheet with everything besides text.
   const [showAttach, setShowAttach] = useState(false);
@@ -276,6 +280,8 @@ export function ChatView({
   const windowClosed = replyState === "closed";
   // Test mode types as the customer, which is exactly what reopens the window.
   const sendBlocked = windowClosed && !simulateMode;
+  // Closed WhatsApp chat: "Plantilla" means an approved template, not text.
+  const approvedTemplateOnly = sendBlocked && selected?.channel?.type === "whatsapp";
   const quickReplyPicker = useQuickReplyPicker({
     replies: quickReplies,
     draft,
@@ -1506,11 +1512,23 @@ export function ChatView({
                 {sendError}
               </div>
             )}
-            {sendBlocked && (
-              <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 text-[12.5px] text-danger lg:px-6">
-                {windowClosedMessage(selected.channel?.type)}
-              </div>
-            )}
+            {sendBlocked &&
+              (selected.channel?.type === "whatsapp" ? (
+                // WhatsApp after 24 h: only an approved template can go out.
+                <WhatsAppTemplateSender
+                  key={selected.id}
+                  open={templateSenderFor === selected.id}
+                  onOpenChange={(next) => setTemplateSenderFor(next ? selected.id : null)}
+                  conversationId={selected.id}
+                  contactName={selected.contact.name}
+                  demo={businessId === "demo"}
+                  onSent={handleMediaResult}
+                />
+              ) : (
+                <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 text-[12.5px] text-danger lg:px-6">
+                  {windowClosedMessage(selected.channel?.type)}
+                </div>
+              ))}
             {replyState === "human_agent" && !simulateMode && selected.channel && (
               <div className="shrink-0 border-t border-border bg-surface-2 px-4 py-2 text-[12.5px] text-ink-muted lg:px-6">
                 {humanAgentNotice(selected.channel.type)}
@@ -1662,10 +1680,15 @@ export function ChatView({
               </div>
               <div className="relative max-lg:contents">
                 <button
-                  onClick={() => setShowTemplatePicker((v) => !v)}
-                  title="Usar una plantilla"
-                  aria-pressed={showTemplatePicker}
-                  className={`hidden lg:flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  onClick={() =>
+                    approvedTemplateOnly
+                      ? setTemplateSenderFor((id) => (id === selected.id ? null : selected.id))
+                      : setShowTemplatePicker((v) => !v)
+                  }
+                  disabled={sendBlocked && !approvedTemplateOnly}
+                  title={approvedTemplateOnly ? "Enviar una plantilla aprobada de WhatsApp" : "Usar una plantilla"}
+                  aria-pressed={approvedTemplateOnly ? templateSenderFor === selected.id : showTemplatePicker}
+                  className={`hidden lg:flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
                     showTemplatePicker
                       ? "border-brand bg-brand-tint text-brand-dark"
                       : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
@@ -1674,7 +1697,7 @@ export function ChatView({
                   <TemplateIcon className="h-4 w-4" />
                 </button>
                 <AnimatePresence>
-                  {showTemplatePicker && (
+                  {showTemplatePicker && !sendBlocked && (
                     <motion.div
                       initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1916,7 +1939,11 @@ export function ChatView({
                   label: "Plantilla",
                   tint: "#5B6B8C",
                   icon: <TemplateIcon className="h-6 w-6" />,
-                  onSelect: () => setShowTemplatePicker(true),
+                  // Closed WhatsApp window: open "Enviar plantilla" (approved
+                  // templates only); filling the disabled text box is useless.
+                  onSelect: () =>
+                    approvedTemplateOnly ? setTemplateSenderFor(selected.id) : setShowTemplatePicker(true),
+                  disabled: sendBlocked && !approvedTemplateOnly,
                 },
               ]}
             />

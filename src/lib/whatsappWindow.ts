@@ -4,7 +4,7 @@
 // can use it. Conversations with no window recorded (demo/seeded ones) are
 // treated as open.
 export const WINDOW_CLOSED_MESSAGE =
-  "Pasaron más de 24 horas desde el último mensaje de este cliente. WhatsApp solo permite escribirle con una plantilla aprobada por Meta.";
+  "Pasaron más de 24 horas desde el último mensaje de este cliente. WhatsApp solo permite escribirle con una plantilla aprobada: toca «Enviar plantilla».";
 
 export function isWhatsAppWindowClosed(windowExpiresAt: string | null | undefined, nowMs: number): boolean {
   if (!windowExpiresAt) return false;

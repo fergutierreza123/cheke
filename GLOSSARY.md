@@ -84,6 +84,10 @@ _Avoid_: Offline, desconectado, no disponible
 A saved reply of the Negocio that a person inserts in Chat by typing `/` and its atajo (e.g. `/horario`); `{nombre}` becomes the Contacto's name. Everyone uses them; Gerentes and Dueños edit them. Unlike a Plantilla, it is plain text the person can edit before sending, and it can't be sent outside the reply window.
 _Avoid_: Atajo (that's only the `/word`), mensaje guardado, macro
 
+**Plantilla de WhatsApp**:
+A message Meta approved for a WhatsApp number, the only thing WhatsApp lets a business send once 24 hours passed since the customer's last message ("Enviar plantilla" in Chat). Its {{1}}, {{2}}… data are filled when sending. Created from a Plantilla with "Enviar a aprobación de WhatsApp"; type Utilidad or Promoción.
+_Avoid_: Template (in UI copy), mensaje aprobado
+
 **Sugerencia de chekelin**:
 A Plantilla that chekelin proposes from questions the team keeps answering. It only becomes a Plantilla when a Gerente or Dueño approves it.
 _Avoid_: Plantilla automática
