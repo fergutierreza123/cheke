@@ -31,6 +31,9 @@ import { toMp4 } from "@/lib/videoConvert";
 import type { ChannelType, MediaInfo, Message } from "@/lib/types";
 import { friendlyError } from "@/lib/dbErrors";
 import { ARCHIVED_STORE_READ_ONLY, isArchivedStore } from "@/lib/stores";
+import { canSimulate, simulatedInboundUpdate, SIMULATE_ONLY_IN_SAMPLES } from "@/lib/modoPrueba";
+import { handleInboundMessage } from "@/lib/bot";
+import { transcribeVoiceNote } from "@/lib/voiceTranscription";
 
 // Step 2 of sending a voice note or document from Chat (issue #50). The
 // browser already uploaded the file (prepareChatUpload); this:
@@ -55,6 +58,7 @@ type Body = {
   duration?: unknown;
   replyToId?: unknown;
   caption?: unknown;
+  asCustomer?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -91,7 +95,15 @@ export async function POST(request: Request) {
   const storage = admin.storage.from(BUCKET);
   const discard = () => storage.remove([path]).then(() => undefined, () => undefined);
 
-  if (replyWindow(channelType, conversation.window_expires_at, Date.now()) === "closed") {
+  // Modo prueba: the file is the sample customer's (never sent to Meta).
+  const asCustomer = body?.asCustomer === true;
+  const { data: business } = await supabase.from("businesses").select("is_demo").eq("id", conversation.business_id).maybeSingle();
+  if (asCustomer) {
+    if (!canSimulate(channel, business?.is_demo === true)) {
+      await discard();
+      return reply({ error: SIMULATE_ONLY_IN_SAMPLES });
+    }
+  } else if (replyWindow(channelType, conversation.window_expires_at, Date.now()) === "closed") {
     await discard();
     return reply({ error: windowClosedMessage(channelType) });
   }
@@ -227,7 +239,7 @@ export async function POST(request: Request) {
       id: messageId,
       conversation_id: conversation.id,
       business_id: conversation.business_id,
-      direction: "out",
+      direction: asCustomer ? "in" : "out",
       body: outgoingBody(kind, media.media_info.filename, media.media_info.caption),
       media_kind: kind,
       ...media,
@@ -240,11 +252,30 @@ export async function POST(request: Request) {
     return reply({ error: friendlyError(insertError, "No se pudo guardar el mensaje.") });
   }
 
+  if (asCustomer) {
+    // Exactly what a real customer's file triggers (window, transcription,
+    // chekelin, alerts), but nothing is sent to anyone.
+    await supabase.from("conversations").update(simulatedInboundUpdate(Date.now())).eq("id", conversation.id);
+    const admin = createAdminClient();
+    if (file.kind === "voice") {
+      await transcribeVoiceNote(
+        admin,
+        { id: message.id, store_id: conversation.store_id },
+        { original: { bytes: file.ogg, mime: "audio/ogg" }, m4a: null },
+      ).catch((error) => console.error("modo prueba transcription error", error));
+    }
+    const botResult = await handleInboundMessage(admin, conversation.id, { sendExternally: false, preview: message.body });
+    return reply({
+      message: message as Message,
+      ...(botResult.message ? { reply: botResult.message } : {}),
+      ...(botResult.error ? { sendError: `chekelin no pudo responder: ${botResult.error}` } : {}),
+    });
+  }
+
   await supabase.from("conversations").update({ last_message_at: message.created_at }).eq("id", conversation.id);
 
   // The app reviewers' demo Negocio (and conversations without a channel)
   // only save in cheke, never send — same as text replies.
-  const { data: business } = await supabase.from("businesses").select("is_demo").eq("id", conversation.business_id).maybeSingle();
   const result: SendResult = business?.is_demo
     ? { notSent: true }
     : await sendMediaOnChannel({
@@ -265,6 +296,6 @@ export async function POST(request: Request) {
   return reply({ message: message as Message });
 }
 
-function reply(body: { message?: Message; error?: string; sendError?: string }, status = 200) {
+function reply(body: { message?: Message; reply?: Message; error?: string; sendError?: string }, status = 200) {
   return NextResponse.json(body, { status });
 }

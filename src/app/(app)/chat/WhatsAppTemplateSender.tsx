@@ -58,6 +58,7 @@ export function WhatsAppTemplateSender({
   onSent,
   open: openProp,
   onOpenChange,
+  phoneHint = null,
 }: {
   conversationId: string;
   contactName: string | null | undefined;
@@ -67,6 +68,8 @@ export function WhatsAppTemplateSender({
   // Optional control from the composer (the "+" sheet's "Plantilla" opens it).
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  // Coexistencia: the phone's WhatsApp Business app can still write freely.
+  phoneHint?: string | null;
 }) {
   const prefersReducedMotion = useReducedMotion();
   const [openState, setOpenState] = useState(false);
@@ -184,6 +187,7 @@ export function WhatsAppTemplateSender({
         <ClockIcon className="h-4 w-4 shrink-0 text-ink-soft" />
         <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-ink-muted">
           Pasaron más de 24 horas desde su último mensaje. WhatsApp solo deja escribirle con una plantilla aprobada.
+          {phoneHint && <span className="mt-0.5 block text-ink-soft">{phoneHint}</span>}
         </p>
         <button
           type="button"

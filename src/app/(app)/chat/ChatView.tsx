@@ -69,6 +69,9 @@ import {
 import { BrandMark } from "@/components/BrandMark";
 import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
+import { composerRules, WHATSAPP_PHONE_APP_HINT } from "@/lib/composerRules";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import type { ChannelType, ConversationNote, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
@@ -291,11 +294,18 @@ export function ChatView({
   // writes again. Instagram/Facebook between 24 h and 7 days: a person can
   // still answer, chekelin can't.
   const replyState = replyWindow(selected?.channel?.type, selected?.window_expires_at, now);
-  const windowClosed = replyState === "closed";
-  // Test mode types as the customer, which is exactly what reopens the window.
-  const sendBlocked = windowClosed && !simulateMode;
+  // What the composer allows right now (src/lib/composerRules.ts). Test mode
+  // types, records and attaches as the customer, which is exactly what
+  // reopens the window.
+  const rules = composerRules({
+    channelType: selected?.channel?.type,
+    coexistence: selected?.channel?.coexistence,
+    replyState,
+    simulateMode,
+  });
+  const sendBlocked = !rules.canSendText;
   // Closed WhatsApp chat: "Plantilla" means an approved template, not text.
-  const approvedTemplateOnly = sendBlocked && selected?.channel?.type === "whatsapp";
+  const approvedTemplateOnly = rules.approvedTemplateOnly;
   const quickReplyPicker = useQuickReplyPicker({
     replies: quickReplies,
     draft,
@@ -307,22 +317,20 @@ export function ChatView({
   });
   // Why nothing but Plantillas can go out right now: the mic stays visible
   // (grey) and says this when tapped.
-  const mediaBlockedReason = sendBlocked
-    ? "La ventana de respuesta está cerrada: solo puedes enviar plantillas hasta que el cliente vuelva a escribir."
-    : simulateMode
-      ? "En modo prueba escribes como el cliente: las notas de voz y fotos no se envían."
-      : null;
+  const mediaBlockedReason = rules.mediaBlockedReason;
   // Voice notes (mic, while the box is empty), documents (clip), photos and
-  // videos (gallery / camera): issue #50 and composer parity.
+  // videos (gallery / camera): issue #50 and composer parity. In Modo prueba
+  // they arrive as the sample customer's.
   const composerMedia = useComposerMedia({
     conversationId: selected?.id ?? null,
     channelType: selected?.channel?.type,
-    disabled: !selected || sendBlocked || simulateMode,
+    disabled: !selected || !rules.canSendMedia,
     blockedReason: selected ? mediaBlockedReason : null,
     caption: draft,
     onCaptionUsed: () => setDraft(""),
     demo: businessId === "demo",
-    replyToId: replyTo && replyTo.conversation_id === selected?.id ? replyTo.id : null,
+    asCustomer: rules.asCustomer,
+    replyToId: replyTo && replyTo.conversation_id === selected?.id && !rules.asCustomer ? replyTo.id : null,
     onSendStart: () => setReplyTo(null),
     onResult: handleMediaResult,
     onError: setSendError,
@@ -583,7 +591,7 @@ export function ChatView({
             knownConversationIds.current.add(msg.conversation_id);
             supabase
               .from("conversations")
-              .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type)")
+              .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type, coexistence)")
               .eq("id", msg.conversation_id)
               .single()
               .then(({ data }) => {
@@ -804,6 +812,9 @@ export function ChatView({
         if (result.inbound) {
           appendMessage(result.inbound);
           bumpConversation(selected.id, result.inbound.created_at, result.inbound.body);
+          // The "customer" wrote: the reply window is open again (server too).
+          const reopened = new Date(Date.now() + DAY_MS).toISOString();
+          setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, window_expires_at: reopened } : c)));
         }
         if (result.reply) {
           appendMessage(result.reply);
@@ -853,6 +864,20 @@ export function ChatView({
   // reply — show it, move the chat up, and the person now owns the chat.
   function handleMediaResult(result: MediaSendResult) {
     const msg = result.message;
+    if (msg && msg.direction === "in") {
+      // Modo prueba: the sample customer's file, and chekelin's answer.
+      appendMessage(msg);
+      bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+      if (result.reply) {
+        appendMessage(result.reply);
+        bumpConversation(result.reply.conversation_id, result.reply.created_at, result.reply.body);
+      }
+      setConversations((prev) =>
+        prev.map((c) => (c.id === msg.conversation_id ? { ...c, window_expires_at: new Date(Date.now() + DAY_MS).toISOString() } : c)),
+      );
+      setSendError(result.sendError ?? result.error ?? null);
+      return;
+    }
     if (msg) {
       appendMessage(msg);
       bumpConversation(msg.conversation_id, msg.created_at, msg.body);
@@ -1675,6 +1700,7 @@ export function ChatView({
                   contactName={selected.contact.name}
                   demo={businessId === "demo"}
                   onSent={handleMediaResult}
+                  phoneHint={selected.channel?.coexistence ? WHATSAPP_PHONE_APP_HINT : null}
                 />
               ) : (
                 <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 text-[12.5px] text-danger lg:px-6">
@@ -1688,7 +1714,7 @@ export function ChatView({
             )}
             {simulateMode && !pendingProduct && (
               <div className="shrink-0 border-t border-accent bg-accent-tint px-4 py-1.5 lg:px-6 text-[12px] font-semibold text-brand-dark">
-                Modo prueba: estás escribiendo como si fueras el cliente, para ver cómo responde chekelin.
+                Modo prueba: escribes, grabas notas de voz y mandas fotos como si fueras el cliente, para ver cómo responde chekelin. No le llega nada a nadie.
               </div>
             )}
             {/* Draft preview — picking a product no longer sends it right
@@ -2072,7 +2098,7 @@ export function ChatView({
               />
               {/* WhatsApp-style: while the box is empty, phones get the camera
                   and the mic takes Send's place. The mic is always there; when
-                  nothing can be sent (window closed, Modo prueba) it is grey
+                  nothing can be sent (window closed) it is grey
                   and says why when tapped. */}
               {!draft.trim() && !pendingProduct && !composerMedia.hasPendingVisual && !composerMedia.recording && (
                 <div className="flex lg:hidden">{composerMedia.cameraButton}</div>

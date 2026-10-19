@@ -8,7 +8,7 @@ export async function getConversations(businessId: string, storeIds: string[]): 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("conversations")
-    .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type)")
+    .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type, coexistence)")
     .eq("business_id", businessId)
     .in("store_id", storeIds)
     .order("last_message_at", { ascending: false, nullsFirst: false });

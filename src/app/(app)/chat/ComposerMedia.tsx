@@ -35,7 +35,8 @@ import type { ChannelType, Message } from "@/lib/types";
 // The file is uploaded straight to storage, then /api/chat/media converts
 // and sends it (see src/lib/outgoingMedia.ts).
 
-export type MediaSendResult = { message?: Message; error?: string; sendError?: string };
+// `reply`: Modo prueba only, chekelin's answer to the (sample) customer's file.
+export type MediaSendResult = { message?: Message; reply?: Message; error?: string; sendError?: string };
 
 type Recording = { mode: "hold" | "tap"; startedAt: number };
 
@@ -50,6 +51,7 @@ export function useComposerMedia({
   caption = "",
   onCaptionUsed,
   demo = false,
+  asCustomer = false,
   replyToId = null,
   onSendStart,
   onResult,
@@ -67,6 +69,9 @@ export function useComposerMedia({
   // The public demo (/demo): nothing is uploaded or sent; the bubble only
   // shows in the screen.
   demo?: boolean;
+  // Modo prueba: what is recorded or attached arrives as the (sample)
+  // customer's message; nothing is sent to anyone.
+  asCustomer?: boolean;
   // "Responder": the message being quoted, sent along with the file.
   replyToId?: string | null;
   // Called as a send starts (Chat clears the reply bar).
@@ -150,7 +155,7 @@ export function useComposerMedia({
               id: crypto.randomUUID(),
               conversation_id: targetId,
               business_id: "demo",
-              direction: "out",
+              direction: asCustomer ? "in" : "out",
               body: outgoingBody(kind, extra.filename, extra.caption),
               // The demo has no storage: a photo shows from the phone itself.
               media_url: kind === "image" ? URL.createObjectURL(blob) : null,
@@ -161,12 +166,11 @@ export function useComposerMedia({
           });
           return;
         }
-        const prep = await prepareChatUpload(targetId, {
-          kind,
-          mime: blob.type,
-          size: blob.size,
-          filename: extra.filename,
-        });
+        const prep = await prepareChatUpload(
+          targetId,
+          { kind, mime: blob.type, size: blob.size, filename: extra.filename },
+          { asCustomer },
+        );
         if (prep.error || !prep.path || !prep.token) return onErrorRef.current(prep.error ?? "No se pudo enviar.");
         const { error } = await createClient()
           .storage.from("message-media")
@@ -175,7 +179,7 @@ export function useComposerMedia({
         const res = await fetch("/api/chat/media", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId: targetId, kind, path: prep.path, replyToId: quoted, ...extra }),
+          body: JSON.stringify({ conversationId: targetId, kind, path: prep.path, replyToId: quoted, asCustomer, ...extra }),
         });
         const result = (await res.json().catch(() => null)) as MediaSendResult | null;
         onResultRef.current(result ?? { error: "No se pudo enviar. Inténtalo de nuevo." });
@@ -185,7 +189,7 @@ export function useComposerMedia({
         setBusy(null);
       }
     },
-    [demo],
+    [demo, asCustomer],
   );
 
   // ---- Recording -----------------------------------------------------------

@@ -25,6 +25,7 @@ import { isOwnStorageUrl } from "@/lib/storageUrl";
 import { friendlyError } from "@/lib/dbErrors";
 import { locationSendPlan } from "@/lib/storeLocation";
 import { getStoreLocation, NO_STORE_LOCATION } from "@/lib/storeLocationServer";
+import { isLiveChannel, simulatedInboundUpdate, SIMULATE_ONLY_IN_SAMPLES } from "@/lib/modoPrueba";
 
 
 // The app reviewers' demo Negocio (businesses.is_demo, migration 0015) runs
@@ -289,15 +290,6 @@ export async function markConversationRead(conversationId: string): Promise<void
   });
 }
 
-// Modo prueba: a channel really connected to a customer's WhatsApp,
-// Instagram or Facebook (seeded sample chats have no credentials).
-function isLiveChannel(channel: { access_token_encrypted: string | null } | null | undefined): boolean {
-  return Boolean(channel?.access_token_encrypted);
-}
-
-const SIMULATE_ONLY_IN_SAMPLES =
-  "El modo prueba solo funciona en chats de ejemplo. Este chat es con un cliente real: escríbele normalmente.";
-
 // Demo/testing only (no real WhatsApp message involved): lets the founder
 // type as if they were the customer, so Chekelin's first-reply flow can be
 // shown end-to-end before a real WhatsApp number is connected. Only in
@@ -332,7 +324,8 @@ export async function simulateInboundMessage(
     .single();
   if (insertError || !inbound) return { error: friendlyError(insertError, "No se pudo guardar el mensaje.") };
 
-  await supabase.from("conversations").update({ last_message_at: inbound.created_at }).eq("id", conversationId);
+  // Like a real customer message: the reply window opens again.
+  await supabase.from("conversations").update(simulatedInboundUpdate(Date.now())).eq("id", conversationId);
 
   // Exactly what a real message triggers (chekelin, handoff, routing, phone
   // alerts), but nothing is sent to the customer. Admin client because
