@@ -88,7 +88,7 @@ export function buildDemoData(now: number) {
       fb_id: ch === "facebook" ? "fb.me/" + name.split(" ")[0].toLowerCase() : null,
       notes: i === 2 ? "Prefiere pagar por transferencia." : null,
     },
-    channel: { id: "ch1", type: ch, coexistence: ch === "whatsapp" },
+    channel: { id: "ch1", type: ch, coexistence: ch === "whatsapp", external_id: null },
     last_message_body: last,
     // "No leídos": María and Luis wrote and nobody has opened their chats.
     unread_count: i === 2 ? 2 : i === 5 ? 1 : 0,

@@ -436,3 +436,61 @@ describe("Instagram and Messenger: whole conversations", () => {
     expect(byExternal("i.echo")).toMatchObject({ direction: "out", source: "meta_app", body: "L 300" });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Reintentar: a failed send goes out again from the same bubble
+// ---------------------------------------------------------------------------
+
+describe("Reintentar a failed message", () => {
+  const metaDown = { status: 500, body: { error: { code: 1, message: "An unknown error occurred" } } };
+
+  it("a text that failed is sent again and its bubble turns into a normal sent message", async () => {
+    const { sendChatMessage, retryMessage } = await import("@/app/(app)/chat/actions");
+    await toWhatsApp(fromCustomer({ id: "w.r1", type: "text", text: { body: "¿precio?" } }));
+    const conversationId = byExternal("w.r1").conversation_id as string;
+    state.graphReplies.push(metaDown);
+    const first = await sendChatMessage(conversationId, "L 450", null, byExternal("w.r1").id as string);
+    expect(first.sendError).toBeTruthy();
+    const failedId = first.message!.id;
+    expect(messages().find((m) => m.id === failedId)!.status).toBe("failed");
+
+    const retried = await retryMessage(failedId);
+    expect(retried.error).toBeUndefined();
+    expect(retried.sendError).toBeUndefined();
+    expect(retried.message).toMatchObject({ id: failedId, status: "sent", error_reason: null });
+    // Same text, still quoting the customer's question.
+    expect(graphMessages().at(-1)).toMatchObject({ type: "text", text: { body: "L 450" }, context: { message_id: "w.r1" } });
+    const row = messages().find((m) => m.id === failedId)!;
+    expect(row).toMatchObject({ status: "sent", error_code: null });
+    expect(row.external_message_id).toBeTruthy();
+    expect(messages().filter((m) => m.direction === "out")).toHaveLength(1);
+  });
+
+  it("a voice note that failed is sent again as a voice note", async () => {
+    const { retryMessage } = await import("@/app/(app)/chat/actions");
+    await toWhatsApp(fromCustomer({ id: "w.r2", type: "text", text: { body: "mandame audio" } }));
+    const conversationId = byExternal("w.r2").conversation_id as string;
+    state.graphReplies.push({ status: 200, body: { id: "media-1" } }, metaDown);
+    const first = await sendFromComposer(conversationId, { kind: "voice", mime: "audio/webm" });
+    expect(first.sendError).toBeTruthy();
+
+    const retried = await retryMessage(first.message!.id as string);
+    expect(retried.message).toMatchObject({ status: "sent", media_kind: "voice" });
+    expect(graphMessages().at(-1)).toMatchObject({ type: "audio", audio: { voice: true } });
+  });
+
+  it("once the 24 h window closed, Reintentar explains it instead of calling Meta", async () => {
+    const { sendChatMessage, retryMessage } = await import("@/app/(app)/chat/actions");
+    await toWhatsApp(fromCustomer({ id: "w.r3", type: "text", text: { body: "hola" } }));
+    const conversation = rows("conversations").find((c) => c.channel_id === "ch-wa")!;
+    state.graphReplies.push(metaDown);
+    const first = await sendChatMessage(conversation.id as string, "hola!");
+    conversation.window_expires_at = new Date(Date.now() - HOUR).toISOString();
+    const calls = state.graph.length;
+
+    const retried = await retryMessage(first.message!.id);
+    expect(retried.error).toMatch(/plantilla/);
+    expect(state.graph).toHaveLength(calls);
+    expect(messages().find((m) => m.id === first.message!.id)!.status).toBe("failed");
+  });
+});
