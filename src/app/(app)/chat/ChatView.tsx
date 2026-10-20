@@ -822,6 +822,24 @@ export function ChatView({
 
     setDraft("");
 
+    if (simulateMode && businessId === "demo") {
+      // /demo has no account behind it: the "customer's" message only shows
+      // on screen (the server would have nothing to save it in).
+      const inbound: Message = {
+        id: crypto.randomUUID(),
+        conversation_id: selected.id,
+        business_id: "demo",
+        direction: "in",
+        body: text,
+        media_url: null,
+        status: "sent",
+        is_bot: false,
+        created_at: new Date().toISOString(),
+      };
+      handleMediaResult({ message: inbound });
+      return;
+    }
+
     if (simulateMode) {
       setBotTyping(true);
       try {
@@ -1393,7 +1411,10 @@ export function ChatView({
                   show chekelin's first-reply flow before WhatsApp is live. */}
               {sampleChat && (
               <button
-                onClick={() => setSimulateMode((v) => !v)}
+                onClick={() => {
+                  setSimulateMode((v) => !v);
+                  setSendError(null);
+                }}
                 title="Modo prueba: simular mensaje de cliente (sin WhatsApp real)"
                 aria-pressed={simulateMode}
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors lg:h-[30px] lg:w-[30px] ${
