@@ -57,7 +57,7 @@ cheKe's AI assistant that answers customers and sells on its own (photos, order,
 _Avoid_: Bot, chatbot
 
 **Lo que chekelin sabe**:
-A Tienda's short answers that chekelin uses to sell: Formas de pago, Envíos, Horario de entregas, Cambios y devoluciones, Otras preguntas frecuentes, how it addresses customers (tú, vos, usted), and the Tienda's Ubicación (address and Google Maps pin, sent from Chat). Edited by the Dueño or the Tienda's Gerente.
+A Tienda's short answers that chekelin uses to sell: Formas de pago, Envíos, Horario de entregas, Cambios y devoluciones, Otras preguntas frecuentes, how it addresses customers (tú, vos, usted), and the Tienda's Ubicación (address and Google Maps pin: chekelin gives the address and sends the map when a customer asks; people send it from Chat). Edited by the Dueño or the Tienda's Gerente.
 _Avoid_: Base de conocimiento, FAQ (as the page name)
 
 **Queja**:

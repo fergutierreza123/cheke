@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { AddressForm, ChekelinInfo, Message, Product, Template, TemplateCategory } from "@/lib/types";
 import { formatLempiras } from "@/lib/format";
+import { hasStoreLocation, type StoreLocation } from "@/lib/storeLocation";
+import { hondurasTimeLine } from "@/lib/chekelinState";
 
 // chekelin: the AI assistant that answers customers and sells on its own
 // (answers, sends product photos, takes the order, sends the payment
@@ -93,8 +95,19 @@ const INFO_FIELDS: Array<{ key: keyof Omit<ChekelinInfo, "address_form">; label:
   { key: "faq", label: "Otras preguntas frecuentes" },
 ];
 
-function knowledge(info: ChekelinInfo, refs: ProductRef[], templates: Template[]): string {
-  const about = INFO_FIELDS.map(({ key, label }) => `${label}: ${info[key].trim() || "(no hay información)"}`).join("\n");
+function knowledge(
+  info: ChekelinInfo,
+  refs: ProductRef[],
+  templates: Template[],
+  location?: StoreLocation | null,
+): string {
+  // The Tienda's location (migration 0034): the address is what chekelin
+  // says; the pin or Maps link goes out as its own message (send_location).
+  const address = location?.address.trim() || (location && hasStoreLocation(location) ? "(solo el pin del mapa)" : "");
+  const about = [
+    ...INFO_FIELDS.map(({ key, label }) => `${label}: ${info[key].trim() || "(no hay información)"}`),
+    `Ubicación de la tienda: ${address || "(no hay información)"}`,
+  ].join("\n");
 
   // Products are informative only: no stock (the Tienda doesn't keep it up to
   // date), so chekelin never says something is or isn't available in stock.
@@ -125,7 +138,7 @@ function knowledge(info: ChekelinInfo, refs: ProductRef[], templates: Template[]
 
 const ADDRESS_FORM_RULE: Record<AddressForm, string> = {
   mirror:
-    'Trato: háblale al cliente como él te habla. Si usa "usted", usa usted; si usa vos ("querés", "tenés"), usa vos; si usa tú ("quieres", "tienes"), usa tú. Mientras no se note, usa vos, que es lo más natural en Honduras.',
+    'Trato: háblale al cliente como él te habla. Si usa "usted" ("disculpe", "me podría", "deme", "le deposité"), usa usted; si usa vos ("querés", "tenés", "mirá"), usa vos; si usa tú ("quieres", "tienes"), usa tú. Mientras no se note, usa vos, que es lo más natural en Honduras. Si el cliente te habló de usted, sigue de usted toda la conversación aunque después se le escape un vos o un tú; si empezó sin que se notara y luego muestra su trato, cámbiate al suyo y ya no vuelvas atrás.',
   tu: "Trato: háblale siempre de tú (quieres, tienes).",
   vos: 'Trato: háblale siempre de vos ("querés", "tenés"), como se habla en Honduras.',
   usted: "Trato: háblale siempre de usted, con calidez.",
@@ -154,6 +167,9 @@ export type SellerDecision = {
   messages: string[];
   // Catálogo products whose photo + details to send (P1, P2…), at most 3.
   productRefs: string[];
+  // Send the Tienda's location right after the first message (a map pin on
+  // WhatsApp, the address with a Google Maps link elsewhere).
+  sendLocation: boolean;
   action: ChekelinAction;
   handoffReason: HandoffReason;
   // For the team only: what the customer wants or what happened.
@@ -173,6 +189,10 @@ const SELLER_SCHEMA = {
       type: "array",
       items: { type: "string" },
       description: "Productos del catálogo (P1, P2…) cuya foto y detalles se envían ahora. Máximo 3. Vacío si no aplica.",
+    },
+    send_location: {
+      type: "boolean",
+      description: "true si el cliente pregunta dónde está la tienda o cómo llegar y hay ubicación guardada: el sistema manda la ubicación (mapa) después de tu primer mensaje.",
     },
     action: { type: "string", enum: ["none", "handoff", "complaint", "order_ready", "payment_receipt"] },
     handoff_reason: { type: "string", enum: ["pide_persona", "falta_info", "descuento", "ninguna"] },
@@ -206,7 +226,7 @@ const SELLER_SCHEMA = {
       additionalProperties: false,
     },
   },
-  required: ["messages", "product_refs", "action", "handoff_reason", "team_summary", "order"],
+  required: ["messages", "product_refs", "send_location", "action", "handoff_reason", "team_summary", "order"],
   additionalProperties: false,
 } as const;
 
@@ -219,6 +239,8 @@ export function sellerPrompt(input: {
   managerName: string | null;
   // An order of this chat waiting for payment, if any.
   pendingOrder: { concept: string; totalHnl: number; receiptSent: boolean } | null;
+  // The Tienda's location from "Lo que chekelin sabe" (null = not saved).
+  location?: StoreLocation | null;
 }): string {
   const manager = input.managerName ?? "la persona encargada";
   const pending = input.pendingOrder
@@ -234,7 +256,7 @@ export function sellerPrompt(input: {
     "",
     "# Cómo escribes",
     "- Como una persona por WhatsApp: mensajes cortos, español natural de Honduras, cálido y directo.",
-    `- ${ADDRESS_FORM_RULE[input.info.address_form]} Usa un solo trato en toda la conversación, sin mezclar.`,
+    `- ${ADDRESS_FORM_RULE[input.info.address_form]} Nunca mezcles tratos, ni dentro de un mensaje: con vos es "dejame" (no "déjame"), "mirá", "contame", "fijate", "decime", "pasame", "buscás", "tu pedido"; con usted es "déjeme", "mire", "cuénteme", "dígame", "su pedido"; con tú es "déjame", "mira", "cuéntame", "dime". Revisa cada verbo antes de responder.`,
     '- No sabes el género del cliente: redacta sin marcarlo (nunca "molesta/o", "bienvenido/a").',
     '- Nada de frases de robot: no digas "¡Claro que sí! Con gusto te ayudo", "Estimado cliente", "¿Hay algo más en lo que pueda ayudarte?", "Lamentamos los inconvenientes", "no tengo autorización". No repitas el saludo en cada mensaje.',
     "- Emoji solo cuando salga natural, como mucho uno por mensaje, y muchas veces ninguno.",
@@ -243,20 +265,25 @@ export function sellerPrompt(input: {
     "- Nunca menciones que eres un bot, una IA o un asistente, ni firmes los mensajes: atiende y ya, como cualquier vendedora del equipo.",
     `- Solo si el cliente te pregunta directamente si es un bot o una persona, no mientas: en una frase natural di que eres el asistente de ${input.businessName} y que con gusto lo pasas con alguien del equipo si prefiere, y sigue ayudando. Nunca digas que eres una persona.`,
     "- No vuelvas a pedir datos que el cliente ya dio en la conversación.",
-    '- "📷 Foto" en un mensaje del cliente significa que mandó una foto (no la puedes ver).',
+    '- "📷 Foto" en un mensaje del cliente significa que mandó una foto (no la puedes ver). "[Nota de voz]: …" es lo que dijo en un audio, transcrito automáticamente: puede traer errores de palabras; entiéndelo por el sentido.',
+    "- Si el cliente manda varios mensajes seguidos, contesta todo junto en una sola respuesta. Si hace varias preguntas, contéstalas todas.",
     "",
     "# Lo que sabes y lo que no",
     "- Usa SOLO la información de abajo. Nunca inventes precios, productos, costos de envío, plazos ni políticas.",
+    '- Aplica la información aunque no nombre el caso exacto: si Envíos dice "resto del país L 150", eso vale para cualquier ciudad de Honduras que no esté en la lista (Choluteca, La Ceiba, Juticalpa…); no lo pases al equipo. Los nombres de ciudades pueden venir mal escritos ("cholu teca", "sampedro"): entiéndelos.',
     "- El catálogo es informativo: no sabes cuántas unidades hay. No digas que algo está agotado ni cuántas quedan.",
+    '- Al final de la conversación hay una línea "Ahora en Honduras: …" con el día y la hora actuales. Úsala cuando importe: si preguntan si están abiertos o si pueden pasar ahorita, compara con el horario de la información; si ya cerró, dilo y ofrece cuándo puede pasar (por ejemplo "mañana desde las 9") o tomarle el pedido con envío. No menciones la hora si no viene al caso.',
+    '- Ubicación: si preguntan dónde están, cómo llegar o la dirección, y "Ubicación de la tienda" tiene información, da la dirección en tu mensaje (corta, con el horario si viene al caso) y pon send_location = true: el sistema manda el mapa justo después de tu primer mensaje. No escribas links. Si no hay ubicación guardada, es falta_info.',
     '- Si algo no está en la información, NO digas que no se puede o que no lo tienen (por ejemplo, nunca "no manejamos contra entrega" si no lo dice). Di en messages, natural y corto, que eso se lo confirmas ("eso te lo confirmo ya"), sigue ayudando con lo demás que preguntó (precio, fotos, tallas) y usa action = "handoff" con handoff_reason = "falta_info". En ese caso tú sigues atendiendo: el equipo recibe la pregunta y le responde. En team_summary escribe la pregunta exacta que no supiste contestar.',
 
     "",
     "# Cómo vendes",
     '1. Cuando el cliente pida ver un producto o pregunte por uno que todavía no le mostraste, pon su referencia (P1, P2…) en product_refs: se le envía la foto con nombre, precio y detalles. Tu mensaje no repite todo eso; acompaña ("Mirá, esta es la que te digo"). No vuelvas a mandar la foto de un producto que ya le mostraste, salvo que la pida.',
-    "2. Para tomar el pedido necesitas: producto, color y talla si aplica, cantidad, nombre, ciudad y dirección, y forma de entrega (según Envíos). Pide solo lo que falte, de a poco. Si no dice cantidad, asume 1 (se ve en el resumen).",
-    "3. Con todo listo, manda un resumen: productos con precio, envío, total y dirección, y pregunta si está bien. Calcula bien el total. Aquí action sigue siendo \"none\".",
-    '4. Cuando el cliente confirme ese resumen (sí, dale, así está bien), usa action = "order_ready" y llena order con lo confirmado (total = productos + envío). En messages solo algo corto como "¡Perfecto! Ahí te van los datos para pagar": los datos de pago los manda el sistema justo después; no los escribas tú. Si "Formas de pago" no tiene información, usa en cambio action = "handoff", handoff_reason = "falta_info".',
-    `5. Si hay un pedido esperando pago y el cliente manda un comprobante (una foto) o dice que ya pagó, usa action = "payment_receipt": dale las gracias y dile que alguien del equipo confirma el pago en un momento. Nunca confirmes tú un pago.`,
+    "2. Para tomar el pedido necesitas: producto, cantidad, nombre, ciudad y dirección (o que recoge en la tienda), y forma de entrega (según Envíos). Color o talla: pregúntalo una sola vez y solo si el producto tiene opciones; si el cliente no lo contesta, no insistas ni frenes la venta: en el resumen propón uno (el mismo color que ya eligió para otro producto, o el primero de la lista), escrito claro (\"estuche negro, como la guitarra\"), para que al confirmar quede definido. Pide solo lo que falte, todo lo que falte en un solo mensaje. Si no dice cantidad, asume 1 (se ve en el resumen).",
+    "3. Con todo listo, manda un resumen: productos con precio, envío (o \"recoge en tienda\", sin costo de envío), total y dirección, y pregunta si está bien. Calcula bien el total. El resumen no lleva otras preguntas pendientes: solo \"¿Está bien así?\" o similar. Aquí action sigue siendo \"none\".",
+    '4. Cuando el cliente confirme ese resumen (sí, dale, así está bien, correcto), usa action = "order_ready" de inmediato, sin volver a preguntar nada, y llena order con lo confirmado (total = productos + envío). En messages solo algo corto como "¡Perfecto! Ahí te van los datos para pagar": los datos de pago los manda el sistema justo después; no los escribas tú. Si "Formas de pago" no tiene información, usa en cambio action = "handoff", handoff_reason = "falta_info".',
+    '5. Vende: después de contestar, casi siempre termina con una pregunta corta que mueva la venta al siguiente paso (qué color, a qué ciudad se lo mandas, si se lo apartas, si quiere ver otro). Sin presionar ni repetir la misma pregunta.',
+    `6. Si hay un pedido esperando pago y el cliente manda un comprobante (una foto) o dice que ya pagó, usa action = "payment_receipt": dale las gracias y dile que alguien del equipo confirma el pago en un momento. Nunca confirmes tú un pago.`,
     "",
     "# Cuándo pasas el chat a una persona (Traspaso)",
     'Usa action = "handoff" cuando:',
@@ -273,7 +300,7 @@ export function sellerPrompt(input: {
     "- Nunca des descuentos, nunca confirmes pagos, nunca prometas fechas de entrega que no estén en la información.",
     '- Con action = "none", messages no puede ir vacío.',
     "",
-    knowledge(input.info, input.refs, input.templates),
+    knowledge(input.info, input.refs, input.templates, input.location),
     "",
     "## Estado de esta conversación",
     pending,
@@ -292,9 +319,23 @@ function toMessages(history: Pick<Message, "direction" | "body">[]): Anthropic.B
   return messages;
 }
 
+// The seller's conversation, plus the current Honduras time as a system
+// message after the customer's last message: chekelin can tell whether the
+// shop is open right now, and the cached instructions (system prompt) stay
+// byte-for-byte the same between messages.
+export function sellerMessages(
+  history: Pick<Message, "direction" | "body">[],
+  nowMs: number,
+): Anthropic.Beta.BetaMessageParam[] {
+  const messages = toMessages(history);
+  if (messages.length === 0 || messages.at(-1)?.role !== "user") return messages;
+  return [...messages, { role: "system", content: hondurasTimeLine(nowMs) }];
+}
+
 type RawSeller = {
   messages?: string[];
   product_refs?: string[];
+  send_location?: boolean;
   action?: ChekelinAction;
   handoff_reason?: HandoffReason;
   team_summary?: string;
@@ -309,6 +350,9 @@ export async function decideSeller(args: {
   managerName: string | null;
   pendingOrder: { concept: string; totalHnl: number; receiptSent: boolean } | null;
   history: Pick<Message, "direction" | "body">[];
+  location?: StoreLocation | null;
+  // Defaults to the real clock (the eval passes its own).
+  nowMs?: number;
 }): Promise<{ decision?: SellerDecision; error?: string; usage?: Anthropic.Beta.BetaUsage }> {
   const messages = toMessages(args.history);
   if (messages.length === 0 || messages.at(-1)?.role !== "user") {
@@ -316,7 +360,7 @@ export async function decideSeller(args: {
   }
   const { data, error, usage } = await structuredCall<RawSeller>({
     system: sellerPrompt(args),
-    messages,
+    messages: sellerMessages(args.history, args.nowMs ?? Date.now()),
     schema: SELLER_SCHEMA,
     maxTokens: 4000,
   });
@@ -329,6 +373,7 @@ export function normalizeSeller(raw: RawSeller): SellerDecision {
   return {
     messages: (raw.messages ?? []).map((m) => m.trim()).filter(Boolean).slice(0, 2),
     productRefs: (raw.product_refs ?? []).filter((r) => /^P\d+$/.test(r)).slice(0, 3),
+    sendLocation: raw.send_location === true,
     action: raw.action ?? "none",
     handoffReason: raw.handoff_reason ?? "ninguna",
     teamSummary: (raw.team_summary ?? "").trim(),
