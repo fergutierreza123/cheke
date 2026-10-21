@@ -34,7 +34,7 @@ export default async function DemoScreen({
   const d = buildDemoData(nowMs);
 
   const views: Record<string, React.ReactNode> = {
-    chat: <ChatView businessId="demo" storeIds={d.business.scopeStoreIds} conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} startInThread={Boolean(c)} storeLocations={{ [d.business.scopeStoreIds[0]]: { name: d.storeName, location: d.storeLocation } }} />,
+    chat: <ChatView businessId="demo" storeIds={d.business.scopeStoreIds} conversations={d.conversations} products={d.products} templates={d.templates} initialSelectedId="conv-1" initialMessages={d.messages} initialNotes={d.notes} startInThread={Boolean(c)} storeLocations={{ [d.business.scopeStoreIds[0]]: { name: d.storeName, location: d.storeLocation } }} />,
     chekeo: <ChekeoView conversations={d.conversations} demo />,
     chekelin: (
       <ChekelinInfoView
