@@ -5,6 +5,7 @@
 | `npm test` | `tests/unit`: the logic in `src/lib` and the proxy (message parsing, payment links, Respuestas rápidas, plans, encryption, webhook signatures, chekelin's decisions, reply windows…). Supabase and `fetch` are faked. | nothing |
 | `npm run test:db` | `tests/db`: applies every migration in `supabase/migrations`, in order, to an in-memory Postgres (PGlite), then checks Row Level Security between Negocios, Tiendas and roles (Dueño, Gerente, Agente). | nothing (no Docker, no Supabase project) |
 | `npm run test:watch` | Re-runs unit tests on every save. | |
+| `npm run eval:chekelin` | `tests/eval`: simulated customers talk to chekelin through the REAL model (decideSeller → planFor → what goes out → chekeo stage), scored by fixed checks and a strict LLM judge. Transcripts and the scorecard go to `tests/eval/out/` (git-ignored). Costs money; never part of `npm test`. Options: `EVAL_ONLY=precio,foto`, `EVAL_REPEAT=2`, `EVAL_ROUND=name`, `EVAL_ENV_FILE=path/.env.local`. | `ANTHROPIC_API_KEY` (env or `.env.local`) |
 
 GitHub runs lint, the TypeScript check and both test commands on every pull
 request once `docs/ci/ci.yml` is moved to `.github/workflows/ci.yml` (see the

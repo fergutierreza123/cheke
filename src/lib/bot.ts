@@ -32,11 +32,13 @@ import {
   waitNoticeLine,
 } from "@/lib/chekelinState";
 import { buildPaymentMessage, orderConcept, type OrderItem } from "@/lib/payments";
-import { productMessageText } from "@/lib/format";
+import { formatLempiras, productMessageText } from "@/lib/format";
 import { recordPaymentRequest } from "@/lib/orders";
 import { textForChekelin } from "@/lib/transcription";
 import { waitForVoiceTranscription } from "@/lib/voiceTranscription";
-import { EMPTY_CHEKELIN_INFO, type ChekelinInfo, type Message, type Template } from "@/lib/types";
+import { EMPTY_CHEKELIN_INFO, type ChannelType, type ChekelinInfo, type Message, type Template } from "@/lib/types";
+import { hasStoreLocation, locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
+import { getStoreLocation } from "@/lib/storeLocationServer";
 
 // chekelin sells on its own (answers, photos, order, payment details,
 // receipt), hands the chat to a person when it should (Traspaso), handles
@@ -56,7 +58,7 @@ type Admin = SupabaseClient;
 // "About 15 chekelin messages without reaching an order": then a person takes it.
 const SALE_CAP = 15;
 
-const CONVERSATION_COLUMNS = `id, business_id, store_id, contact_id, stage, bot_enabled, handed_off_at, chekelin_replies, chekelin_order_at, complaint_open_at, assigned_to, window_expires_at, last_inbound_at, awaiting_since, contact:contacts(name, ${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(chekelin_off_until), business:businesses(name, plan, is_demo)`;
+const CONVERSATION_COLUMNS = `id, business_id, store_id, contact_id, stage, bot_enabled, handed_off_at, chekelin_replies, chekelin_order_at, complaint_open_at, assigned_to, window_expires_at, last_inbound_at, awaiting_since, contact:contacts(name, ${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}), store:stores(name, chekelin_off_until), business:businesses(name, plan, is_demo)`;
 
 export type LoadedConversation = {
   id: string;
@@ -77,6 +79,7 @@ export type LoadedConversation = {
   contact: SendContact | null;
   channel: SendChannel | null;
   storeOffUntil: string | null;
+  storeName: string;
   businessName: string;
   plan: string;
   isDemo: boolean;
@@ -90,7 +93,7 @@ async function loadConversation(supabase: Admin, conversationId: string): Promis
   const { data } = await supabase.from("conversations").select(CONVERSATION_COLUMNS).eq("id", conversationId).maybeSingle();
   if (!data) return null;
   const contact = one(data.contact as unknown) as (SendContact & { name: string }) | null;
-  const store = one(data.store as unknown) as { chekelin_off_until: string | null } | null;
+  const store = one(data.store as unknown) as { name?: string; chekelin_off_until: string | null } | null;
   const business = one(data.business as unknown) as { name: string; plan: string; is_demo?: boolean } | null;
   return {
     id: data.id,
@@ -111,6 +114,7 @@ async function loadConversation(supabase: Admin, conversationId: string): Promis
     contact,
     channel: one(data.channel as unknown) as SendChannel | null,
     storeOffUntil: store?.chekelin_off_until ?? null,
+    storeName: store?.name ?? "",
     businessName: business?.name ?? "el negocio",
     plan: business?.plan ?? "",
     isDemo: business?.is_demo === true,
@@ -157,6 +161,8 @@ async function sendAutomated(
   text: string,
   sendExternally: boolean,
   mediaUrl?: string | null,
+  // The Tienda's map pin (WhatsApp); `text` is its address and Maps link.
+  location?: Extract<OutboxItem, { kind: "location" }>["location"],
 ): Promise<Message | null> {
   const { data: message, error } = await supabase
     .from("messages")
@@ -168,6 +174,18 @@ async function sendAutomated(
       media_url: mediaUrl ?? null,
       is_bot: true,
       status: "sent",
+      // Shown in Chat as the same map card as "Ubicación" (sendStoreLocation).
+      ...(location
+        ? {
+            media_kind: "location",
+            media_info: {
+              latitude: location.latitude,
+              longitude: location.longitude,
+              ...(location.name ? { place: location.name } : {}),
+              ...(location.address ? { address: location.address } : {}),
+            },
+          }
+        : {}),
     })
     .select("*")
     .single();
@@ -184,6 +202,7 @@ async function sendAutomated(
       windowExpiresAt: conv.windowExpiresAt,
       text,
       mediaUrl,
+      location,
       author: "bot",
     });
     if (result.error) {
@@ -230,12 +249,14 @@ export type Knowledge = {
   refs: ProductRef[];
   templates: Template[];
   pendingOrder: PendingOrder | null;
+  // The Tienda's location ("Lo que chekelin sabe", migration 0034).
+  location: StoreLocation | null;
 };
 
 // What chekelin knows: "Lo que chekelin sabe" of the Tienda, its Catálogo,
 // the Negocio's Plantillas, and an order of this chat waiting for payment.
 async function loadKnowledge(supabase: Admin, conv: LoadedConversation): Promise<Knowledge> {
-  const [{ data: products }, { data: templates }, { data: info }, { data: orders }] = await Promise.all([
+  const [{ data: products }, { data: templates }, { data: info }, { data: orders }, location] = await Promise.all([
     supabase.from("products").select("*").eq("store_id", conv.storeId).eq("visible", true).order("created_at"),
     supabase.from("templates").select("*").eq("business_id", conv.businessId),
     supabase
@@ -250,6 +271,8 @@ async function loadKnowledge(supabase: Admin, conv: LoadedConversation): Promise
       .eq("status", "awaiting_payment")
       .order("created_at", { ascending: false })
       .limit(1),
+    // Its own query: before migration 0034 the columns don't exist (null).
+    getStoreLocation(supabase, conv.storeId),
   ]);
   const order = orders?.[0];
   return {
@@ -264,6 +287,7 @@ async function loadKnowledge(supabase: Admin, conv: LoadedConversation): Promise
           receiptSent: Boolean(order.receipt_at),
         }
       : null,
+    location: location && hasStoreLocation(location) ? location : null,
   };
 }
 
@@ -447,6 +471,37 @@ export function planFor(decision: SellerDecision, conv: LoadedConversation, know
   }
 }
 
+// What chekelin sends for one decision, in order: its first message, the
+// product photos, the Tienda's location, then its second message. The
+// handoff line and the payment details come after, from the plan.
+export type OutboxItem =
+  | { kind: "text"; text: string }
+  | { kind: "product"; text: string; mediaUrl: string | null }
+  | { kind: "location"; text: string; location: NonNullable<ReturnType<typeof locationSendPlan>>["location"] };
+
+export function chekelinOutbox(
+  decision: SellerDecision,
+  plan: Plan,
+  know: Knowledge,
+  ctx: { channelType: ChannelType | null | undefined; storeName: string },
+): OutboxItem[] {
+  const texts = plan.kind === "handoff" && plan.dropMessages ? [] : decision.messages;
+  // Photos and the map only while chekelin keeps selling.
+  const selling = plan.kind === "reply" || plan.kind === "ask_team";
+  const out: OutboxItem[] = [];
+  if (texts[0]) out.push({ kind: "text", text: texts[0] });
+  if (selling) {
+    for (const ref of decision.productRefs) {
+      const product = know.refs.find((x) => x.ref === ref)?.product;
+      if (product) out.push({ kind: "product", text: productMessageText(product), mediaUrl: product.image_url ?? null });
+    }
+    const where = decision.sendLocation && know.location ? locationSendPlan(ctx.channelType, know.location, ctx.storeName) : null;
+    if (where) out.push({ kind: "location", text: where.text, location: where.location });
+  }
+  if (texts[1]) out.push({ kind: "text", text: texts[1] });
+  return out;
+}
+
 async function runSeller(
   supabase: Admin,
   conv: LoadedConversation,
@@ -471,13 +526,14 @@ async function runSeller(
     templates: know.templates,
     managerName,
     pendingOrder: know.pendingOrder,
+    location: know.location,
     history,
   });
   if (!decision) return { error };
 
   const plan = planFor(decision, conv, know);
-  const texts = plan.kind === "handoff" && plan.dropMessages ? [] : decision.messages;
-  const products = plan.kind === "reply" || plan.kind === "ask_team" ? decision.productRefs.map((r) => know.refs.find((x) => x.ref === r)?.product).filter((p) => p !== undefined) : [];
+  const outbox = chekelinOutbox(decision, plan, know, { channelType: conv.channel?.type, storeName: conv.storeName || conv.businessName });
+  const texts = outbox.filter((o) => o.kind === "text").map((o) => o.text);
 
   // Like a person: "escribiendo…", then a pause that grows with the reply.
   const live = sendExternally && !conv.isDemo;
@@ -502,21 +558,21 @@ async function runSeller(
   }
 
   const sent: Message[] = [];
-  const say = async (text: string, mediaUrl?: string | null) => {
-    const message = await sendAutomated(supabase, now, text, sendExternally, mediaUrl);
+  const say = async (text: string, mediaUrl?: string | null, location?: Extract<OutboxItem, { kind: "location" }>["location"]) => {
+    const message = await sendAutomated(supabase, now, text, sendExternally, mediaUrl, location);
     if (message) sent.push(message);
   };
 
-  if (texts[0]) await say(texts[0]);
-  // Product photos with name, price and details (same text as "Enviar producto").
-  for (const product of products) {
-    if (product.image_url) await say(productMessageText(product), product.image_url);
-    else await say(productMessageText(product));
-  }
-  if (texts[1]) {
-    await typing();
-    await sleep(secondMessageDelayMs(texts[1]));
-    await say(texts[1]);
+  // chekelin's words, the product photos (same text as "Enviar producto"),
+  // the Tienda's location, then its second message after a short pause.
+  for (const [i, item] of outbox.entries()) {
+    if (item.kind === "text" && i > 0) {
+      await typing();
+      await sleep(secondMessageDelayMs(item.text));
+    }
+    if (item.kind === "text") await say(item.text);
+    else if (item.kind === "product") await say(item.text, item.mediaUrl);
+    else await say(item.text, null, item.location);
   }
 
   switch (plan.kind) {
@@ -548,11 +604,11 @@ async function runSeller(
   }
 
   if (plan.kind === "reply" || plan.kind === "ask_team") {
-    const stage = stageAfterChekelin(now.stage, { messages: texts, productsSent: products.length });
+    const stage = stageAfterChekelin(now.stage, { messages: texts, productsSent: outbox.filter((o) => o.kind === "product").length });
     if (stage) await supabase.from("conversations").update({ stage }).eq("id", now.id);
   }
 
-  await chekelinSpoke(supabase, now, sent.filter((m) => !m.media_url).length);
+  await chekelinSpoke(supabase, now, sent.filter((m) => !m.media_url && !m.media_kind).length);
   // Nobody is interrupted while chekelin handles it, except Dueños with
   // "avisarme de todo".
   await notifyConversation(
@@ -649,7 +705,7 @@ async function receiptReceived(supabase: Admin, conv: LoadedConversation, orderI
     .eq("id", orderId)
     .select("total_hnl")
     .maybeSingle();
-  const total = order ? `L ${Number(order.total_hnl).toLocaleString("es-HN")}` : "";
+  const total = order ? formatLempiras(Number(order.total_hnl)) : "";
 
   await supabase.from("conversation_notes").insert({
     business_id: conv.businessId,

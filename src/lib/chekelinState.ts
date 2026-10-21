@@ -27,6 +27,21 @@ export function chekelinOffUntil(duration: ChekelinOffDuration, nowMs: number): 
   return new Date(tomorrow7).toISOString();
 }
 
+const WEEKDAYS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+// What chekelin knows about "now" (is the shop open right now? can I pick it
+// up today?): "Ahora en Honduras: martes 20 de octubre, 9:40 p. m.". Built by
+// hand so it never depends on the server's locale data.
+export function hondurasTimeLine(nowMs: number): string {
+  const local = new Date(nowMs + HONDURAS_OFFSET_MS);
+  const hours = local.getUTCHours();
+  const minutes = String(local.getUTCMinutes()).padStart(2, "0");
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const day = `${WEEKDAYS[local.getUTCDay()]} ${local.getUTCDate()} de ${MONTHS[local.getUTCMonth()]}`;
+  return `Ahora en Honduras: ${day}, ${hour12}:${minutes} ${hours < 12 ? "a. m." : "p. m."}`;
+}
+
 export function isChekelinOff(offUntil: string | null | undefined, nowMs: number): boolean {
   if (!offUntil) return false;
   const until = new Date(offUntil).getTime();

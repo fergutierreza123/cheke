@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 // tested here never touches them.
 vi.mock("@/lib/push", () => ({ notifyConversation: vi.fn(), sendPushToPeople: vi.fn() }));
 
-import { HANDOFF_REASON_LABEL, planFor, type Knowledge, type LoadedConversation } from "@/lib/bot";
-import { normalizeSeller, type SellerDecision } from "@/lib/ai";
+import { chekelinOutbox, HANDOFF_REASON_LABEL, planFor, type Knowledge, type LoadedConversation } from "@/lib/bot";
+import { normalizeSeller, sellerMessages, sellerPrompt, type SellerDecision } from "@/lib/ai";
 import {
   CHEKELIN_OFF_FOREVER,
   chekelinChatState,
@@ -13,6 +13,7 @@ import {
   chekelinOffUntil,
   firstNameOf,
   handoffLine,
+  hondurasTimeLine,
   humanDelayMs,
   isChekelinOff,
   secondMessageDelayMs,
@@ -20,7 +21,7 @@ import {
   waitNoticeLine,
 } from "@/lib/chekelinState";
 import { DEFAULT_NAV_ITEMS } from "@/components/Sidebar";
-import { EMPTY_CHEKELIN_INFO } from "@/lib/types";
+import { EMPTY_CHEKELIN_INFO, type Product } from "@/lib/types";
 
 const NOW = Date.parse("2026-10-16T20:00:00.000Z"); // 2:00 p. m. in Honduras
 
@@ -94,6 +95,11 @@ describe("normalizeSeller", () => {
     expect(d.order.items).toEqual([]);
     expect(d.order.shipping_hnl).toBe(50);
     expect(d.order.total_hnl).toBe(0);
+    expect(d.sendLocation).toBe(false);
+  });
+
+  it("reads whether to send the Tienda's location", () => {
+    expect(normalizeSeller({ send_location: true } as never).sendLocation).toBe(true);
   });
 });
 
@@ -104,6 +110,7 @@ describe("planFor (what chekelin does with its decision)", () => {
     refs: [],
     templates: [],
     pendingOrder: null,
+    location: null,
   };
   const decision = (d: Partial<SellerDecision>): SellerDecision => ({
     ...normalizeSeller({} as never),
@@ -174,6 +181,56 @@ describe("planFor (what chekelin does with its decision)", () => {
   });
 });
 
+describe("chekelinOutbox (what goes out, in order)", () => {
+  const guitar = { id: "p1", name: "Guitarra", price_hnl: 4500, description: null, image_url: "https://x/g.jpg", visible: true } as Product;
+  const strings = { id: "p2", name: "Cuerdas", price_hnl: 350, description: null, image_url: null, visible: true } as Product;
+  const pin = { address: "Col. Palmira, Tegucigalpa", mapsUrl: "", latitude: 14.09, longitude: -87.18 };
+  const know: Knowledge = {
+    info: { ...EMPTY_CHEKELIN_INFO, payment_methods: "BAC 123" },
+    refs: [
+      { ref: "P1", product: guitar },
+      { ref: "P2", product: strings },
+    ],
+    templates: [],
+    pendingOrder: null,
+    location: pin,
+  };
+  const ctx = { channelType: "whatsapp" as const, storeName: "Tienda Luna" };
+  const decision = (d: Partial<SellerDecision>): SellerDecision => ({ ...normalizeSeller({} as never), ...d });
+
+  it("sends the first message, the product photos, the location, then the second message", () => {
+    const d = decision({ messages: ["Estamos en col. Palmira", "¿Te la aparto?"], productRefs: ["P1", "P2"], sendLocation: true });
+    const out = chekelinOutbox(d, { kind: "reply" }, know, ctx);
+    expect(out.map((o) => o.kind)).toEqual(["text", "product", "product", "location", "text"]);
+    expect(out[1]).toMatchObject({ kind: "product", text: "Guitarra — L 4,500", mediaUrl: "https://x/g.jpg" });
+    expect(out[2]).toMatchObject({ text: "Cuerdas — L 350", mediaUrl: null });
+    // WhatsApp gets a map pin with the Tienda's name and address.
+    expect(out[3]).toMatchObject({
+      kind: "location",
+      location: { latitude: 14.09, longitude: -87.18, name: "Tienda Luna", address: "Col. Palmira, Tegucigalpa" },
+    });
+  });
+
+  it("sends the location as text with a Maps link where there is no map message", () => {
+    const d = decision({ messages: ["Estamos en col. Palmira"], sendLocation: true });
+    const [, location] = chekelinOutbox(d, { kind: "reply" }, know, { ...ctx, channelType: "instagram" });
+    expect(location).toMatchObject({ kind: "location", location: null });
+    expect(location.text).toContain("https://www.google.com/maps/search/");
+  });
+
+  it("never sends a location that isn't saved", () => {
+    const d = decision({ messages: ["Te confirmo la dirección"], sendLocation: true });
+    expect(chekelinOutbox(d, { kind: "reply" }, { ...know, location: null }, ctx).map((o) => o.kind)).toEqual(["text"]);
+  });
+
+  it("sends only the words on a Queja, an order or a handoff, and nothing when the plan drops them", () => {
+    const d = decision({ messages: ["Lo siento mucho"], productRefs: ["P1"], sendLocation: true });
+    expect(chekelinOutbox(d, { kind: "complaint" }, know, ctx).map((o) => o.kind)).toEqual(["text"]);
+    const drop = { kind: "handoff" as const, reason: "x", lineKind: "default" as const, dropMessages: true };
+    expect(chekelinOutbox(d, drop, know, ctx)).toEqual([]);
+  });
+});
+
 describe("stageAfterChekelin (chekeo moves on its own)", () => {
   const reply = (messages: string[], productsSent = 0) => ({ messages, productsSent });
 
@@ -200,6 +257,52 @@ describe("stageAfterChekelin (chekeo moves on its own)", () => {
 
   it("a phone number or a time isn't a price", () => {
     expect(stageAfterChekelin("consulta", reply(["Llamanos al 9988-7766, abrimos a las 9"]))).toBeNull();
+  });
+});
+
+describe("sellerPrompt (what chekelin knows)", () => {
+  const base = {
+    businessName: "Tienda Luna",
+    info: EMPTY_CHEKELIN_INFO,
+    refs: [],
+    templates: [],
+    managerName: "Sofía",
+    pendingOrder: null,
+  };
+
+  it("knows the Tienda's address, and that the system can send the map", () => {
+    const prompt = sellerPrompt({
+      ...base,
+      location: { address: "Col. Palmira, frente al parque, Tegucigalpa", mapsUrl: "", latitude: 14.09, longitude: -87.18 },
+    });
+    expect(prompt).toContain("Ubicación de la tienda: Col. Palmira, frente al parque, Tegucigalpa");
+  });
+
+  it("says when the location isn't saved, so it never makes one up", () => {
+    expect(sellerPrompt(base)).toContain("Ubicación de la tienda: (no hay información)");
+  });
+});
+
+describe("the time chekelin sees", () => {
+  it("says the day and time in Honduras", () => {
+    // 2026-10-21 03:40 UTC = Tuesday 20 October, 9:40 p. m. in Honduras.
+    expect(hondurasTimeLine(Date.parse("2026-10-21T03:40:00Z"))).toBe("Ahora en Honduras: martes 20 de octubre, 9:40 p. m.");
+    expect(hondurasTimeLine(Date.parse("2026-10-20T15:05:00Z"))).toBe("Ahora en Honduras: martes 20 de octubre, 9:05 a. m.");
+  });
+
+  it("goes after the customer's last message, never inside the cached instructions", () => {
+    const nowMs = Date.parse("2026-10-21T03:40:00Z");
+    const messages = sellerMessages(
+      [
+        { direction: "out", body: "Hola" },
+        { direction: "in", body: "¿están abiertos?" },
+      ],
+      nowMs,
+    );
+    expect(messages).toEqual([
+      { role: "user", content: "¿están abiertos?" },
+      { role: "system", content: "Ahora en Honduras: martes 20 de octubre, 9:40 p. m." },
+    ]);
   });
 });
 
