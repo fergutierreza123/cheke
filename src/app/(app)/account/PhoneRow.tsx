@@ -80,10 +80,16 @@ export function PhoneRow({ phone, demo = false }: { phone: string; demo?: boolea
       <div className="flex items-center justify-between gap-4">
         <span className="text-ink-muted">Celular</span>
         <span className="flex min-w-0 items-center gap-3">
-          {phone && <span className="truncate font-semibold text-ink">{saved ? "¡Guardado!" : phone}</span>}
+          {phone && <span className="whitespace-nowrap font-semibold text-ink">{saved ? "¡Guardado!" : phone}</span>}
           {!open && (
             <button type="button" onClick={() => setOpen(true)} className="shrink-0 font-semibold text-brand">
-              {phone ? "Cambiar mi celular" : "Agregar mi celular"}
+              {phone ? (
+                <>
+                  Cambiar<span className="hidden sm:inline"> mi celular</span>
+                </>
+              ) : (
+                "Agregar mi celular"
+              )}
             </button>
           )}
         </span>

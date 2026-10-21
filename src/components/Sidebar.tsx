@@ -77,7 +77,7 @@ export function Sidebar({
   return (
     <div className="flex h-full w-60 min-w-60 flex-col bg-brand-dark py-6">
       <div className="px-6 pb-[22px] pt-1">
-        <Image src="/logos/cheke-wordmark-color.png" alt="Cheke" width={148} height={80} priority />
+        <Image src="/logos/cheke-wordmark-color.png" alt="cheke" width={148} height={80} priority />
       </div>
 
       {storeSwitcher && <StoreSwitcher {...storeSwitcher} />}

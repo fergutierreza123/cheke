@@ -70,6 +70,7 @@ export async function renameStore(storeId: string, rawName: string): Promise<{ e
   if ("error" in owner) return { error: owner.error };
   const { name, error: nameError } = cleanName(rawName);
   if (!name) return { error: nameError };
+  if (!owner.business.allStores.some((s) => s.id === storeId)) return { error: "No se encontró la tienda." };
 
   const supabase = await createClient();
   const { error } = await supabase

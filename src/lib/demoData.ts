@@ -14,6 +14,7 @@ import type { CurrentBusiness } from "@/lib/stores";
 import type { ChannelItem } from "@/app/(app)/channels/ChannelsView";
 import type { WhatsAppTemplate } from "@/lib/whatsappTemplates";
 import type { StoreLocation } from "@/lib/storeLocation";
+import type { CommentRow } from "@/lib/comments";
 
 // Sample data for the /demo showcase (an iPhone-framed walkthrough of the
 // app). Entirely fictional — never read from or written to the database.
@@ -199,7 +200,39 @@ export function buildDemoData(now: number) {
     longitude: -87.1893,
   };
 
+  // Comentarios: a price question chekelin answered by private, one waiting
+  // and a compliment.
+  const comment = (c: Partial<CommentRow> & Pick<CommentRow, "id" | "platform" | "author_name" | "body" | "commented_at">): CommentRow => ({
+    store_id: DEMO_STORE.id,
+    post_caption: "Nueva colección de vestidos 🌸 Tallas S a XL",
+    post_permalink: null,
+    post_image_url: null,
+    author_username: null,
+    kind: "other",
+    team_summary: null,
+    public_reply_body: null,
+    public_replied_at: null,
+    public_replied_by: null,
+    public_reply_error: null,
+    private_status: "none",
+    private_body: null,
+    private_sent_at: null,
+    private_error: null,
+    conversation_id: null,
+    ...c,
+  });
+  const comments: CommentRow[] = [
+    comment({ id: "k1", platform: "instagram", author_name: "Karla Mejía", author_username: "karla.mejia", body: "Precio del vestido azul? 😍", commented_at: iso(0.3 * H), kind: "price" }),
+    comment({
+      id: "k2", platform: "facebook", author_name: "Douglas Cruz", body: "¿Cuánto cuesta la chaqueta negra?", commented_at: iso(3 * H), kind: "price",
+      private_status: "sent", private_body: "¡Hola Douglas! La chaqueta negra está en L 890. ¿Te la apartamos?", private_sent_at: iso(2.9 * H),
+      public_reply_body: "¡Hola! Te escribimos por privado 💬", public_replied_at: iso(2.9 * H),
+    }),
+    comment({ id: "k3", platform: "instagram", author_name: "Yesenia Cálix", author_username: "yesenia.calix", body: "Qué bonitos colores 👏", commented_at: iso(26 * H) }),
+  ];
+
   return {
+    comments,
     conversations,
     messages,
     products,

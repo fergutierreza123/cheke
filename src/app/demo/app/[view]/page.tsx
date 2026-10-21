@@ -9,10 +9,10 @@ import { TeamView } from "@/app/(app)/team/TeamView";
 import { NotificationsView } from "@/app/(app)/notifications/NotificationsView";
 import { AnalyticsView } from "@/app/(app)/analytics/AnalyticsView";
 import { ChannelsView } from "@/app/(app)/channels/ChannelsView";
-import { PageStub } from "@/components/PageStub";
 import { WelcomeSplash } from "@/components/WelcomeSplash";
 import { AccountView } from "@/app/(app)/account/AccountView";
 import { ChekelinInfoView } from "@/app/(app)/chekelin/ChekelinInfoView";
+import { CommentsView } from "@/app/(app)/comments/CommentsView";
 import { buildDemoData, DEMO_BASE } from "@/lib/demoData";
 
 export const metadata: Metadata = { title: "cheke.io — demo", robots: { index: false, follow: false } };
@@ -81,7 +81,7 @@ export default async function DemoScreen({
         demo
       />
     ),
-    comments: <PageStub title="Comentarios" subtitle="Comentarios en tus publicaciones de Instagram y Facebook" phase="Fase 7 — Comentarios (comentario a mensaje directo)" />,
+    comments: <CommentsView comments={d.comments} storeNames={null} businessName={d.business.name} />,
   };
 
   return (

@@ -28,7 +28,7 @@ export default async function OnboardingPage() {
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="w-full max-w-sm">
-        <Image src="/logos/cheke-icon-blue.png" alt="Cheke" width={64} height={75} className="mx-auto mb-4" />
+        <Image src="/logos/cheke-icon-blue.png" alt="cheke" width={64} height={75} className="mx-auto mb-4" />
         <h1 className="text-display text-center font-heading text-2xl font-semibold text-white">
           Bienvenido a <span className="text-accent">cheke</span>
         </h1>

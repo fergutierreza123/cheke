@@ -11,10 +11,11 @@ export type OnboardingState = { error?: string };
 // editable in Mi cuenta) and creates the Negocio with its first Tienda.
 export async function createBusiness(_prev: OnboardingState, formData: FormData): Promise<OnboardingState> {
   const fullName = String(formData.get("full_name") ?? "").trim().replace(/\s+/g, " ");
-  const name = String(formData.get("name") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
   if (!fullName) return { error: "Escribe tu nombre." };
   if (fullName.length > 60) return { error: "Tu nombre es muy largo (máximo 60 letras)." };
   if (!name) return { error: "Ponle un nombre a tu negocio." };
+  if (name.length > 80) return { error: "El nombre del negocio es muy largo (máximo 80 letras)." };
 
   const supabase = await createClient();
   const {

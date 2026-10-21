@@ -33,12 +33,14 @@ export async function updateMemberRole(targetUserId: string, role: Role): Promis
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: changed, error } = await supabase
     .from("members")
     .update({ role })
     .eq("business_id", business.id)
-    .eq("user_id", targetUserId);
+    .eq("user_id", targetUserId)
+    .select("user_id");
   if (error) return { error: friendlyError(error, "No se pudo cambiar el rol.") };
+  if (!changed?.length) return { error: "Esa persona ya no está en tu negocio." };
 
   // A Gerente or Agente only sees the Tiendas they're in. Someone who had
   // none (e.g. a Dueño becoming Agente) starts in every open Tienda; the
@@ -178,8 +180,15 @@ export async function cancelInvitation(invitationId: string): Promise<{ error?: 
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
   const supabase = await createClient();
-  const { error } = await supabase.from("invitations").delete().eq("id", invitationId).eq("business_id", business.id);
+  // RLS: unused ones only, and a Gerente only the ones they made.
+  const { data: cancelled, error } = await supabase
+    .from("invitations")
+    .delete()
+    .eq("id", invitationId)
+    .eq("business_id", business.id)
+    .select("id");
   if (error) return { error: friendlyError(error) };
+  if (!cancelled?.length) return { error: "Esta invitación ya se usó o ya no existe." };
   revalidatePath("/team");
   return {};
 }

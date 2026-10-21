@@ -38,6 +38,23 @@ export async function updateDisplayName(name: string): Promise<{ error?: string 
   return {};
 }
 
+const LIST_PAGE = 1000;
+
+// Every file under `prefix` in a Storage bucket, folders included (Storage
+// lists one level at a time, a page at a time; folders come without an id).
+async function removeFolder(admin: ReturnType<typeof createAdminClient>, bucketName: string, prefix: string): Promise<void> {
+  const bucket = admin.storage.from(bucketName);
+  const files: string[] = [];
+  const folders: string[] = [];
+  for (let offset = 0; ; offset += LIST_PAGE) {
+    const { data } = await bucket.list(prefix, { limit: LIST_PAGE, offset });
+    for (const entry of data ?? []) (entry.id ? files : folders).push(`${prefix}/${entry.name}`);
+    if (!data || data.length < LIST_PAGE) break;
+  }
+  for (let i = 0; i < files.length; i += LIST_PAGE) await bucket.remove(files.slice(i, i + LIST_PAGE));
+  for (const folder of folders) await removeFolder(admin, bucketName, folder);
+}
+
 // "Eliminar mi cuenta" (required by Apple 5.1.1(v) and Google Play). Deletes
 // the signed-in person's sign-in account right away, plus:
 // - their memberships and phone-alert tokens in every Negocio,
@@ -75,12 +92,13 @@ export async function deleteAccount(confirmation: string): Promise<{ error?: str
   }
 
   // Negocios where this person is the only member go away entirely. Deleting
-  // the row cascades to every table that has business_id. Product photos
-  // live in Storage, outside the database, so remove them first.
+  // the row cascades to every table that has business_id. Files live in
+  // Storage, outside the database, so remove them first: product photos
+  // (product-images/<negocio>/…) and the customers' photos, voice notes and
+  // documents (message-media/<negocio>/<tienda>/…).
   for (const business of plan.filter((b) => b.outcome === "delete")) {
-    const bucket = admin.storage.from("product-images");
-    const { data: files } = await bucket.list(business.businessId, { limit: 1000 });
-    if (files?.length) await bucket.remove(files.map((f) => `${business.businessId}/${f.name}`));
+    await removeFolder(admin, "product-images", business.businessId);
+    await removeFolder(admin, "message-media", business.businessId);
 
     const { error } = await admin.from("businesses").delete().eq("id", business.businessId);
     if (error) return { error: "No se pudo eliminar tu negocio. Inténtalo de nuevo." };

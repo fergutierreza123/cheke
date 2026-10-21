@@ -50,7 +50,7 @@ export default async function InvitationPage({
         {stores.length > 0 && (
           <>
             {" "}
-            en <strong className="text-ink">{preview.store_names.join(", ")}</strong>
+            en <strong className="text-ink">{stores.join(", ")}</strong>
           </>
         )}
         .
@@ -61,7 +61,7 @@ export default async function InvitationPage({
   return (
     <div className="flex min-h-screen items-center justify-center bg-brand-dark px-4" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       <div className="w-full max-w-md">
-        <Image src="/logos/cheke-icon-blue.png" alt="Cheke" width={64} height={75} className="mx-auto mb-4" />
+        <Image src="/logos/cheke-icon-blue.png" alt="cheke" width={64} height={75} className="mx-auto mb-4" />
         <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h1 className="text-display font-heading text-xl font-semibold text-ink">{title}</h1>
           <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">{body}</p>
