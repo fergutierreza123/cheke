@@ -24,7 +24,7 @@ export async function prepareChatUpload(
   // The signed-in client: RLS only finds conversations of the person's Tiendas.
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("id, business_id, store_id, window_expires_at, channel:channels(type, access_token_encrypted), store:stores(archived_at)")
+    .select("id, business_id, store_id, window_expires_at, channel:channels(type, external_id, access_token_encrypted), store:stores(archived_at)")
     .eq("id", conversationId)
     .maybeSingle();
   if (!conversation) return { error: "No se encontró la conversación." };
