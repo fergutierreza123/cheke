@@ -8,6 +8,11 @@ import { randomUUID } from "node:crypto";
 type Row = Record<string, unknown>;
 type Filter = (row: Row) => boolean;
 
+// Column defaults the real tables have (supabase/migrations).
+const DEFAULTS: Record<string, Row> = {
+  messages: { status: "sent", is_bot: false, source: "cheke" },
+};
+
 const UNIQUE: Record<string, string[]> = {
   messages: ["external_message_id"],
   post_comments: ["external_comment_id"],
@@ -30,6 +35,7 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
     let payload: Row | Row[] | null = null;
     let upsertOptions: { onConflict?: string; ignoreDuplicates?: boolean } = {};
     let returning = false;
+    let columns = "*";
     let mode: "many" | "single" | "maybeSingle" = "many";
     let limit: number | null = null;
     let order: { col: string; ascending: boolean } | null = null;
@@ -39,7 +45,7 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
       let out: Row[] = [];
       if (action === "insert" || action === "upsert") {
         for (const input of Array.isArray(payload) ? payload : [payload!]) {
-          const row: Row = { id: randomUUID(), created_at: new Date().toISOString(), ...input };
+          const row: Row = { id: randomUUID(), created_at: new Date().toISOString(), ...DEFAULTS[table], ...input };
           if (duplicate(table, row)) {
             if (action === "upsert" && upsertOptions.ignoreDuplicates) continue;
             return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
@@ -65,7 +71,7 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
         }
         out = matched;
       }
-      const data = action === "select" || returning ? out.map((r) => ({ ...r })) : null;
+      const data = action === "select" || returning ? out.map((r) => embed(r, columns)) : null;
       if (mode === "many") return { data, error: null };
       if (!data) return { data: null, error: null };
       if (data.length > 1) return { data: null, error: { code: "PGRST116", message: "more than one row" } };
@@ -76,7 +82,8 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
     };
 
     const builder = {
-      select() {
+      select(cols = "*") {
+        columns = cols;
         if (action !== "select") returning = true;
         return builder;
       },
@@ -159,8 +166,79 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
     return builder;
   }
 
-  return {
-    client: { from, rpc: async () => ({ data: null, error: null }) },
-    rows: (table: string) => rowsOf(table),
+  // `contact:contacts(name, phone)` embeds the row its `contact_id` points
+  // to, like PostgREST (nested embeds too). Other columns: the whole row.
+  function embed(row: Row, cols: string): Row {
+    const out: Row = { ...row };
+    for (const part of topLevel(cols)) {
+      const m = /^(\w+):(\w+)\(([\s\S]*)\)$/.exec(part.trim());
+      if (!m) continue;
+      const [, alias, table, inner] = m;
+      const target = rowsOf(table).find((r) => r.id === row[`${alias}_id`]);
+      out[alias] = target ? embed(target, inner) : null;
+    }
+    return out;
+  }
+
+  // A Storage stand-in: files are kept in a map by "bucket/path".
+  const files = new Map<string, { bytes: Buffer; contentType?: string }>();
+  const toBuffer = async (body: unknown) =>
+    Buffer.isBuffer(body) ? body : body instanceof Blob ? Buffer.from(await body.arrayBuffer()) : Buffer.from(String(body));
+  const storage = {
+    from: (bucket: string) => ({
+      async upload(path: string, body: unknown, options: { contentType?: string } = {}) {
+        files.set(`${bucket}/${path}`, { bytes: await toBuffer(body), contentType: options.contentType });
+        return { data: { path }, error: null };
+      },
+      async uploadToSignedUrl(path: string, _token: string, body: unknown, options: { contentType?: string } = {}) {
+        files.set(`${bucket}/${path}`, { bytes: await toBuffer(body), contentType: options.contentType });
+        return { data: { path }, error: null };
+      },
+      async download(path: string) {
+        const file = files.get(`${bucket}/${path}`);
+        return file ? { data: new Blob([new Uint8Array(file.bytes)]), error: null } : { data: null, error: { message: "not found" } };
+      },
+      async move(from: string, to: string) {
+        const file = files.get(`${bucket}/${from}`);
+        if (!file) return { data: null, error: { message: "not found" } };
+        files.delete(`${bucket}/${from}`);
+        files.set(`${bucket}/${to}`, file);
+        return { data: {}, error: null };
+      },
+      async remove(paths: string[]) {
+        for (const path of paths) files.delete(`${bucket}/${path}`);
+        return { data: [], error: null };
+      },
+      async createSignedUrl(path: string) {
+        return { data: { signedUrl: `https://storage.test/${bucket}/${path}?token=t` }, error: null };
+      },
+      async createSignedUploadUrl(path: string) {
+        return { data: { path, token: "upload-token" }, error: null };
+      },
+    }),
   };
+
+  return {
+    client: { from, storage, rpc: async () => ({ data: null, error: null }) },
+    rows: (table: string) => rowsOf(table),
+    // Files in Storage, by "bucket/path".
+    files,
+  };
+}
+
+// Splits "a, b:c(d, e), f" at the commas that aren't inside parentheses.
+function topLevel(cols: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of cols) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else current += ch;
+  }
+  if (current.trim()) parts.push(current);
+  return parts;
 }

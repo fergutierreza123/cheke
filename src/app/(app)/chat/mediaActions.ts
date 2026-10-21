@@ -8,6 +8,7 @@ import { documentExtension, documentMime, recordingExtension, uploadProblem, typ
 import { visualExtension, visualMime } from "@/lib/outgoingVisual";
 import type { ChannelType } from "@/lib/types";
 import { ARCHIVED_STORE_READ_ONLY, isArchivedStore } from "@/lib/stores";
+import { canSimulate, SIMULATE_ONLY_IN_SAMPLES } from "@/lib/modoPrueba";
 
 // Step 1 of sending a voice note or document from Chat (issue #50): a
 // one-time link to upload the file straight to the private "message-media"
@@ -15,12 +16,15 @@ import { ARCHIVED_STORE_READ_ONLY, isArchivedStore } from "@/lib/stores";
 export async function prepareChatUpload(
   conversationId: string,
   input: { kind: OutgoingKind; mime: string; size: number; filename?: string },
+  // Modo prueba: the file is the (sample) customer's, so the reply window
+  // doesn't apply; only sample chats and the demo Negocio allow it.
+  options: { asCustomer?: boolean } = {},
 ): Promise<{ path?: string; token?: string; error?: string }> {
   const supabase = await createClient();
   // The signed-in client: RLS only finds conversations of the person's Tiendas.
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("id, business_id, store_id, window_expires_at, channel:channels(type), store:stores(archived_at)")
+    .select("id, business_id, store_id, window_expires_at, channel:channels(type, access_token_encrypted), store:stores(archived_at)")
     .eq("id", conversationId)
     .maybeSingle();
   if (!conversation) return { error: "No se encontró la conversación." };
@@ -28,7 +32,10 @@ export async function prepareChatUpload(
 
   const channel = Array.isArray(conversation.channel) ? conversation.channel[0] : conversation.channel;
   const channelType = (channel?.type ?? null) as ChannelType | null;
-  if (replyWindow(channelType, conversation.window_expires_at, Date.now()) === "closed") {
+  if (options.asCustomer) {
+    const { data: business } = await supabase.from("businesses").select("is_demo").eq("id", conversation.business_id).maybeSingle();
+    if (!canSimulate(channel, business?.is_demo === true)) return { error: SIMULATE_ONLY_IN_SAMPLES };
+  } else if (replyWindow(channelType, conversation.window_expires_at, Date.now()) === "closed") {
     return { error: windowClosedMessage(channelType) };
   }
 

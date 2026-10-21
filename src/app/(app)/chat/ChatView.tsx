@@ -15,6 +15,7 @@ import {
   listConversationNotes,
   resolveComplaint,
   reactToMessage,
+  retryMessage,
   markConversationRead,
   sendStoreLocation,
   type OpenOrder,
@@ -69,12 +70,16 @@ import {
 import { BrandMark } from "@/components/BrandMark";
 import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
 import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
+import { composerRules, WHATSAPP_PHONE_APP_HINT } from "@/lib/composerRules";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import type { ChannelType, ConversationNote, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
 import { countUnread, unreadAfterMessage, unreadBadge } from "@/lib/unread";
 import { locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
 import { copyableText } from "@/lib/copyMessage";
+import { dayLabel, displayStatus, insertInOrder, sameDay } from "@/lib/chatTimeline";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "todos", label: "Todos" },
@@ -170,7 +175,7 @@ export function ChatView({
   // Demo/testing only — lets you type as if you were the customer so
   // Chekelin's first-reply flow can be shown without a real WhatsApp number
   // connected yet.
-  const [simulateMode, setSimulateMode] = useState(false);
+  const [simulateToggle, setSimulateMode] = useState(false);
   const [botTyping, setBotTyping] = useState(false);
   const [showProductPicker, setShowProductPicker] = useState(false);
   // Picking a product no longer sends it immediately — it loads a preview
@@ -219,6 +224,8 @@ export function ChatView({
   const [showDetail, setShowDetail] = useState(false);
   // The failed message whose reason is expanded (tap "No entregado").
   const [openFailureId, setOpenFailureId] = useState<string | null>(null);
+  // The failed message being sent again ("Reintentar").
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   // "Responder": the message the next send quotes, and the bubble whose
   // menu (reactions + Responder) is open.
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -283,6 +290,12 @@ export function ChatView({
   }
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
+  // A sample chat: /demo, or a seeded / app-reviewer channel that was never
+  // connected to Meta (no external id). Nobody is on the other side.
+  const sampleChat = businessId === "demo" || !selected?.channel?.external_id;
+  // Modo prueba only exists in sample chats: in a real customer's chat a
+  // fake customer message would mix into their history.
+  const simulateMode = simulateToggle && sampleChat;
   // Falls back to "nuevo" if the `stage` migration hasn't run yet on this
   // database — avoids a hard crash on old rows missing the column.
   const selectedStage = selected?.stage ?? "nuevo";
@@ -291,11 +304,18 @@ export function ChatView({
   // writes again. Instagram/Facebook between 24 h and 7 days: a person can
   // still answer, chekelin can't.
   const replyState = replyWindow(selected?.channel?.type, selected?.window_expires_at, now);
-  const windowClosed = replyState === "closed";
-  // Test mode types as the customer, which is exactly what reopens the window.
-  const sendBlocked = windowClosed && !simulateMode;
+  // What the composer allows right now (src/lib/composerRules.ts). Test mode
+  // types, records and attaches as the customer, which is exactly what
+  // reopens the window.
+  const rules = composerRules({
+    channelType: selected?.channel?.type,
+    coexistence: selected?.channel?.coexistence,
+    replyState,
+    simulateMode,
+  });
+  const sendBlocked = !rules.canSendText;
   // Closed WhatsApp chat: "Plantilla" means an approved template, not text.
-  const approvedTemplateOnly = sendBlocked && selected?.channel?.type === "whatsapp";
+  const approvedTemplateOnly = rules.approvedTemplateOnly;
   const quickReplyPicker = useQuickReplyPicker({
     replies: quickReplies,
     draft,
@@ -307,22 +327,20 @@ export function ChatView({
   });
   // Why nothing but Plantillas can go out right now: the mic stays visible
   // (grey) and says this when tapped.
-  const mediaBlockedReason = sendBlocked
-    ? "La ventana de respuesta está cerrada: solo puedes enviar plantillas hasta que el cliente vuelva a escribir."
-    : simulateMode
-      ? "En modo prueba escribes como el cliente: las notas de voz y fotos no se envían."
-      : null;
+  const mediaBlockedReason = rules.mediaBlockedReason;
   // Voice notes (mic, while the box is empty), documents (clip), photos and
-  // videos (gallery / camera): issue #50 and composer parity.
+  // videos (gallery / camera): issue #50 and composer parity. In Modo prueba
+  // they arrive as the sample customer's.
   const composerMedia = useComposerMedia({
     conversationId: selected?.id ?? null,
     channelType: selected?.channel?.type,
-    disabled: !selected || sendBlocked || simulateMode,
+    disabled: !selected || !rules.canSendMedia,
     blockedReason: selected ? mediaBlockedReason : null,
     caption: draft,
     onCaptionUsed: () => setDraft(""),
     demo: businessId === "demo",
-    replyToId: replyTo && replyTo.conversation_id === selected?.id ? replyTo.id : null,
+    asCustomer: rules.asCustomer,
+    replyToId: replyTo && replyTo.conversation_id === selected?.id && !rules.asCustomer ? replyTo.id : null,
     onSendStart: () => setReplyTo(null),
     onResult: handleMediaResult,
     onError: setSendError,
@@ -398,6 +416,26 @@ export function ChatView({
       setSendError(result.error);
     } else if (result.reaction !== next) {
       patchMessage({ ...m, reaction_out: result.reaction ?? null });
+    }
+  }
+
+  // "Reintentar": the failed bubble goes out again, in place.
+  async function handleRetry(m: Message) {
+    setRetryingId(m.id);
+    setSendError(null);
+    try {
+      if (businessId === "demo") {
+        patchMessage({ ...m, status: "sent", error_reason: null, error_code: null, created_at: new Date().toISOString() });
+        return;
+      }
+      const result = await retryMessage(m.id);
+      if (result.message) patchMessage(result.message);
+      if (result.sendError ?? result.error) setSendError(result.sendError ?? result.error ?? null);
+      else setOpenFailureId(null);
+    } catch {
+      setSendError("No se pudo reintentar. Revisa tu conexión e inténtalo de nuevo.");
+    } finally {
+      setRetryingId(null);
     }
   }
 
@@ -492,28 +530,15 @@ export function ChatView({
       const existing = prev[msg.conversation_id];
       if (!existing) return prev;
       if (existing.some((m) => m.id === msg.id)) return prev;
-      return { ...prev, [msg.conversation_id]: [...existing, msg] };
+      // Where its time says (an echo from the phone may belong higher up).
+      return { ...prev, [msg.conversation_id]: insertInOrder(existing, msg) };
     });
   }
 
-  // Real delivered/read ticks only ever arrive via a genuine WhatsApp
-  // webhook call, which can't happen yet (Meta business verification still
-  // pending — see README). So a freshly-sent message would otherwise sit on
-  // a single ✓ forever in the demo. This derives a demo progression from
-  // elapsed time since created_at instead — ✓ for the first 1.2s, ✓✓
-  // (delivered) after that, blue ✓✓ (read) after 3.2s — same as WhatsApp's
-  // own animation. Being time-based (not a one-shot timer fired only at the
-  // moment the message was appended) means it also applies correctly to
-  // messages loaded fresh from the database on page load/reload, not just
-  // ones sent live during the current session. A real status update always
-  // takes precedence, since this branch is only reached while the DB status
-  // is still "sent".
+  // Ticks (src/lib/chatTimeline.ts): real chats show exactly what Meta
+  // reported; only sample chats play WhatsApp's ✓ → ✓✓ → blue ✓✓ animation.
   function effectiveStatus(m: Message): Message["status"] {
-    if (m.direction !== "out" || m.status !== "sent") return m.status;
-    const elapsed = now - new Date(m.created_at).getTime();
-    if (elapsed > 3200) return "read";
-    if (elapsed > 1200) return "delivered";
-    return "sent";
+    return displayStatus(m, { nowMs: now, sample: sampleChat });
   }
 
   // A delivery/read receipt from Meta updates an existing row (not an
@@ -583,7 +608,7 @@ export function ChatView({
             knownConversationIds.current.add(msg.conversation_id);
             supabase
               .from("conversations")
-              .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type)")
+              .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type, coexistence, external_id)")
               .eq("id", msg.conversation_id)
               .single()
               .then(({ data }) => {
@@ -797,6 +822,24 @@ export function ChatView({
 
     setDraft("");
 
+    if (simulateMode && businessId === "demo") {
+      // /demo has no account behind it: the "customer's" message only shows
+      // on screen (the server would have nothing to save it in).
+      const inbound: Message = {
+        id: crypto.randomUUID(),
+        conversation_id: selected.id,
+        business_id: "demo",
+        direction: "in",
+        body: text,
+        media_url: null,
+        status: "sent",
+        is_bot: false,
+        created_at: new Date().toISOString(),
+      };
+      handleMediaResult({ message: inbound });
+      return;
+    }
+
     if (simulateMode) {
       setBotTyping(true);
       try {
@@ -804,6 +847,9 @@ export function ChatView({
         if (result.inbound) {
           appendMessage(result.inbound);
           bumpConversation(selected.id, result.inbound.created_at, result.inbound.body);
+          // The "customer" wrote: the reply window is open again (server too).
+          const reopened = new Date(Date.now() + DAY_MS).toISOString();
+          setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, window_expires_at: reopened } : c)));
         }
         if (result.reply) {
           appendMessage(result.reply);
@@ -853,6 +899,20 @@ export function ChatView({
   // reply — show it, move the chat up, and the person now owns the chat.
   function handleMediaResult(result: MediaSendResult) {
     const msg = result.message;
+    if (msg && msg.direction === "in") {
+      // Modo prueba: the sample customer's file, and chekelin's answer.
+      appendMessage(msg);
+      bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+      if (result.reply) {
+        appendMessage(result.reply);
+        bumpConversation(result.reply.conversation_id, result.reply.created_at, result.reply.body);
+      }
+      setConversations((prev) =>
+        prev.map((c) => (c.id === msg.conversation_id ? { ...c, window_expires_at: new Date(Date.now() + DAY_MS).toISOString() } : c)),
+      );
+      setSendError(result.sendError ?? result.error ?? null);
+      return;
+    }
     if (msg) {
       appendMessage(msg);
       bumpConversation(msg.conversation_id, msg.created_at, msg.body);
@@ -1349,8 +1409,12 @@ export function ChatView({
                   instead of a primary compose-bar button, since real
                   WhatsApp sending doesn't need this; it exists purely to
                   show chekelin's first-reply flow before WhatsApp is live. */}
+              {sampleChat && (
               <button
-                onClick={() => setSimulateMode((v) => !v)}
+                onClick={() => {
+                  setSimulateMode((v) => !v);
+                  setSendError(null);
+                }}
                 title="Modo prueba: simular mensaje de cliente (sin WhatsApp real)"
                 aria-pressed={simulateMode}
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors lg:h-[30px] lg:w-[30px] ${
@@ -1361,6 +1425,7 @@ export function ChatView({
               >
                 <FlaskIcon className="h-3.5 w-3.5" />
               </button>
+              )}
 
               {/* A plain colored pill here just read as a static label, not
                   something clickable — a real dropdown with its own
@@ -1502,9 +1567,11 @@ export function ChatView({
               {messages.map((m, i) => {
                 const out = m.direction === "out";
                 const prev = messages[i - 1];
+                // "Hoy", "Ayer", "Jueves"… between days, like WhatsApp.
+                const newDay = !prev || !sameDay(prev.created_at, m.created_at);
                 // Bubbles from the same side in a row are tight (2px) and only
                 // the first gets the pointed corner, like WhatsApp's tail.
-                const firstInRun = !prev || prev.direction !== m.direction;
+                const firstInRun = !prev || prev.direction !== m.direction || newDay;
                 const deleted = Boolean(m.deleted_at);
                 const hasReaction = !deleted && Boolean(m.reaction_in || m.reaction_out);
                 // Only while the composer can send (not in test mode).
@@ -1520,7 +1587,15 @@ export function ChatView({
                       menuFor === m.id ? "relative z-30" : ""
                     }`}
                   >
-                    {m.is_bot && !(prev && prev.is_bot) && (
+                    {newDay && (
+                      <div
+                        role="separator"
+                        className={`${i === 0 ? "mb-2" : "mb-2 mt-1"} self-center rounded-[7.5px] bg-white/95 px-3 py-[5px] text-[12px] font-medium text-[#54656F] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]`}
+                      >
+                        {dayLabel(m.created_at, now)}
+                      </div>
+                    )}
+                    {m.is_bot && !(prev && prev.is_bot && !newDay) && (
                       <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
                         {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
                         <img src="/logos/cheke-icon-blue.png" alt="" className="h-3 w-3 object-contain" />
@@ -1626,6 +1701,8 @@ export function ChatView({
                     {out && m.status === "failed" && (
                       <FailedNotice
                         message={m}
+                        retrying={retryingId === m.id}
+                        onRetry={sendBlocked ? null : () => handleRetry(m)}
                         open={openFailureId === m.id}
                         onToggle={() => setOpenFailureId((id) => (id === m.id ? null : m.id))}
                         reducedMotion={Boolean(prefersReducedMotion)}
@@ -1675,6 +1752,7 @@ export function ChatView({
                   contactName={selected.contact.name}
                   demo={businessId === "demo"}
                   onSent={handleMediaResult}
+                  phoneHint={selected.channel?.coexistence ? WHATSAPP_PHONE_APP_HINT : null}
                 />
               ) : (
                 <div className="shrink-0 border-t border-danger-border bg-danger-tint px-4 py-2 text-[12.5px] text-danger lg:px-6">
@@ -1688,7 +1766,7 @@ export function ChatView({
             )}
             {simulateMode && !pendingProduct && (
               <div className="shrink-0 border-t border-accent bg-accent-tint px-4 py-1.5 lg:px-6 text-[12px] font-semibold text-brand-dark">
-                Modo prueba: estás escribiendo como si fueras el cliente, para ver cómo responde chekelin.
+                Modo prueba: escribes, grabas notas de voz y mandas fotos como si fueras el cliente, para ver cómo responde chekelin. No le llega nada a nadie.
               </div>
             )}
             {/* Draft preview — picking a product no longer sends it right
@@ -2072,7 +2150,7 @@ export function ChatView({
               />
               {/* WhatsApp-style: while the box is empty, phones get the camera
                   and the mic takes Send's place. The mic is always there; when
-                  nothing can be sent (window closed, Modo prueba) it is grey
+                  nothing can be sent (window closed) it is grey
                   and says why when tapped. */}
               {!draft.trim() && !pendingProduct && !composerMedia.hasPendingVisual && !composerMedia.recording && (
                 <div className="flex lg:hidden">{composerMedia.cameraButton}</div>
@@ -2433,11 +2511,16 @@ function EmojiIcon({ className }: { className?: string }) {
 // hover (title) or tap. A billing problem also links to Meta's Billing Hub.
 function FailedNotice({
   message,
+  retrying,
+  onRetry,
   open,
   onToggle,
   reducedMotion,
 }: {
   message: Message;
+  retrying: boolean;
+  // "Reintentar" (null when nothing can be sent right now).
+  onRetry: (() => void) | null;
   open: boolean;
   onToggle: () => void;
   reducedMotion: boolean;
@@ -2456,6 +2539,16 @@ function FailedNotice({
         <AlertIcon className="h-3.5 w-3.5" />
         No entregado · {open ? "Ocultar" : "Ver motivo"}
       </button>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={retrying}
+          className="-mt-0.5 flex min-h-7 items-center gap-1 rounded px-1 text-[11.5px] font-semibold text-brand hover:underline disabled:opacity-60"
+        >
+          {retrying ? "Reintentando…" : "Reintentar"}
+        </button>
+      )}
       <AnimatePresence initial={false}>
         {open && (
           <motion.div

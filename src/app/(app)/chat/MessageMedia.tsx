@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { nextPlaybackRate } from "@/lib/chatTimeline";
 import { createClient } from "@/lib/supabase/client";
 import type { Message } from "@/lib/types";
 
@@ -19,7 +20,12 @@ const LINK_SECONDS = 60 * 60;
 export function mediaReplacesBody(m: Message): boolean {
   if (m.media_kind === "location") return typeof m.media_info?.latitude === "number";
   if (m.media_kind === "contacts") return Boolean(m.media_info?.contacts?.length);
-  return Boolean(m.media_kind && m.media_path);
+  return Boolean(m.media_kind && m.media_path) || Boolean(localVoiceUrl(m));
+}
+
+// /demo has no storage: a voice note recorded there plays from the device.
+function localVoiceUrl(m: Message): string | null {
+  return m.media_kind === "voice" && !m.media_path && m.media_url?.startsWith("blob:") ? m.media_url : null;
 }
 
 export function MessageMedia({ message }: { message: Message }) {
@@ -33,13 +39,16 @@ export function MessageMedia({ message }: { message: Message }) {
       return <ContactCards contacts={info.contacts ?? []} />;
     case "document":
       return <DocumentCard path={message.media_path!} filename={info.filename} size={info.size} fallback={message.body} />;
-    default:
+    default: {
+      const local = localVoiceUrl(message);
+      if (local) return <AudioPlayer url={local} onError={() => undefined} />;
       return (
         <>
           <FileMedia message={message} />
           {message.transcription && <Transcription text={message.transcription} />}
         </>
       );
+    }
   }
 }
 
@@ -88,8 +97,44 @@ function FileMedia({ message }: { message: Message }) {
       />
     );
   }
+  return <AudioPlayer url={url} onError={() => setBroken(true)} />;
+}
+
+// A voice note or audio, with WhatsApp's speed button (1× → 1,5× → 2×).
+function AudioPlayer({ url, onError }: { url: string; onError: () => void }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const [rate, setRate] = useState(1);
+  const label = `${String(rate).replace(".", ",")}×`;
+  // The browser resets the speed when the file (re)loads.
+  const apply = () => {
+    if (ref.current) ref.current.playbackRate = rate;
+  };
   return (
-    <audio src={url} controls preload="metadata" onError={() => setBroken(true)} className="mb-1 mt-0.5 h-10 w-64 max-w-full" />
+    <span className="mb-1 mt-0.5 flex max-w-full items-center gap-1.5">
+      <audio
+        ref={ref}
+        src={url}
+        controls
+        preload="metadata"
+        onLoadedMetadata={apply}
+        onPlay={apply}
+        onError={onError}
+        className="h-10 w-56 min-w-0 max-w-full"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          const next = nextPlaybackRate(rate);
+          setRate(next);
+          if (ref.current) ref.current.playbackRate = next;
+        }}
+        aria-label={`Velocidad ${label}. Toca para cambiarla`}
+        title="Velocidad de reproducción"
+        className="min-h-7 min-w-[38px] shrink-0 rounded-full bg-black/[0.07] px-2 text-[12px] font-semibold tabular-nums text-[#54656F] hover:bg-black/[0.1]"
+      >
+        {label}
+      </button>
+    </span>
   );
 }
 

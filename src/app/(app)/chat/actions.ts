@@ -24,7 +24,9 @@ import type { ConversationNote, Message } from "@/lib/types";
 import { isOwnStorageUrl } from "@/lib/storageUrl";
 import { friendlyError } from "@/lib/dbErrors";
 import { locationSendPlan } from "@/lib/storeLocation";
+import { sendMediaOnChannel, type OutgoingFile } from "@/lib/mediaSend";
 import { getStoreLocation, NO_STORE_LOCATION } from "@/lib/storeLocationServer";
+import { isLiveChannel, simulatedInboundUpdate, SIMULATE_ONLY_IN_SAMPLES } from "@/lib/modoPrueba";
 
 
 // The app reviewers' demo Negocio (businesses.is_demo, migration 0015) runs
@@ -133,6 +135,119 @@ export async function sendChatMessage(
   }
 
   return { message };
+}
+
+// "Reintentar" on a bubble that says "No entregado": the same message goes
+// out again (same text, file, location and quote) and the same bubble
+// becomes a normal sent message, like WhatsApp's retry. Same window rules
+// as a new send: after 24 h on WhatsApp it explains that only a Plantilla
+// can go out instead of calling Meta.
+export async function retryMessage(messageId: string): Promise<{ message?: Message; error?: string; sendError?: string }> {
+  const supabase = await createClient();
+  const { data: message } = await supabase
+    .from("messages")
+    .select(
+      `*, store:stores(archived_at), conversation:conversations(id, business_id, window_expires_at, contact:contacts(${SEND_CONTACT_COLUMNS}), channel:channels(${SEND_CHANNEL_COLUMNS}))`,
+    )
+    .eq("id", messageId)
+    .maybeSingle();
+  if (!message) return { error: "No se encontró el mensaje." };
+  if (isArchivedStore(message.store)) return { error: ARCHIVED_STORE_READ_ONLY };
+  if (message.direction !== "out" || message.status !== "failed") return { error: "Ese mensaje ya se envió." };
+  if (message.deleted_at) return { error: "Ese mensaje fue eliminado." };
+
+  const conversation = Array.isArray(message.conversation) ? message.conversation[0] : message.conversation;
+  const contact = Array.isArray(conversation?.contact) ? conversation.contact[0] : conversation?.contact;
+  const channel = Array.isArray(conversation?.channel) ? conversation.channel[0] : conversation?.channel;
+  const windowExpiresAt: string | null = conversation?.window_expires_at ?? null;
+  if (replyWindow(channel?.type, windowExpiresAt, Date.now()) === "closed") {
+    return { error: windowClosedMessage(channel?.type) };
+  }
+
+  let quotedExternalId: string | null = null;
+  if (message.reply_to_id) {
+    const { data } = await supabase.from("messages").select("external_message_id").eq("id", message.reply_to_id).maybeSingle();
+    quotedExternalId = data?.external_message_id ?? null;
+  }
+
+  let result: SendResult;
+  if (await isDemoBusiness(supabase, message.business_id)) {
+    result = { notSent: true };
+  } else if (message.media_path && ["voice", "document", "image", "video"].includes(message.media_kind ?? "")) {
+    const file = await storedOutgoingFile(message as Message);
+    if (!file) return { error: "No se encontró el archivo para reenviarlo. Envíalo de nuevo." };
+    result = await sendMediaOnChannel({ channel, contact, windowExpiresAt, file, replyToExternalId: quotedExternalId });
+  } else {
+    const info = (message as Message).media_info;
+    const location =
+      message.media_kind === "location" && typeof info?.latitude === "number" && typeof info?.longitude === "number"
+        ? { latitude: info.latitude, longitude: info.longitude, name: info.place ?? "", address: info.address ?? "" }
+        : null;
+    result = await sendOnChannel({
+      channel,
+      contact,
+      windowExpiresAt,
+      text: message.body ?? "",
+      mediaUrl: message.media_url,
+      location,
+      author: "human",
+      replyToExternalId: quotedExternalId,
+    });
+  }
+
+  if (result.error) {
+    const failed = await markMessageFailed(supabase, message.id, result);
+    return { message: withoutJoins({ ...message, ...failed }), sendError: result.error };
+  }
+  const fixed = {
+    status: "sent" as const,
+    error_code: null,
+    error_details: null,
+    error_reason: null,
+    ...(result.externalMessageId ? { external_message_id: result.externalMessageId } : {}),
+  };
+  const { error: updateError } = await supabase.from("messages").update(fixed).eq("id", message.id);
+  if (updateError) return { error: friendlyError(updateError, "Se envió, pero no se pudo actualizar el mensaje.") };
+  return { message: withoutJoins({ ...message, ...fixed }) };
+}
+
+// The message row without the joined conversation/store, as Chat keeps it.
+function withoutJoins(row: Record<string, unknown>): Message {
+  const rest = { ...row };
+  delete rest.conversation;
+  delete rest.store;
+  return rest as Message;
+}
+
+// A voice note, photo, video or document saved by /api/chat/media, read back
+// from storage to send it again.
+async function storedOutgoingFile(message: Message): Promise<OutgoingFile | null> {
+  const storage = createAdminClient().storage.from("message-media");
+  const { data: blob } = await storage.download(message.media_path!);
+  if (!blob) return null;
+  const bytes = Buffer.from(await blob.arrayBuffer());
+  const info = message.media_info ?? {};
+  const linkFor = async (path: string, download?: string) =>
+    (await storage.createSignedUrl(path, 60 * 60, download ? { download } : undefined)).data?.signedUrl ?? "";
+  switch (message.media_kind) {
+    case "voice":
+      return { kind: "voice", ogg: bytes, m4aUrl: message.media_m4a_path ? await linkFor(message.media_m4a_path) : "" };
+    case "document": {
+      const filename = info.filename ?? "Documento";
+      return { kind: "document", bytes, mime: info.mime ?? "application/pdf", filename, url: await linkFor(message.media_path!, filename) };
+    }
+    case "image":
+    case "video":
+      return {
+        kind: message.media_kind,
+        bytes,
+        mime: info.mime ?? (message.media_kind === "image" ? "image/jpeg" : "video/mp4"),
+        url: await linkFor(message.media_path!),
+        caption: info.caption ?? null,
+      };
+    default:
+      return null;
+  }
 }
 
 // "Ubicación" in the "+" sheet: the Tienda's location saved in "Lo que
@@ -289,15 +404,6 @@ export async function markConversationRead(conversationId: string): Promise<void
   });
 }
 
-// Modo prueba: a channel really connected to a customer's WhatsApp,
-// Instagram or Facebook (seeded sample chats have no credentials).
-function isLiveChannel(channel: { access_token_encrypted: string | null } | null | undefined): boolean {
-  return Boolean(channel?.access_token_encrypted);
-}
-
-const SIMULATE_ONLY_IN_SAMPLES =
-  "El modo prueba solo funciona en chats de ejemplo. Este chat es con un cliente real: escríbele normalmente.";
-
 // Demo/testing only (no real WhatsApp message involved): lets the founder
 // type as if they were the customer, so Chekelin's first-reply flow can be
 // shown end-to-end before a real WhatsApp number is connected. Only in
@@ -332,7 +438,8 @@ export async function simulateInboundMessage(
     .single();
   if (insertError || !inbound) return { error: friendlyError(insertError, "No se pudo guardar el mensaje.") };
 
-  await supabase.from("conversations").update({ last_message_at: inbound.created_at }).eq("id", conversationId);
+  // Like a real customer message: the reply window opens again.
+  await supabase.from("conversations").update(simulatedInboundUpdate(Date.now())).eq("id", conversationId);
 
   // Exactly what a real message triggers (chekelin, handoff, routing, phone
   // alerts), but nothing is sent to the customer. Admin client because

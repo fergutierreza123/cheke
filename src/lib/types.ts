@@ -20,6 +20,9 @@ export type Channel = {
   type: ChannelType;
   external_id: string | null;
   status: "disconnected" | "connected" | "error";
+  // Coexistencia (migration 0013): the number also works in the WhatsApp
+  // Business app on the business's phone.
+  coexistence?: boolean;
 };
 
 export type ConversationStage = "nuevo" | "consulta" | "cotizacion" | "negociacion" | "ganado" | "perdido";
@@ -125,7 +128,7 @@ export type ConversationNote = {
 
 export type ConversationWithContact = Conversation & {
   contact: Pick<Contact, "id" | "name" | "phone" | "ig_handle" | "fb_id" | "notes">;
-  channel: Pick<Channel, "id" | "type"> | null;
+  channel: Pick<Channel, "id" | "type" | "coexistence"> & { external_id?: string | null } | null;
   last_message_body: string | null;
   // "No leídos": the customer's messages nobody on the team has seen yet
   // (src/lib/unread.ts). Missing = 0.
