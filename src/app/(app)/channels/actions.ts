@@ -10,7 +10,7 @@ import { claimExternalId, unsubscribeWhatsApp } from "./channelHelpers";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
 import { requestCoexistenceSync } from "@/lib/coexistence";
-import { debugToken, freshConnectionFields } from "@/lib/channelHealth";
+import { debugToken, freshConnectionFields, neverExpiringBisuToken } from "@/lib/channelHealth";
 
 const GRAPH = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
@@ -54,14 +54,19 @@ export async function connectWhatsAppChannel(input: {
     `${GRAPH}/oauth/access_token?client_id=${encodeURIComponent(appId)}&client_secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(input.code)}`,
   );
   const tokenData = await tokenRes.json().catch(() => null);
-  const accessToken: string | undefined = tokenData?.access_token;
+  let accessToken: string | undefined = tokenData?.access_token;
   if (!accessToken) return { error: tokenData?.error?.message ?? "Meta no aceptó la autorización. Intenta de nuevo." };
-  const encryptedToken = encryptSecret(accessToken);
-  // When this token ends (Embedded Signup's is 60 days today), so Canales
-  // can warn before it does. Onboarding below keeps using this token: the
+  // When this token ends, so Canales can warn before it does. Embedded
+  // Signup's is 60 days today: swap it for a never-ending one when Meta
+  // allows it (issue #56). Onboarding below uses the Canal's own token: the
   // system user (META_SYSTEM_USER_TOKEN) may not see a just-shared account
   // for a few seconds.
-  const tokenInfoPromise = debugToken(accessToken);
+  let tokenInfo = await debugToken(accessToken);
+  if (tokenInfo?.expiresAt) {
+    const upgraded = await neverExpiringBisuToken(accessToken);
+    if (upgraded) ({ token: accessToken, info: tokenInfo } = upgraded);
+  }
+  const encryptedToken = encryptSecret(accessToken);
 
   const auth ={ Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
 
@@ -145,7 +150,7 @@ export async function connectWhatsAppChannel(input: {
     history_sync_progress: null,
     history_sync_error: null,
     // Token end dates + clears any "Reconectar" state (migration 0029).
-    ...freshConnectionFields(await tokenInfoPromise),
+    ...freshConnectionFields(tokenInfo),
   };
 
   const supabase = await createClient();

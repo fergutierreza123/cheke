@@ -1,3 +1,4 @@
+import { createHmac } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { GRAPH_API_VERSION } from "@/lib/meta";
@@ -52,6 +53,37 @@ export async function debugToken(token: string): Promise<TokenInfo | null> {
       type: typeof data.type === "string" ? data.type : null,
       granularScopes: data.granular_scopes,
     };
+  } catch {
+    return null;
+  }
+}
+
+// Embedded Signup's code gives a business integration system user token that
+// ends in 60 days with our current config. Meta's Token Management API mints
+// one for the same client that never ends unless `set_token_expires_in_60_days`
+// is sent (issue #56):
+// https://developers.facebook.com/documentation/facebook-login/facebook-login-for-business
+// Returns it only when debug_token confirms it's valid and never ends; null
+// otherwise (then the Canal keeps the 60-day token and the expiry warnings).
+export async function neverExpiringBisuToken(token: string): Promise<{ token: string; info: TokenInfo } | null> {
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  if (!appSecret || !token) return null;
+  const proof = createHmac("sha256", appSecret).update(token).digest("hex");
+  const auth = `access_token=${encodeURIComponent(token)}&appsecret_proof=${proof}`;
+  try {
+    const meRes = await fetch(`${GRAPH}/me?fields=client_business_id&${auth}`, { signal: AbortSignal.timeout(10_000) });
+    const me = await meRes.json().catch(() => null);
+    if (!meRes.ok || !me?.client_business_id) return null;
+    const systemUser = me.id ? `&system_user_id=${encodeURIComponent(me.id)}` : "";
+    const mintRes = await fetch(
+      `${GRAPH}/${encodeURIComponent(me.client_business_id)}/system_user_access_tokens?${auth}${systemUser}`,
+      { method: "POST", signal: AbortSignal.timeout(10_000) },
+    );
+    const minted = await mintRes.json().catch(() => null);
+    const newToken: unknown = minted?.access_token;
+    if (!mintRes.ok || typeof newToken !== "string" || !newToken) return null;
+    const info = await debugToken(newToken);
+    return info?.isValid && !info.expiresAt ? { token: newToken, info } : null;
   } catch {
     return null;
   }
