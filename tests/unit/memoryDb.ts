@@ -14,9 +14,11 @@ const DEFAULTS: Record<string, Row> = {
   conversations: { bot_enabled: true, chekelin_replies: 0, stage: "nuevo" },
 };
 
+// Unique columns; "a+b" = unique together (a composite primary key).
 const UNIQUE: Record<string, string[]> = {
   messages: ["external_message_id"],
   post_comments: ["external_comment_id"],
+  chekelin_monthly_conversations: ["conversation_id+month"],
 };
 
 export function memoryDb(seed: Record<string, Row[]> = {}) {
@@ -25,9 +27,13 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
   const rowsOf = (table: string) => (tables[table] ??= []);
 
   function duplicate(table: string, row: Row, except?: Row): boolean {
-    return (UNIQUE[table] ?? []).some(
-      (col) => row[col] != null && rowsOf(table).some((r) => r !== except && r[col] === row[col]),
-    );
+    return (UNIQUE[table] ?? []).some((key) => {
+      const cols = key.split("+");
+      return (
+        cols.every((col) => row[col] != null) &&
+        rowsOf(table).some((r) => r !== except && cols.every((col) => r[col] === row[col]))
+      );
+    });
   }
 
   function from(table: string) {
@@ -40,8 +46,11 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
     let mode: "many" | "single" | "maybeSingle" = "many";
     let limit: number | null = null;
     let order: { col: string; ascending: boolean } | null = null;
+    // select(cols, { count: "exact", head: true }): the number of rows.
+    let counting = false;
+    let head = false;
 
-    const run = (): { data: unknown; error: { code?: string; message: string } | null } => {
+    const run = (): { data: unknown; error: { code?: string; message: string } | null; count?: number } => {
       const all = rowsOf(table);
       let out: Row[] = [];
       if (action === "insert" || action === "upsert") {
@@ -81,6 +90,7 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
         }
         out = matched;
       }
+      if (counting) return { data: head ? null : out.map((r) => embed(r, columns)), error: null, count: out.length };
       const data = action === "select" || returning ? out.map((r) => embed(r, columns)) : null;
       if (mode === "many") return { data, error: null };
       if (!data) return { data: null, error: null };
@@ -92,8 +102,10 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
     };
 
     const builder = {
-      select(cols = "*") {
+      select(cols = "*", options: { count?: string; head?: boolean } = {}) {
         columns = cols;
+        counting = Boolean(options.count);
+        head = Boolean(options.head);
         if (action !== "select") returning = true;
         return builder;
       },

@@ -17,6 +17,7 @@ import { fetchPostInfo, metaCredentialsForChannel, replyToComment, sendCommentPr
 import { firstNameForUser, managersOf, notifyAllOwners, openComplaintFromComment } from "@/lib/bot";
 import { sendPushToPeople } from "@/lib/push";
 import { canUseChekelin } from "@/lib/plan";
+import { recordChekelinUsage } from "@/lib/chekelinAllowance";
 import { isChekelinOff } from "@/lib/chekelinState";
 import { formatLempiras } from "@/lib/format";
 import { EMPTY_CHEKELIN_INFO, type ChekelinInfo } from "@/lib/types";
@@ -227,7 +228,7 @@ async function processComment(supabase: Admin, id: string): Promise<string | nul
   let summary = "";
   let product = null as (typeof refs)[number]["product"] | null;
 
-  const { decision, error } = await decideComment({
+  const { decision, error, usage } = await decideComment({
     businessName: business?.name ?? "el negocio",
     info,
     refs,
@@ -236,6 +237,7 @@ async function processComment(supabase: Admin, id: string): Promise<string | nul
     postCaption: comment.post_caption,
     comment: comment.body,
   });
+  await recordChekelinUsage(supabase, { businessId: comment.business_id, storeId: comment.store_id, kind: "comment" }, usage);
   if (decision) {
     kind = decision.kind;
     product = decision.productRef ? (refs.find((r) => r.ref === decision.productRef)?.product ?? null) : null;

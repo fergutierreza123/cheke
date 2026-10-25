@@ -6,7 +6,7 @@ import { signOut, updateDisplayName } from "./actions";
 import { initialsFor, relativeTime } from "@/lib/format";
 import { BrandMark } from "@/components/BrandMark";
 import type { UserInfo } from "@/lib/user";
-import { isPlanActive, planLabel, PLAN_LAPSED_MESSAGE } from "@/lib/plan";
+import { isPlanActive, planLabel, PLAN_LAPSED_MESSAGE, type ChekelinMeter } from "@/lib/plan";
 import { DeleteAccountButton, type DeletionSummary } from "./DeleteAccountDialog";
 import { PhoneRow } from "./PhoneRow";
 import { QuickLoginRow } from "./QuickLoginRow";
@@ -20,6 +20,7 @@ export function AccountView({
   business,
   deletion = [],
   storesLink = null,
+  chekelin = null,
   demo = false,
 }: {
   user: UserInfo;
@@ -27,6 +28,8 @@ export function AccountView({
   business: { name: string; plan: string; role: Role };
   // Dueños: "add" a second Tienda, or "manage" the ones they have.
   storesLink?: "add" | "manage" | null;
+  // Dueños: chekelin's conversations this month against the Plan's limit.
+  chekelin?: ChekelinMeter | null;
   // What "Eliminar mi cuenta" would do to each Negocio this person is in.
   deletion?: DeletionSummary;
   // The /demo phone has no real session, so saving and logging out are
@@ -112,6 +115,25 @@ export function AccountView({
             {/* Name and status only. Anything that sells a plan (prices,
                 upgrade, payment methods) goes in <HideInNativeApp>. */}
             <Row label="Plan" value={isPlanActive(business.plan) ? planLabel(business.plan) : PLAN_LAPSED_MESSAGE} />
+            {chekelin && (
+              <div className="px-5 py-3.5">
+                <div className="flex items-center justify-between gap-3 text-[13.5px]">
+                  <span className="text-ink">{chekelin.text}</span>
+                  {chekelin.level === "over" && <span className="shrink-0 font-semibold text-danger">Límite alcanzado</span>}
+                </div>
+                {chekelin.percent !== null && (
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+                    <div
+                      className={`h-full rounded-full ${chekelin.level === "ok" ? "bg-brand" : chekelin.level === "warning" ? "bg-accent" : "bg-danger"}`}
+                      style={{ width: `${chekelin.percent}%` }}
+                    />
+                  </div>
+                )}
+                {chekelin.level === "over" && (
+                  <p className="mt-1.5 text-[12.5px] text-ink-muted">Los chats nuevos los atiende tu equipo hasta el próximo mes.</p>
+                )}
+              </div>
+            )}
             {/* Log in with a code to this cell number or to the email. */}
             <PhoneRow phone={user.phone ?? ""} demo={demo} />
             {/* Face ID / fingerprint in the app, passkey on the web. */}

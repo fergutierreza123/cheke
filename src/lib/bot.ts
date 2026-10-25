@@ -20,6 +20,7 @@ import { replyWindow } from "@/lib/messagingWindow";
 import { markMessageFailed } from "@/lib/whatsappErrors";
 import { notifyConversation, sendPushToPeople } from "@/lib/push";
 import { canUseChekelin } from "@/lib/plan";
+import { countChekelinConversation, mayChekelinAttend, noticeChekelinLimit, recordChekelinUsage } from "@/lib/chekelinAllowance";
 import {
   chekelinChatState,
   firstNameOf,
@@ -388,7 +389,16 @@ export async function handleInboundMessage(
   if (!conv) return { error: "No se encontró la conversación." };
   const state = stateOf(conv);
 
-  if (state === "active" && automationMayWrite(conv, sendExternally)) {
+  // The Plan's monthly allowance (issue #9): at the limit, new conversations
+  // go quietly to the team and the Dueños get one notice. Modo prueba is
+  // never limited and never counts.
+  let overLimit = false;
+  if (state === "active" && sendExternally && !(await mayChekelinAttend(supabase, conv))) {
+    overLimit = true;
+    await noticeChekelinLimit(supabase, conv);
+  }
+
+  if (state === "active" && !overLimit && automationMayWrite(conv, sendExternally)) {
     const result = await runSeller(supabase, conv, sendExternally, preview);
     if (!result.error) return result;
     // chekelin couldn't answer (no API key, an outage…): a person takes it,
@@ -520,7 +530,7 @@ async function runSeller(
   ]);
   const managerName = await firstNameForUser(supabase, managers[0] ?? null);
 
-  const { decision, error } = await decideSeller({
+  const { decision, error, usage } = await decideSeller({
     businessName: conv.businessName,
     info: know.info,
     refs: know.refs,
@@ -530,6 +540,11 @@ async function runSeller(
     location: know.location,
     history,
   });
+  await recordChekelinUsage(
+    supabase,
+    { businessId: conv.businessId, storeId: conv.storeId, conversationId: conv.id, kind: "seller", test: !sendExternally },
+    usage,
+  );
   if (!decision) return { error };
 
   const plan = planFor(decision, conv, know);
@@ -575,6 +590,10 @@ async function runSeller(
     else if (item.kind === "product") await say(item.text, item.mediaUrl);
     else await say(item.text, null, item.location);
   }
+
+  // chekelin wrote to a real customer: this conversation counts for the
+  // month (a handoff without words of its own doesn't).
+  if (sendExternally && sent.length > 0) await countChekelinConversation(supabase, now);
 
   switch (plan.kind) {
     case "handoff": {
@@ -899,13 +918,18 @@ async function runDue(supabase: Admin, item: Due): Promise<void> {
       .select("id");
     if (claimed?.length && stateOf(conv) === "silent" && fresh(conv.lastInboundAt, nowMs) && automationMayWrite(conv, true)) {
       const [history, know] = await Promise.all([recentHistory(supabase, conv.id), loadKnowledge(supabase, conv)]);
-      const { decision } = await decideSimpleFact({
+      const { decision, usage } = await decideSimpleFact({
         businessName: conv.businessName,
         info: know.info,
         refs: know.refs,
         templates: know.templates,
         history,
       });
+      await recordChekelinUsage(
+        supabase,
+        { businessId: conv.businessId, storeId: conv.storeId, conversationId: conv.id, kind: "simple_fact" },
+        usage,
+      );
       if (decision?.simpleFact && decision.reply) {
         const name = await firstNameForUser(supabase, conv.assignedTo);
         await sendAutomated(supabase, conv, `${decision.reply} ${simpleFactEnding(name)}`, true);
