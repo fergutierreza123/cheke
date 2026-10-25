@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { connectWhatsAppChannel } from "./actions";
 import { loadFacebookSdk } from "./facebookSdk";
+import { ConnectInBrowser } from "./ConnectInBrowser";
+import { useIsNativeApp } from "@/components/NativeApp";
 
 // Meta's "Embedded Signup" (v4): a Facebook popup where the business owner
 // either connects the number they already use in the WhatsApp Business app
@@ -31,6 +33,7 @@ export function ConnectWhatsAppButton({
   hint?: boolean;
 }) {
   const router = useRouter();
+  const native = useIsNativeApp();
   const [status, setStatus] = useState<"idle" | "opening" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -91,6 +94,8 @@ export function ConnectWhatsAppButton({
     // maybeFinish only reads refs and stable setters
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (native) return <ConnectInBrowser label={label} color="#25D366" />;
 
   async function handleClick() {
     setError(null);

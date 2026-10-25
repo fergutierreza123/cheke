@@ -1,0 +1,42 @@
+# Builds the iPhone and Android shells in the cloud (the founder's Mac can't
+# run Xcode 26). Android: a debug APK to install on a phone for testing.
+# iOS: a simulator build that proves the project compiles; signed builds for
+# TestFlight come once the Apple Developer account exists.
+name: Native builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["ios/**", "android/**", "capacitor.config.ts", "package.json", ".github/workflows/native-builds.yml"]
+  pull_request:
+    paths: ["ios/**", "android/**", "capacitor.config.ts", "package.json", ".github/workflows/native-builds.yml"]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - run: npx cap sync android
+      - run: ./gradlew assembleDebug
+        working-directory: android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cheke-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  ios:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npx cap sync ios
+      - run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -40
+        env: { NSUnbufferedIO: "YES" }
