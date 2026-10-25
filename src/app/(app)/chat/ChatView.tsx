@@ -34,6 +34,7 @@ import type { QuickReply } from "@/lib/quickReplies";
 import { useQuickReplyPicker } from "./QuickReplyPicker";
 import { CameraIcon, ClipIcon, PhotoIcon, useComposerMedia, type MediaSendResult } from "./ComposerMedia";
 import { AttachSheet } from "./AttachSheet";
+import { NoteStrip } from "./NoteStrip";
 import { WhatsAppTemplateSender } from "./WhatsAppTemplateSender";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
@@ -108,6 +109,7 @@ export function ChatView({
   templates,
   initialSelectedId,
   initialMessages,
+  initialNotes = [],
   startInThread = false,
   currentUserId = null,
   people = [],
@@ -129,6 +131,9 @@ export function ChatView({
   templates: Template[];
   initialSelectedId: string | null;
   initialMessages: Message[];
+  // Team-only notes of the initially open conversation (the /demo showcase;
+  // real chats load them below).
+  initialNotes?: ConversationNote[];
   // Phones: open straight into the conversation (a tapped notification)
   // instead of the chat list.
   startInThread?: boolean;
@@ -151,7 +156,9 @@ export function ChatView({
 }) {
   const showAssignment = people.length >= 2;
   const [stores, setStores] = useState(chekelinStores);
-  const [notesByConversation, setNotesByConversation] = useState<Record<string, ConversationNote[]>>({});
+  const [notesByConversation, setNotesByConversation] = useState<Record<string, ConversationNote[]>>(
+    initialSelectedId && initialNotes.length > 0 ? { [initialSelectedId]: initialNotes } : {},
+  );
   const [showChekelinMenu, setShowChekelinMenu] = useState(false);
   const [conversations, setConversations] = useState(initialConversations);
   const [selectedId, setSelectedId] = useState(initialSelectedId);
@@ -455,7 +462,10 @@ export function ChatView({
   const assignee = selected?.assigned_to ? people.find((p) => p.userId === selected.assigned_to) : undefined;
   const assignable = selected ? people.filter((p) => p.storeIds.includes(selected.store_id)) : [];
   const canReassign = Boolean(selectedStore?.canManage) && assignable.length > 1;
-  const latestNote = selectedId ? notesByConversation[selectedId]?.[0] : undefined;
+  const selectedNotes = (selectedId && notesByConversation[selectedId]) || NO_NOTES;
+  // An open Queja normally comes with its note (shown in NoteStrip); older
+  // ones without it still get their own row.
+  const complaintWithoutNote = complaintOpen && !selectedNotes.some((n) => n.kind === "complaint");
   // Automated messages say who wrote them: chekelin, or (plans without it)
   // a plain automatic message.
   const botLabel = chekelinAvailable ? "chekelin" : "Mensaje automático";
@@ -1227,7 +1237,9 @@ export function ChatView({
               const style = color
                 ? active
                   ? { background: color, borderColor: color, color: "#fff" }
-                  : { background: withAlpha(color, 0.14), borderColor: withAlpha(color, 0.3), color }
+                  : // The raw channel color (WhatsApp's green above all) is too
+                    // faint as text on its own tint: darken it toward navy.
+                    { background: withAlpha(color, 0.14), borderColor: withAlpha(color, 0.3), color: `color-mix(in srgb, ${color} 55%, #001037)` }
                 : undefined;
               return (
                 <button
@@ -1288,14 +1300,14 @@ export function ChatView({
                   c.id === selectedId ? "bg-brand-tint" : "bg-surface hover:bg-surface-2"
                 }`}
               >
-                <div className="relative h-[34px] w-[34px] shrink-0 rounded-full bg-brand text-[13.5px] font-bold text-white">
+                <div className="relative h-[34px] w-[34px] shrink-0 rounded-full bg-brand text-[12.5px] font-bold leading-none tracking-tight text-white">
                   <span className="flex h-full w-full items-center justify-center">
                     {initialsFor(c.contact.name)}
                   </span>
                   {c.channel && (
                     <ChannelIcon
                       type={c.channel.type}
-                      className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full ring-2 ring-surface"
+                      className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full ring-2 ring-surface"
                     />
                   )}
                 </div>
@@ -1472,16 +1484,17 @@ export function ChatView({
               </div>
             </div>
 
-            {/* Team-only strip: who has the chat (2+ people) and chekelin's
-                Traspaso summary. Never sent to the customer. */}
-            {(showAssignment || latestNote || complaintOpen) && (
+            {/* Team-only strip: who has the chat (2+ people), and an open
+                Queja that has no note to show it below. Never sent to the
+                customer. */}
+            {(showAssignment || complaintWithoutNote) && (
               <div
                 className={`shrink-0 border-b border-border bg-surface-2 px-3 py-2 text-[12.5px] lg:px-6 ${
                   highlightAssignment && canReassign ? "ring-2 ring-inset ring-brand" : ""
                 }`}
               >
-                {complaintOpen && (
-                  <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                {complaintWithoutNote && (
+                  <div className={`${showAssignment ? "mb-1.5" : ""} flex flex-wrap items-center gap-x-2 gap-y-1`}>
                     <ComplaintTag />
                     <span className="min-w-0 flex-1 text-ink">
                       chekelin no responde hasta que la queja se marque resuelta.
@@ -1529,19 +1542,17 @@ export function ChatView({
                     )}
                   </div>
                 )}
-                {latestNote && (
-                  <div className={`${showAssignment ? "mt-1.5" : ""} flex items-start gap-1.5 leading-snug`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
-                    <img src="/logos/cheke-icon-blue.png" alt="" className="mt-[2px] h-3.5 w-3.5 shrink-0 object-contain" />
-                    <p className="min-w-0 text-ink">
-                      <span className="font-semibold text-brand-dark">Solo para el equipo: </span>
-                      {latestNote.summary}
-                      {latestNote.reason && <span className="text-ink-muted"> · {latestNote.reason}</span>}
-                    </p>
-                  </div>
-                )}
               </div>
             )}
+
+            {/* Team-only notes (Traspaso, Queja, Pago, falta info): one line,
+                "Ver más" opens the full text over the chat. */}
+            <NoteStrip
+              key={selected.id}
+              notes={selectedNotes}
+              complaintOpen={complaintOpen}
+              onResolveComplaint={selectedStore?.canManage ? handleResolveComplaint : undefined}
+            />
 
             {/* Looks and reads like WhatsApp on purpose, so clients moving their
                 conversations here don't feel a change: beige wallpaper, white
@@ -2432,6 +2443,8 @@ function ChekelinStoreSwitch({
 }
 
 // The red "Queja" tag: an open complaint (chekelin silent until resolved).
+const NO_NOTES: ConversationNote[] = [];
+
 function ComplaintTag() {
   return (
     <span className="inline-flex shrink-0 items-center rounded-md border border-danger-border bg-danger-tint px-1.5 py-px text-[10.5px] font-bold uppercase tracking-wide text-danger">
