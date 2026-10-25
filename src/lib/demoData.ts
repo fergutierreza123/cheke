@@ -2,6 +2,7 @@ import type { ChekelinInfo } from "@/lib/types";
 import type {
   ChannelType,
   Contact,
+  ConversationNote,
   ConversationStage,
   ConversationWithContact,
   Message,
@@ -231,8 +232,25 @@ export function buildDemoData(now: number) {
     comment({ id: "k3", platform: "instagram", author_name: "Yesenia Cálix", author_username: "yesenia.calix", body: "Qué bonitos colores 👏", commented_at: iso(26 * H) }),
   ];
 
+  // Team-only notes on Juan's chat: chekelin asked the team something it
+  // didn't know (it keeps attending), after an earlier Traspaso.
+  const note = (id: string, kind: ConversationNote["kind"], summary: string, reason: string, ago: number): ConversationNote => ({
+    id, conversation_id: "conv-1", store_id: DEMO_STORE.id, kind, summary, reason, created_at: iso(ago),
+  });
+  const notes: ConversationNote[] = [
+    note(
+      "n2",
+      "handoff",
+      "Juan quiere la guitarra acústica en negro, pregunta si se la pueden apartar hasta el viernes y si el envío a Choluteca se puede pagar contra entrega cuando le llegue.",
+      "chekelin no tenía la información · sigue atendiendo",
+      3 * 60000,
+    ),
+    note("n1", "handoff", "Pidió precio de la guitarra acústica y del estuche rígido.", "Pide descuento o pedido especial", 25 * 60000),
+  ];
+
   return {
     comments,
+    notes,
     conversations,
     messages,
     products,

@@ -7,14 +7,19 @@
 export const SIMULATE_ONLY_IN_SAMPLES =
   "El modo prueba solo funciona en chats de ejemplo. Este chat es con un cliente real: escríbele normalmente.";
 
-// A channel really connected to a customer's WhatsApp, Instagram or Facebook
-// (seeded sample chats have no credentials).
-export function isLiveChannel(channel: { access_token_encrypted?: string | null } | null | undefined): boolean {
-  return Boolean(channel?.access_token_encrypted);
+// A channel of a real WhatsApp number, Instagram account or Facebook Page.
+// Seeded sample chats have neither a number/account id nor credentials. A
+// Canal that was disconnected (token cleared, number kept) or cheke's test
+// number (token in the server's settings) is still a real customer's chat.
+// Same rule as Chat's `sampleChat` (no external_id).
+type ChannelIdentity = { external_id?: string | null; access_token_encrypted?: string | null };
+
+export function isLiveChannel(channel: ChannelIdentity | null | undefined): boolean {
+  return Boolean(channel?.external_id || channel?.access_token_encrypted);
 }
 
 export function canSimulate(
-  channel: { access_token_encrypted?: string | null } | null | undefined,
+  channel: ChannelIdentity | null | undefined,
   isDemoBusiness: boolean,
 ): boolean {
   return !isLiveChannel(channel) || isDemoBusiness;

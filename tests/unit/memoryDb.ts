@@ -11,6 +11,7 @@ type Filter = (row: Row) => boolean;
 // Column defaults the real tables have (supabase/migrations).
 const DEFAULTS: Record<string, Row> = {
   messages: { status: "sent", is_bot: false, source: "cheke" },
+  conversations: { bot_enabled: true, chekelin_replies: 0, stage: "nuevo" },
 };
 
 // Unique columns; "a+b" = unique together (a composite primary key).
@@ -54,6 +55,15 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
       let out: Row[] = [];
       if (action === "insert" || action === "upsert") {
         for (const input of Array.isArray(payload) ? payload : [payload!]) {
+          // upsert(…, { onConflict: "a,b" }): the row with the same a and b
+          // is updated in place, like Postgres' ON CONFLICT DO UPDATE.
+          const keys = action === "upsert" ? (upsertOptions.onConflict ?? "").split(",").map((k) => k.trim()).filter(Boolean) : [];
+          const existing = keys.length ? all.find((r) => keys.every((k) => r[k] === input[k])) : undefined;
+          if (existing) {
+            if (!upsertOptions.ignoreDuplicates) Object.assign(existing, input);
+            out.push(existing);
+            continue;
+          }
           const row: Row = { id: randomUUID(), created_at: new Date().toISOString(), ...DEFAULTS[table], ...input };
           if (duplicate(table, row)) {
             if (action === "upsert" && upsertOptions.ignoreDuplicates) continue;
@@ -187,7 +197,20 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
       if (!m) continue;
       const [, alias, table, inner] = m;
       const target = rowsOf(table).find((r) => r.id === row[`${alias}_id`]);
-      out[alias] = target ? embed(target, inner) : null;
+      out[alias] = target ? project(embed(target, inner), inner) : null;
+    }
+    return out;
+  }
+
+  // An embedded row keeps only the columns asked for (like PostgREST), so a
+  // query that forgets a column fails here too.
+  function project(row: Row, cols: string): Row {
+    const names = topLevel(cols).map((p) => p.trim());
+    if (names.includes("*")) return row;
+    const out: Row = {};
+    for (const name of names) {
+      const alias = /^(\w+)(?::\w+\(|$)/.exec(name)?.[1];
+      if (alias && alias in row) out[alias] = row[alias];
     }
     return out;
   }

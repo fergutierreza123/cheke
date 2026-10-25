@@ -40,6 +40,7 @@ import { waitForVoiceTranscription } from "@/lib/voiceTranscription";
 import { EMPTY_CHEKELIN_INFO, type ChannelType, type ChekelinInfo, type Message, type Template } from "@/lib/types";
 import { hasStoreLocation, locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
 import { getStoreLocation } from "@/lib/storeLocationServer";
+import { FALTA_INFO_LABEL } from "@/lib/conversationNotes";
 
 // chekelin sells on its own (answers, photos, order, payment details,
 // receipt), hands the chat to a person when it should (Traspaso), handles
@@ -315,14 +316,14 @@ export const HANDOFF_REASON_LABEL: Record<
   string
 > = {
   pide_persona: "Pidió hablar con una persona",
-  falta_info: "chekelin no tenía la información",
-  descuento: "Pide descuento, precio especial o un pedido especial",
+  falta_info: FALTA_INFO_LABEL,
+  descuento: "Pide descuento o pedido especial",
   ninguna: "chekelin pasó el chat a una persona",
-  tope: "chekelin ya mandó 15 mensajes sin llegar a un pedido",
+  tope: "15 mensajes de chekelin sin pedido",
   chekelin_apagado: "chekelin se apagó en la tienda",
-  total: "El total del pedido no cuadró: revísalo antes de cobrar",
-  sin_formas_pago: 'Falta llenar "Formas de pago" en Lo que chekelin sabe',
-  comprobante_sin_cobro: "Dice que ya pagó, pero no hay un cobro pendiente en cheke",
+  total: "El total no cuadró: revísalo antes de cobrar",
+  sin_formas_pago: 'Faltan las "Formas de pago" de chekelin',
+  comprobante_sin_cobro: "Dice que pagó, pero no hay cobro pendiente",
 };
 
 // The Traspaso: assign a person, tell the customer who will help them, leave
@@ -650,7 +651,7 @@ async function askTeam(supabase: Admin, conv: LoadedConversation, summary: strin
     conversation_id: conv.id,
     kind: "handoff",
     summary: question,
-    reason: `${HANDOFF_REASON_LABEL.falta_info}: le dijo que lo confirma y sigue atendiendo`,
+    reason: `${HANDOFF_REASON_LABEL.falta_info} · sigue atendiendo`,
   });
   const people = managers.length > 0 ? managers : await notifyAllOwners(supabase, conv.businessId);
   await sendPushToPeople(supabase, conv.businessId, conv.storeId, people, {
@@ -732,7 +733,7 @@ async function receiptReceived(supabase: Admin, conv: LoadedConversation, orderI
     conversation_id: conv.id,
     kind: "payment",
     summary: summary || "El cliente dice que ya pagó.",
-    reason: `Comprobante recibido${total ? ` · ${total}` : ""}: revisa tu cuenta y toca "Confirmar pago"`,
+    reason: `Comprobante${total ? ` de ${total}` : ""}: revisa y confirma el pago`,
   });
 
   const people = new Set([...(conv.assignedTo ? [conv.assignedTo] : []), ...(await managersOf(supabase, conv.businessId, conv.storeId))]);
@@ -777,7 +778,7 @@ async function openComplaint(
     conversation_id: conv.id,
     kind: "complaint",
     summary: summary || "El cliente tiene una queja.",
-    reason: "Queja: chekelin no responde hasta que alguien la marque resuelta",
+    reason: "chekelin en pausa hasta resolverla",
   });
 
   if (!alert) return;
