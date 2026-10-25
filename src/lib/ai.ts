@@ -3,6 +3,7 @@ import type { AddressForm, ChekelinInfo, Message, Product, Template, TemplateCat
 import { formatLempiras } from "@/lib/format";
 import { hasStoreLocation, type StoreLocation } from "@/lib/storeLocation";
 import { hondurasTimeLine } from "@/lib/chekelinState";
+import { usageRecords, type UsageRecord } from "@/lib/chekelinCost";
 
 // chekelin: the AI assistant that answers customers and sells on its own
 // (answers, sends product photos, takes the order, sends the payment
@@ -35,13 +36,16 @@ function getClient(): Anthropic | null {
   return client;
 }
 
-// One structured call. Returns the parsed JSON, or an error in Spanish.
+// One structured call. Returns the parsed JSON, or an error in Spanish, and
+// the tokens it used (one record per billed attempt, with its model) so the
+// caller can record what chekelin costs (chekelin_usage, issue #9). A refused
+// or cut-off answer was still billed, so it returns its usage too.
 async function structuredCall<T>(input: {
   system: string;
   messages: Anthropic.Beta.BetaMessageParam[];
   schema: Record<string, unknown>;
   maxTokens: number;
-}): Promise<{ data?: T; error?: string; usage?: Anthropic.Beta.BetaUsage }> {
+}): Promise<{ data?: T; error?: string; usage?: UsageRecord[] }> {
   const anthropic = getClient();
   if (!anthropic) return { error: "Falta configurar ANTHROPIC_API_KEY en el servidor." };
   try {
@@ -56,13 +60,14 @@ async function structuredCall<T>(input: {
       messages: input.messages,
       output_config: { effort: EFFORT, format: { type: "json_schema", schema: input.schema } },
     });
-    if (response.stop_reason === "refusal") return { error: "chekelin no pudo responder este mensaje." };
-    if (response.stop_reason === "max_tokens") return { error: "La respuesta de chekelin quedó incompleta." };
+    const usage = usageRecords(response.model, response.usage);
+    if (response.stop_reason === "refusal") return { error: "chekelin no pudo responder este mensaje.", usage };
+    if (response.stop_reason === "max_tokens") return { error: "La respuesta de chekelin quedó incompleta.", usage };
     // Thinking (and any fallback marker) comes in other block types: read
     // the text block only.
     const text = response.content.find((block) => block.type === "text")?.text;
-    if (!text) return { error: "chekelin no generó una respuesta." };
-    return { data: JSON.parse(text) as T, usage: response.usage };
+    if (!text) return { error: "chekelin no generó una respuesta.", usage };
+    return { data: JSON.parse(text) as T, usage };
   } catch (error) {
     if (error instanceof Anthropic.APIError) {
       console.error("chekelin api error", error.status, error.message);
@@ -353,7 +358,7 @@ export async function decideSeller(args: {
   location?: StoreLocation | null;
   // Defaults to the real clock (the eval passes its own).
   nowMs?: number;
-}): Promise<{ decision?: SellerDecision; error?: string; usage?: Anthropic.Beta.BetaUsage }> {
+}): Promise<{ decision?: SellerDecision; error?: string; usage?: UsageRecord[] }> {
   const messages = toMessages(args.history);
   if (messages.length === 0 || messages.at(-1)?.role !== "user") {
     return { error: "No hay un mensaje del cliente al cual responder." };
@@ -364,7 +369,7 @@ export async function decideSeller(args: {
     schema: SELLER_SCHEMA,
     maxTokens: 4000,
   });
-  if (!data) return { error };
+  if (!data) return { error, usage };
   return { decision: normalizeSeller(data), usage };
 }
 
@@ -411,7 +416,7 @@ export async function decideSimpleFact(args: {
   refs: ProductRef[];
   templates: Template[];
   history: Pick<Message, "direction" | "body">[];
-}): Promise<{ decision?: SimpleFactDecision; error?: string }> {
+}): Promise<{ decision?: SimpleFactDecision; error?: string; usage?: UsageRecord[] }> {
   const messages = toMessages(args.history);
   if (messages.length === 0 || messages.at(-1)?.role !== "user") {
     return { error: "No hay un mensaje del cliente al cual responder." };
@@ -424,14 +429,14 @@ export async function decideSimpleFact(args: {
     "",
     knowledge(args.info, args.refs, args.templates),
   ].join("\n");
-  const { data, error } = await structuredCall<{ reply?: string; simple_fact?: boolean }>({
+  const { data, error, usage } = await structuredCall<{ reply?: string; simple_fact?: boolean }>({
     system,
     messages,
     schema: SIMPLE_FACT_SCHEMA,
     maxTokens: 2000,
   });
-  if (!data) return { error };
-  return { decision: { reply: (data.reply ?? "").trim(), simpleFact: Boolean(data.simple_fact) } };
+  if (!data) return { error, usage };
+  return { decision: { reply: (data.reply ?? "").trim(), simpleFact: Boolean(data.simple_fact) }, usage };
 }
 
 // ---------------------------------------------------------------------------
@@ -468,7 +473,7 @@ export async function decideComment(args: {
   platform: "instagram" | "facebook";
   postCaption: string | null;
   comment: string;
-}): Promise<{ decision?: CommentDecision; error?: string }> {
+}): Promise<{ decision?: CommentDecision; error?: string; usage?: UsageRecord[] }> {
   const manager = args.managerName ?? "la persona encargada";
   const network = args.platform === "instagram" ? "Instagram" : "Facebook";
   const system = [
@@ -497,16 +502,17 @@ export async function decideComment(args: {
     `Comentario: ${args.comment.slice(0, 1500)}`,
   ].join("\n\n");
 
-  const { data, error } = await structuredCall<{
+  const { data, error, usage } = await structuredCall<{
     kind?: CommentDecision["kind"];
     public_reply?: string;
     private_reply?: string;
     product_ref?: string;
     team_summary?: string;
   }>({ system, messages: [{ role: "user", content }], schema: COMMENT_SCHEMA, maxTokens: 2000 });
-  if (!data) return { error };
+  if (!data) return { error, usage };
   const ref = (data.product_ref ?? "").trim();
   return {
+    usage,
     decision: {
       kind: data.kind ?? "other",
       publicReply: (data.public_reply ?? "").trim(),
@@ -558,7 +564,7 @@ export async function proposeTemplates(args: {
   businessName: string;
   pairs: Array<{ question: string; answer: string }>;
   existing: string[];
-}): Promise<{ suggestions?: ProposedTemplate[]; error?: string }> {
+}): Promise<{ suggestions?: ProposedTemplate[]; error?: string; usage?: UsageRecord[] }> {
   const numbered = args.pairs
     .map((p, i) => `${i + 1}. Cliente: ${p.question}\n   Equipo: ${p.answer}`)
     .join("\n");
@@ -578,12 +584,12 @@ export async function proposeTemplates(args: {
     .filter(Boolean)
     .join("\n");
 
-  const { data, error } = await structuredCall<{ suggestions?: ProposedTemplate[] }>({
+  const { data, error, usage } = await structuredCall<{ suggestions?: ProposedTemplate[] }>({
     system,
     messages: [{ role: "user", content: numbered }],
     schema: SUGGESTIONS_SCHEMA,
     maxTokens: 8000,
   });
-  if (!data) return { error: error ?? "chekelin no pudo preparar sugerencias." };
-  return { suggestions: data.suggestions ?? [] };
+  if (!data) return { error: error ?? "chekelin no pudo preparar sugerencias.", usage };
+  return { suggestions: data.suggestions ?? [], usage };
 }

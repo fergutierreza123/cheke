@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db": "vitest run --config vitest.db.config.mts",
-    "eval:chekelin": "vitest run --config vitest.eval.config.mts"
+    "eval:chekelin": "vitest run --config vitest.eval.config.mts",
+    "report:chekelin-cost": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local scripts/report-chekelin-cost.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

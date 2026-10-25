@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { proposeTemplates } from "@/lib/ai";
 import { canUseChekelin } from "@/lib/plan";
+import { recordChekelinUsage } from "@/lib/chekelinAllowance";
 import { TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
 
 // "Sugerencias de chekelin" (weekly, from /api/cron/suggestions): for each
@@ -85,7 +86,8 @@ async function suggestForBusiness(supabase: SupabaseClient, businessId: string, 
   ].slice(0, 60);
 
   const recent = pairs.slice(-MAX_PAIRS);
-  const { suggestions } = await proposeTemplates({ businessName, pairs: recent, existing });
+  const { suggestions, usage } = await proposeTemplates({ businessName, pairs: recent, existing });
+  await recordChekelinUsage(supabase, { businessId, kind: "suggestions" }, usage);
   const rows = (suggestions ?? [])
     .filter((s) => s.times >= MIN_TIMES && s.times <= recent.length && s.body.trim() && s.name.trim())
     .filter((s) => TEMPLATE_CATEGORY_ORDER.includes(s.category))
