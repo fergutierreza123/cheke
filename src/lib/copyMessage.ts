@@ -19,6 +19,12 @@ export function copyableText(m: Message): string | null {
       text = m.transcription;
       break;
     case "location": {
+      // The Tienda's own location (Ubicación / chekelin): its text has the
+      // Google Maps link the customer got; place + address alone would lose it.
+      if (m.direction === "out" && m.body?.startsWith("📍")) {
+        text = m.body.replace(/^📍\s*/, "");
+        break;
+      }
       const where = [info.place, info.address].filter(Boolean).join(", ");
       text = where || (typeof info.latitude === "number" ? `${info.latitude}, ${info.longitude}` : null);
       break;

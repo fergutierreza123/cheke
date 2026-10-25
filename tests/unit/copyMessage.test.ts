@@ -45,6 +45,21 @@ describe("copyableText", () => {
     );
   });
 
+  it("copies the Tienda's location the way the customer got it: name, address and the Maps link", () => {
+    // What «Ubicación» / chekelin save (src/lib/storeLocation.ts locationSendPlan).
+    const sent = msg({
+      direction: "out",
+      body: "📍 Tienda Luna\nCol. Palmira\nhttps://www.google.com/maps/@14.07,-87.19,17z",
+      media_kind: "location",
+      media_info: { latitude: 14.07, longitude: -87.19, place: "Tienda Luna", address: "Col. Palmira" },
+    });
+    expect(copyableText(sent)).toBe("Tienda Luna\nCol. Palmira\nhttps://www.google.com/maps/@14.07,-87.19,17z");
+    // Instagram/Messenger get it as plain text: copied as written.
+    expect(copyableText(msg({ direction: "out", body: "📍 Tienda Luna\nCol. Palmira\nhttps://maps.app.goo.gl/x" }))).toBe(
+      "📍 Tienda Luna\nCol. Palmira\nhttps://maps.app.goo.gl/x",
+    );
+  });
+
   it("copies a contact card's names and numbers", () => {
     expect(
       copyableText(msg({ media_kind: "contacts", media_info: { contacts: [{ name: "Repartidor", phones: ["+504 9999-0000"] }] } })),
