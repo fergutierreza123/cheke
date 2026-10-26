@@ -44,12 +44,14 @@ export async function saveTemplate(formData: FormData): Promise<{ error?: string
   // The Plantilla first: if it can't be saved, the Sugerencia stays pending
   // instead of being marked approved without a Plantilla.
   if (id) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("templates")
       .update({ name, category, body })
       .eq("id", id)
-      .eq("business_id", business.id);
+      .eq("business_id", business.id)
+      .select("id");
     if (error) return { error: friendlyError(error, "No se pudo guardar la plantilla. Inténtalo de nuevo.") };
+    if (!updated?.length) return { error: "No se encontró la plantilla. Recarga la página." };
   } else {
     const { error } = await supabase
       .from("templates")

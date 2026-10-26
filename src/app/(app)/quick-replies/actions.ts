@@ -32,13 +32,14 @@ export async function saveQuickReply(input: { id?: string; shortcut: string; bod
   if (body.length > BODY_MAX) return { error: `El mensaje es muy largo (máximo ${BODY_MAX} letras).` };
 
   const row = { shortcut, body };
-  const { error } = input.id
-    ? await ctx.supabase.from("quick_replies").update(row).eq("id", input.id).eq("business_id", ctx.business.id)
-    : await ctx.supabase.from("quick_replies").insert({ ...row, business_id: ctx.business.id });
+  const { data, error } = input.id
+    ? await ctx.supabase.from("quick_replies").update(row).eq("id", input.id).eq("business_id", ctx.business.id).select("id")
+    : await ctx.supabase.from("quick_replies").insert({ ...row, business_id: ctx.business.id }).select("id");
   if (error) {
     if (error.code === "23505") return { error: `Ya tienes una respuesta con /${shortcut}.` };
     return { error: friendlyError(error, "No se pudo guardar la respuesta rápida.") };
   }
+  if (input.id && !data?.length) return { error: "No se encontró la respuesta rápida. Recarga la página." };
   refresh();
   return {};
 }

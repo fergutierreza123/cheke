@@ -29,7 +29,10 @@ const { saveProduct } = await import("@/app/(app)/inventory/actions");
 const { saveContact } = await import("@/app/(app)/contacts/actions");
 const { createBusiness } = await import("@/app/onboarding/actions");
 const { deleteAccount } = await import("@/app/(app)/account/actions");
-const { updateMemberRole, cancelInvitation } = await import("@/app/(app)/team/actions");
+const { updateMemberRole, cancelInvitation, removeMember } = await import("@/app/(app)/team/actions");
+const { deleteProduct } = await import("@/app/(app)/inventory/actions");
+const { setConversationBotEnabled } = await import("@/app/(app)/actions");
+const { saveQuickReply } = await import("@/app/(app)/quick-replies/actions");
 const { renameStore } = await import("@/app/(app)/stores/actions");
 const { saveTemplate } = await import("@/app/(app)/templates/actions");
 
@@ -209,5 +212,40 @@ describe("Mi cuenta: «Eliminar mi cuenta» takes the Negocio's files with it", 
     ]);
     expect(removed.filter((p) => p.startsWith("product-images:"))).toHaveLength(1200);
     expect(deleteUser).toHaveBeenCalledWith("me");
+  });
+});
+
+// QA round 4: actions that said «listo» although nothing changed (the row
+// was gone, or Row Level Security filtered it out).
+describe("nothing changed → the person is told, not «listo»", () => {
+  it("Equipo: removing someone who already left says so and touches no phone alerts", async () => {
+    db.queue("members", { count: 1 }); // another Dueño exists
+    db.queue("members", { data: [] }); // the delete removed nobody
+    expect((await removeMember("gone")).error).toBe("Esa persona ya no está en tu negocio.");
+    expect(db.writes("device_tokens", "delete")).toHaveLength(0);
+  });
+
+  it("Catálogo: deleting a product that's gone (or of an archived Tienda) says so", async () => {
+    db.queue("products", { data: [] });
+    expect((await deleteProduct("p-gone")).error).toBe("No se encontró el producto. Recarga la página.");
+  });
+
+  it("Chat: switching chekelin in a chat that can't change says so", async () => {
+    db.queue("conversations", { data: [] });
+    expect((await setConversationBotEnabled("c-other", false)).error).toBe("No se pudo cambiar a chekelin en este chat.");
+  });
+
+  it("Plantillas: editing a Plantilla that's gone says so", async () => {
+    db.queue("templates", { data: [] });
+    expect((await saveTemplate(form({ id: "t-gone", name: "Precio", body: "hola", category: "precios" }))).error).toBe(
+      "No se encontró la plantilla. Recarga la página.",
+    );
+  });
+
+  it("Respuestas rápidas: editing one that's gone says so", async () => {
+    db.queue("quick_replies", { data: [] });
+    expect((await saveQuickReply({ id: "q-gone", shortcut: "horario", body: "8 a 5" })).error).toBe(
+      "No se encontró la respuesta rápida. Recarga la página.",
+    );
   });
 });

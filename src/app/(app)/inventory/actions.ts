@@ -127,13 +127,15 @@ export async function deleteProduct(id: string): Promise<{ error?: string }> {
 
   const supabase = await createClient();
   // Only products of open Tiendas: an archived Tienda's catalog is read-only.
-  const { error } = await supabase
+  const { data: deleted, error } = await supabase
     .from("products")
     .delete()
     .eq("id", id)
     .eq("business_id", business.id)
-    .in("store_id", writableStoreIds(business));
+    .in("store_id", writableStoreIds(business))
+    .select("id");
   if (error) return { error: friendlyError(error, "No se pudo eliminar el producto.") };
+  if (!deleted?.length) return { error: "No se encontró el producto. Recarga la página." };
 
   revalidatePath("/inventory");
   return {};
