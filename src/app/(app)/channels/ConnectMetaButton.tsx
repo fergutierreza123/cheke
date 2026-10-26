@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { connectMetaPage, startMetaConnection, type MetaPageOption } from "./metaActions";
 import { loadFacebookSdk } from "./facebookSdk";
+import { ConnectInBrowser } from "./ConnectInBrowser";
+import { useIsNativeApp } from "@/components/NativeApp";
 
 // "Conectar Instagram y Facebook": Facebook Login for Business with its own
 // configuration (NEXT_PUBLIC_META_MESSAGING_CONFIG_ID, which asks for the
@@ -28,6 +30,9 @@ export function ConnectMetaButton({
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [choice, setChoice] = useState<{ session: string; pages: MetaPageOption[]; selected: string } | null>(null);
+  const native = useIsNativeApp();
+
+  if (native) return <ConnectInBrowser label={label} color="var(--color-brand)" />;
 
   async function finish(session: string, pageId: string) {
     setStatus("saving");

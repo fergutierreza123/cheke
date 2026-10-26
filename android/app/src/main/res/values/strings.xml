@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">cheke</string>
+    <string name="title_activity_main">cheke</string>
+    <string name="package_name">io.cheke.app</string>
+    <string name="custom_url_scheme">io.cheke.app</string>
+</resources>
