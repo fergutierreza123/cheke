@@ -51,6 +51,12 @@ export type Conversation = {
   awaiting_since?: string | null;
   // An open Queja (migration 0022): red tag, chekelin silent until resolved.
   complaint_open_at?: string | null;
+  // The ad (or post) the chat came from (migration 0039, src/lib/adReferral.ts).
+  referral_source?: "anuncio" | "publicación" | null;
+  referral_ad_id?: string | null;
+  referral_headline?: string | null;
+  referral_url?: string | null;
+  referral_at?: string | null;
 };
 
 export type Message = {

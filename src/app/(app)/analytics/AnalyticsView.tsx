@@ -6,7 +6,7 @@ import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ChannelType, ConversationWithContact } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
 import type { StoreNames } from "@/components/StoreTag";
-import { channelShares, periodStart, salesSummary, type AnalyticsRange } from "@/lib/analytics";
+import { adCounts, channelShares, periodStart, salesSummary, type AnalyticsRange } from "@/lib/analytics";
 
 type Range = AnalyticsRange;
 const RANGE_LABEL: Record<Range, string> = { semana: "Esta semana", mes: "Este mes", trimestre: "Este trimestre" };
@@ -108,6 +108,9 @@ export function AnalyticsView({
       .sort((a, b) => b.revenue - a.revenue);
   }, [people, inRange]);
 
+  // Chats per ad (Click-to-WhatsApp / Instagram / Messenger), hidden until one arrives.
+  const byAd = useMemo(() => adCounts(conversations, periodStart(range, now)), [conversations, range, now]);
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
@@ -199,6 +202,26 @@ export function AnalyticsView({
                       {p.won} venta{p.won === 1 ? "" : "s"}
                     </div>
                     <div className="w-24 text-right font-semibold">{formatLempiras(p.revenue)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {byAd.length > 0 && (
+            <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
+              <div className="font-heading text-[15.5px] font-semibold text-ink">Por anuncio</div>
+              <div className="mb-3.5 text-[13px] text-ink-muted">Chats que llegaron desde un anuncio o publicación</div>
+              {byAd.map((ad, i) => (
+                <div key={i} className="flex justify-between gap-3 border-b border-border py-2.5 text-[13.5px] text-ink last:border-b-0">
+                  <div className="min-w-0 truncate">{ad.label}</div>
+                  <div className="flex shrink-0 gap-6 tabular-nums">
+                    <div className="text-ink-muted">
+                      {ad.won} venta{ad.won === 1 ? "" : "s"}
+                    </div>
+                    <div className="w-20 text-right font-semibold">
+                      {ad.chats} chat{ad.chats === 1 ? "" : "s"}
+                    </div>
                   </div>
                 </div>
               ))}
