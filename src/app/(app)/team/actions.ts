@@ -72,13 +72,15 @@ export async function removeMember(targetUserId: string): Promise<{ error?: stri
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: removed, error } = await supabase
     .from("members")
     .delete()
     .eq("business_id", business.id)
-    .eq("user_id", targetUserId);
+    .eq("user_id", targetUserId)
+    .select("user_id");
 
   if (error) return { error: friendlyError(error, "No se pudo quitar a esta persona.") };
+  if (!removed?.length) return { error: "Esa persona ya no está en tu negocio." };
   // They must stop receiving this business's customer messages on their phone.
   // Admin client: an owner can't touch another person's token rows directly.
   await createAdminClient().from("device_tokens").delete().eq("user_id", targetUserId).eq("business_id", business.id);

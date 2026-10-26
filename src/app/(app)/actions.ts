@@ -216,13 +216,14 @@ export async function setConversationBotEnabled(
   const scope = await writableScope();
   if (scope.error !== undefined) return { error: scope.error };
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("conversations")
     // Turning it back on makes chekelin the first responder again here.
     .update(enabled ? { bot_enabled: true, handed_off_at: null, chekelin_replies: 0 } : { bot_enabled: false })
     .eq("id", conversationId)
-    .in("store_id", scope.storeIds);
-  if (error) return { error: friendlyError(error, "No se pudo cambiar a chekelin en este chat.") };
+    .in("store_id", scope.storeIds)
+    .select("id");
+  if (error || !data?.length) return { error: friendlyError(error, "No se pudo cambiar a chekelin en este chat.") };
   return {};
 }
 

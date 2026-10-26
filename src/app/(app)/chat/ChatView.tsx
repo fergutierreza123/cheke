@@ -1033,6 +1033,7 @@ export function ChatView({
   async function handleToggleBot() {
     if (!selected || chatState === "off" || chatState === "complaint") return;
     const next = chatState === "paused";
+    const previous = { bot_enabled: selected.bot_enabled, handed_off_at: selected.handed_off_at, chekelin_replies: selected.chekelin_replies };
     setConversations((prev) =>
       prev.map((c) =>
         c.id === selected.id
@@ -1042,7 +1043,12 @@ export function ChatView({
           : c,
       ),
     );
-    await setConversationBotEnabled(selected.id, next);
+    const { error } = await setConversationBotEnabled(selected.id, next);
+    if (error) {
+      // Not saved: put the switch back and say why.
+      setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, ...previous } : c)));
+      setSendError(error);
+    }
   }
 
   function handlePickProduct(product: Product) {
