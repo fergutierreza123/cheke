@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { channelShares, periodStart, salesSummary } from "@/lib/analytics";
+import { channelShares, formatWait, periodStart, salesSummary } from "@/lib/analytics";
+
+describe("formatWait: Tiempo de primera respuesta", () => {
+  it("uses seconds, minutes or hours", () => {
+    expect(formatWait(40)).toBe("40 s");
+    expect(formatWait(150)).toBe("3 min");
+    expect(formatWait(3599)).toBe("1 h");
+    expect(formatWait(3900)).toBe("1 h 5 min");
+  });
+});
 
 // Analítica's numbers. Dates are built in local time (the browser's, which
 // is what the screen uses), so the tests pass in any time zone.

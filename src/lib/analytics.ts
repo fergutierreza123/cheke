@@ -48,3 +48,13 @@ export function channelShares(rows: Array<{ channel?: { type: string } | null }>
     types.map((t) => [t, total ? Math.round((withChannel.filter((r) => r.channel!.type === t).length / total) * 100) : 0]),
   ) as Record<ChannelType, number>;
 }
+
+// "Tiempo de primera respuesta": a median wait as a short label
+// ("40 s", "3 min", "1 h 5 min").
+export function formatWait(seconds: number): string {
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const rest = minutes % 60;
+  return `${Math.floor(minutes / 60)} h${rest ? ` ${rest} min` : ""}`;
+}

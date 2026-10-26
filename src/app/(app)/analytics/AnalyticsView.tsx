@@ -6,6 +6,8 @@ import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ChannelType, ConversationWithContact } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
 import type { StoreNames } from "@/components/StoreTag";
+import type { FirstResponseTimes } from "@/lib/analyticsServer";
+import { FirstResponseCard } from "./FirstResponseCard";
 import { channelShares, periodStart, salesSummary, type AnalyticsRange } from "@/lib/analytics";
 
 type Range = AnalyticsRange;
@@ -17,12 +19,14 @@ export function AnalyticsView({
   conversations,
   storeNames = null,
   people = [],
+  firstResponse = null,
 }: {
   conversations: ConversationWithContact[];
   // "Todas las tiendas": the totals above plus a Tienda-by-Tienda comparison.
   storeNames?: StoreNames | null;
   // Teammates, only passed once conversations are assigned to someone.
   people?: Array<{ id: string; email: string }>;
+  firstResponse?: FirstResponseTimes | null;
 }) {
   const [range, setRange] = useState<Range>("mes");
   // Captured once per mount rather than read fresh in useMemo/render — an
@@ -204,6 +208,8 @@ export function AnalyticsView({
               ))}
             </div>
           )}
+
+          {firstResponse && <FirstResponseCard rows={firstResponse[range]} period={RANGE_LABEL[range].toLowerCase()} />}
 
           {/* One grid spanning both rows, not two independent flex rows —
               each flex row was computing its own column widths from its
