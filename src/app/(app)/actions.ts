@@ -301,7 +301,7 @@ export async function createLead(input: {
       ig_handle: input.ig_handle,
       fb_id: input.fb_id,
     })
-    .select("id, name, phone, ig_handle, fb_id, notes")
+    .select("id, name, phone, ig_handle, fb_id, notes, tags")
     .single();
 
   if (contactError || !contact) return { error: friendlyError(contactError, "No se pudo crear el contacto.") };

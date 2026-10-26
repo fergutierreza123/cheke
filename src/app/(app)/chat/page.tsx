@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { canAccessStore, canManageStore, getCurrentBusiness, storeNamesForTags } from "@/lib/business";
 import { getConversations, getMessages } from "@/lib/conversations";
+import { getBusinessTags } from "@/lib/contacts";
 import { getProducts } from "@/lib/products";
 import { getTemplates } from "@/lib/templates";
 import { getQuickReplies } from "@/lib/quickRepliesServer";
@@ -37,7 +38,7 @@ export default async function ChatPage({
   }
 
   const supabase = await createClient();
-  const [conversations, products, templates, quickReplies, members, { data: storeRows }, { data: membership }] = await Promise.all([
+  const [conversations, products, templates, quickReplies, members, { data: storeRows }, { data: membership }, tagSuggestions] = await Promise.all([
     getConversations(business.id, storeIds),
     getProducts(business.id, storeIds),
     getTemplates(business.id),
@@ -46,6 +47,7 @@ export default async function ChatPage({
     getTeamMembers(business.id).catch(() => []),
     supabase.from("stores").select("id, name, chekelin_off_until").in("id", storeIds),
     supabase.from("store_members").select("store_id, user_id").eq("business_id", business.id),
+    getBusinessTags(business.id),
   ]);
 
   // Asignación: who can have a chat of each Tienda (its people + Dueños).
@@ -98,6 +100,7 @@ export default async function ChatPage({
       quickReplies={quickReplies}
       canManageQuickReplies={business.role !== "agent"}
       storeLocations={storeLocations}
+      tagSuggestions={tagSuggestions}
     />
   );
 }

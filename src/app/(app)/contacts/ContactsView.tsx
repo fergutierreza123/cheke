@@ -8,6 +8,8 @@ import { initialsFor, relativeTime, primaryChannel, CHANNEL_META } from "@/lib/f
 import { ChannelIcon } from "@/components/ChannelIcon";
 import type { Contact } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
+import { ContactTags } from "@/components/ContactTags";
+import { hasAnyTag, tagsInUse } from "@/lib/tags";
 
 type Draft = {
   id: string | null;
@@ -22,6 +24,7 @@ const EMPTY_DRAFT: Draft = { id: null, name: "", phone: "", ig_handle: "", fb_id
 
 export function ContactsView({ contacts }: { contacts: Contact[] }) {
   const [query, setQuery] = useState("");
+  const [pickedTags, setPickedTags] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -30,13 +33,18 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
   const [seedError, setSeedError] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
+  const allTags = useMemo(() => tagsInUse(contacts), [contacts]);
+  // A tag removed from its last contact drops out of the filter too.
+  const activeTags = pickedTags.filter((t) => allTags.includes(t));
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return contacts;
-    return contacts.filter((c) =>
-      [c.name, c.phone, c.ig_handle, c.fb_id].some((v) => v?.toLowerCase().includes(q)),
+    return contacts.filter(
+      (c) =>
+        hasAnyTag(c, activeTags) &&
+        (!q || [c.name, c.phone, c.ig_handle, c.fb_id].some((v) => v?.toLowerCase().includes(q))),
     );
-  }, [contacts, query]);
+  }, [contacts, query, activeTags]);
 
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
 
@@ -117,7 +125,27 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
           <div className="font-heading text-lg font-bold text-ink">{contacts.length}</div>
           <div className="text-xs text-ink-muted">contactos registrados</div>
         </div>
-        <div className="ml-auto text-xs text-ink-soft">{filtered.length} {filtered.length === 1 ? "resultado" : "resultados"}</div>
+        {allTags.length > 0 && (
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
+            <span className="mr-0.5 shrink-0 text-xs text-ink-soft">Etiquetas:</span>
+            {allTags.map((tag) => {
+              const on = activeTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  aria-pressed={on}
+                  onClick={() => setPickedTags(on ? activeTags.filter((t) => t !== tag) : [...activeTags, tag])}
+                  className={`shrink-0 rounded-lg border px-2.5 py-[5px] text-xs font-semibold transition-colors ${
+                    on ? "border-brand bg-brand-tint text-brand" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="ml-auto shrink-0 text-xs text-ink-soft">{filtered.length} {filtered.length === 1 ? "resultado" : "resultados"}</div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8">
@@ -144,7 +172,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
             <div className="hidden items-center px-3.5 pb-2 text-[11.5px] uppercase tracking-wide text-ink-soft lg:flex">
               <div className="w-[220px]">Cliente</div>
               <div className="w-[160px]">Contacto</div>
-              <div className="flex-1">Notas</div>
+              <div className="flex-1">Etiquetas y notas</div>
               <div className="w-28 text-right">Registrado</div>
             </div>
             <div className="flex flex-col gap-2">
@@ -172,12 +200,29 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                             </span>
                           </div>
                         )}
+                        {c.tags.length > 0 && (
+                          <div className="mt-1 flex gap-1 overflow-hidden lg:hidden">
+                            {c.tags.slice(0, 3).map((tag) => (
+                              <span key={tag} className="shrink-0 rounded-full bg-accent-tint px-2 py-px text-[10.5px] font-semibold text-brand-dark">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="hidden w-40 truncate text-[13px] text-ink-muted lg:block">
                       {c.phone || c.ig_handle || c.fb_id || "—"}
                     </div>
-                    <div className="hidden flex-1 truncate text-[13px] text-ink-soft lg:block">{c.notes || ""}</div>
+                    <div className="hidden min-w-0 flex-1 items-center gap-1.5 text-[13px] text-ink-soft lg:flex">
+                      {c.tags.slice(0, 3).map((tag) => (
+                        <span key={tag} className="shrink-0 rounded-full bg-accent-tint px-2 py-[2px] text-[11px] font-semibold text-brand-dark">
+                          {tag}
+                        </span>
+                      ))}
+                      {c.tags.length > 3 && <span className="shrink-0 text-[11px]">+{c.tags.length - 3}</span>}
+                      <span className="truncate">{c.notes || ""}</span>
+                    </div>
                     <div className="shrink-0 pl-2 text-right text-xs text-ink-soft lg:w-28">
                       {relativeTime(c.created_at)}
                     </div>
@@ -186,7 +231,9 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
               })}
               {filtered.length === 0 && (
                 <div className="py-10 text-center text-[13.5px] text-ink-soft">
-                  Ningún contacto coincide con esa búsqueda.
+                  {activeTags.length > 0
+                    ? "Ningún contacto coincide con esa búsqueda y esas etiquetas."
+                    : "Ningún contacto coincide con esa búsqueda."}
                 </div>
               )}
             </div>
@@ -260,6 +307,8 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                 <Row label="Facebook" value={selected.fb_id || "Sin registrar"} />
                 <Row label="Cliente desde" value={relativeTime(selected.created_at)} />
               </div>
+
+              <ContactTags key={selected.id} contactId={selected.id} tags={selected.tags} suggestions={allTags} />
 
               <div>
                 <div className="mb-1.5 text-[11px] uppercase tracking-wide text-ink-muted">Notas</div>

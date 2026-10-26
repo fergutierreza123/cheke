@@ -26,7 +26,7 @@ vi.mock("@/lib/push", () => ({ sendPushToPeople: vi.fn(), notifyConversation: vi
 vi.mock("@/lib/images", () => ({ removeBackgroundToWhite: async () => ({}) }));
 
 const { saveProduct } = await import("@/app/(app)/inventory/actions");
-const { saveContact } = await import("@/app/(app)/contacts/actions");
+const { saveContact, setContactTags } = await import("@/app/(app)/contacts/actions");
 const { createBusiness } = await import("@/app/onboarding/actions");
 const { deleteAccount } = await import("@/app/(app)/account/actions");
 const { updateMemberRole, cancelInvitation, removeMember } = await import("@/app/(app)/team/actions");
@@ -110,6 +110,27 @@ describe("Contactos: saveContact limits what one contact can hold", () => {
   it("says so when the contact to edit is gone (deleted or another Negocio's)", async () => {
     db.queue("contacts", { data: [] });
     expect((await saveContact(form({ id: "k-other", name: "Ana" }))).error).toBe("No se encontró el contacto. Recarga la página.");
+  });
+});
+
+describe("Contactos: setContactTags", () => {
+  it("saves the Etiquetas lowercased, trimmed and without repeats, for any member", async () => {
+    business = { ...business!, role: "agent" };
+    db.queue("contacts", { data: [{ id: "k1" }] });
+    expect(await setContactTags("k1", ["  VIP ", "vip", "Compra  al mayor", ""])).toEqual({ tags: ["vip", "compra al mayor"] });
+    const update = db.writes("contacts", "update")[0].ops.find((o) => o.op === "update")!.args[0];
+    expect(update).toEqual({ tags: ["vip", "compra al mayor"] });
+  });
+
+  it("refuses a too-long Etiqueta or too many, before writing", async () => {
+    expect((await setContactTags("k1", ["x".repeat(31)])).error).toBe("La etiqueta es muy larga (máximo 30 letras).");
+    expect((await setContactTags("k1", Array.from({ length: 21 }, (_, i) => `t${i}`))).error).toBe("Máximo 20 etiquetas por contacto.");
+    expect(db.writes("contacts", "update")).toHaveLength(0);
+  });
+
+  it("says so when the contact is gone or another Negocio's", async () => {
+    db.queue("contacts", { data: [] });
+    expect((await setContactTags("k-other", ["vip"])).error).toBe("No se encontró el contacto. Recarga la página.");
   });
 });
 

@@ -89,6 +89,7 @@ export function buildDemoData(now: number) {
       ig_handle: ch === "instagram" ? "@" + name.split(" ")[0].toLowerCase() : null,
       fb_id: ch === "facebook" ? "fb.me/" + name.split(" ")[0].toLowerCase() : null,
       notes: i === 2 ? "Prefiere pagar por transferencia." : null,
+      tags: i === 2 ? ["cliente frecuente"] : [],
     },
     channel: { id: "ch1", type: ch, coexistence: ch === "whatsapp", external_id: null },
     last_message_body: last,
