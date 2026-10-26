@@ -209,6 +209,18 @@ export function TemplatesView({
           </span>
           <span aria-hidden className="text-ink-soft">›</span>
         </Link>
+        {whatsapp?.canSubmit && (
+          <Link
+            href="/templates/difusion"
+            className="-mt-2 mb-4 flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3 text-[13px] text-ink hover:bg-surface-2"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="font-semibold">Difusión</span>
+              <span className="text-ink-muted"> · envía una plantilla aprobada a todos los clientes con una etiqueta</span>
+            </span>
+            <span aria-hidden className="text-ink-soft">›</span>
+          </Link>
+        )}
         {suggestions.length > 0 && (
           <section aria-labelledby="sugerencias" className="mb-5 rounded-2xl bg-accent-tint p-4 lg:p-5">
             <h2 id="sugerencias" className="flex items-center gap-2 font-heading text-[15.5px] font-semibold text-brand-dark">

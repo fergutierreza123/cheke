@@ -6,9 +6,11 @@ import { describeMessage, whatsappMedia, type WhatsAppMessage } from "@/lib/what
 import { saveMessageMedia, type MediaJob } from "@/lib/messageMedia";
 import { explainWhatsAppError } from "@/lib/whatsappErrors";
 import { deletedFields, whatsappChange, whatsappReaction, whatsappReplyTo } from "@/lib/messageEvents";
-import { findMessageId, insertMessage } from "@/lib/messageRows";
+import { findMessageId, findOrCreateConversation, insertMessage } from "@/lib/messageRows";
 import { createMessageClock } from "@/lib/messageClock";
 import type { MediaInfo } from "@/lib/types";
+import { isOptOutReply } from "@/lib/broadcasts";
+import { handleTemplateFailure, setMarketingOptOut } from "@/lib/broadcastsServer";
 
 // Meta resends if we answer slowly, so the push alert and Chekelin's AI reply
 // (which can take several seconds) run *after* the response, with room to finish.
@@ -156,6 +158,12 @@ async function handlePayload(payload: WhatsAppWebhookPayload, media: MediaJob[])
         await saveHistory(supabase, book, channel, value, media);
         continue;
       }
+      // The customer stopped (or resumed) offers from this business in
+      // WhatsApp: Difusiones skip them (migration 0042).
+      if (change.field === "user_preferences") {
+        await saveUserPreferences(supabase, book, channel, value);
+        continue;
+      }
       // ...and of the phone's contacts (plus later changes to them).
       if (change.field === "smb_app_state_sync") {
         await syncPhoneContacts(supabase, book, channel, value);
@@ -237,6 +245,8 @@ async function saveInboundMessage(
     throw new Error(insertError.message);
   }
   queueMedia(media, channel, message);
+  // "BAJA": no more Difusiones for them. chekelin or a person still answers.
+  if (isOptOutReply(body)) await setMarketingOptOut(supabase, contactId, true);
 
   return { conversationId: conversation.id, contactName: profileName, body };
 }
@@ -461,6 +471,16 @@ async function syncPhoneContacts(supabase: Admin, book: ContactBook, channel: Ch
   }
 }
 
+// Meta's user_preferences webhook: "stop" / "resume" marketing messages.
+async function saveUserPreferences(supabase: Admin, book: ContactBook, channel: Channel, value: WhatsAppValue) {
+  for (const pref of value.user_preferences ?? []) {
+    if (pref.category !== "marketing_messages" || !pref.wa_id) continue;
+    if (pref.value !== "stop" && pref.value !== "resume") continue;
+    const contact = (await loadContacts(supabase, book, channel.business_id)).find((c) => samePhone(c.phone, pref.wa_id));
+    if (contact) await setMarketingOptOut(supabase, contact.id, pref.value === "stop");
+  }
+}
+
 // The business disconnected cheke from inside the WhatsApp Business app
 // (Settings → Account → Business Platform). Coexistence numbers can only be
 // disconnected there, so mirror it here.
@@ -517,38 +537,6 @@ async function findOrCreateContact(
   return newContact.id;
 }
 
-async function findOrCreateConversation(
-  supabase: Admin,
-  channel: Channel,
-  contactId: string,
-): Promise<{ id: string; last_message_at: string | null }> {
-  // limit(1) instead of maybeSingle(): if a race ever created two rows,
-  // maybeSingle() would error out and we'd create a third.
-  const { data: existing } = await supabase
-    .from("conversations")
-    .select("id, last_message_at")
-    .eq("business_id", channel.business_id)
-    .eq("contact_id", contactId)
-    .eq("channel_id", channel.id)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  if (existing?.[0]) return existing[0];
-
-  const { data: created, error } = await supabase
-    .from("conversations")
-    .insert({
-      business_id: channel.business_id,
-      store_id: channel.store_id,
-      contact_id: contactId,
-      channel_id: channel.id,
-      status: "open",
-    })
-    .select("id, last_message_at")
-    .single();
-  if (error || !created) throw new Error(error?.message ?? "No se pudo crear la conversación.");
-  return created;
-}
-
 // Meta can deliver "delivered" before "sent" (or retry an old one), so a
 // status only ever moves forward — a late "sent" must not undo a "read".
 const STATUS_RANK = { sent: 1, delivered: 2, read: 3, failed: 4 } as const;
@@ -589,6 +577,7 @@ async function updateMessageStatus(supabase: Admin, status: WhatsAppStatus) {
     update.error_code = error?.code ?? null;
     update.error_details = metaText;
     update.error_reason = explainWhatsAppError(error?.code, metaText);
+    await handleTemplateFailure(supabase, status.id, error?.code);
   }
 
   if (Object.keys(update).length === 0) return;
@@ -657,6 +646,7 @@ type WhatsAppValue = {
     contact?: { full_name?: string; first_name?: string; phone_number?: string };
   }>;
   event?: string; // account_update
+  user_preferences?: Array<{ wa_id?: string; category?: string; value?: string }>;
 };
 type WhatsAppEcho = WhatsAppMessage & { to: string };
 type WhatsAppHistoryThread = {

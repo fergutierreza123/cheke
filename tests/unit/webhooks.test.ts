@@ -181,6 +181,38 @@ describe("WhatsApp webhook", () => {
     await toWhatsApp(status("delivered"));
     expect(messages()[0].status).toBe("read");
   });
+
+  it("a «BAJA» reply opts the customer out of Difusiones (and still reaches chekelin)", async () => {
+    await toWhatsApp(waPayload([waText("wamid.1", "BAJA")]));
+    await flushAfter();
+    expect(state.db.rows("contacts")[0].marketing_opt_out).toBe(true);
+    expect(state.inbound).toHaveLength(1);
+  });
+
+  it("Difusión failures: 131049 retries once after 24 h, 131050 opts out", async () => {
+    state.db.rows("contacts").push({ id: "ct-1", business_id: BIZ, name: "Ana", phone: "50499223843" });
+    state.db.rows("broadcasts").push({ id: "b-1", business_id: BIZ, status: "done" });
+    state.db.rows("broadcast_recipients").push(
+      { id: "r-1", broadcast_id: "b-1", contact_id: "ct-1", attempts: 1, status: "sent", external_message_id: "wamid.b1" },
+      { id: "r-2", broadcast_id: "b-1", contact_id: "ct-1", attempts: 1, status: "sent", external_message_id: "wamid.b2" },
+    );
+    for (const id of ["wamid.b1", "wamid.b2"]) {
+      state.db.rows("messages").push({ id: `m-${id}`, business_id: BIZ, conversation_id: "c", direction: "out", body: "x", external_message_id: id, status: "sent" });
+    }
+    const failed = (id: string, code: number) => ({
+      object: "whatsapp_business_account",
+      entry: [{ id: "WABA1", changes: [{ field: "messages", value: { metadata: { phone_number_id: "PN1" }, statuses: [{ id, status: "failed", errors: [{ code }] }] } }] }],
+    });
+    await toWhatsApp(failed("wamid.b1", 131049));
+    const [r1] = state.db.rows("broadcast_recipients");
+    expect(r1).toMatchObject({ status: "pending", error_code: 131049 });
+    expect(new Date(r1.next_attempt_at as string).getTime()).toBeGreaterThan(Date.now() + 23 * 3_600_000);
+    expect(state.db.rows("broadcasts")[0].status).toBe("sending");
+
+    await toWhatsApp(failed("wamid.b2", 131050));
+    expect(state.db.rows("broadcast_recipients")[1]).toMatchObject({ status: "failed", error_code: 131050 });
+    expect(state.db.rows("contacts")[0].marketing_opt_out).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
