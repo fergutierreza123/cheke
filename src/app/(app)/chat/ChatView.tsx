@@ -76,6 +76,7 @@ import { composerRules, WHATSAPP_PHONE_APP_HINT } from "@/lib/composerRules";
 const DAY_MS = 24 * 60 * 60 * 1000;
 import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
+import { ContactTags } from "@/components/ContactTags";
 import type { ChannelType, ConversationNote, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
 import { countUnread, unreadAfterMessage, unreadBadge } from "@/lib/unread";
 import { locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
@@ -120,6 +121,7 @@ export function ChatView({
   quickReplies = [],
   canManageQuickReplies = false,
   storeLocations = {},
+  tagSuggestions,
 }: {
   businessId: string;
   // The Tiendas on screen: live messages from any other Tienda are ignored.
@@ -153,6 +155,8 @@ export function ChatView({
   canManageQuickReplies?: boolean;
   // "Ubicación": each Tienda's saved location ("Lo que chekelin sabe").
   storeLocations?: Record<string, { name: string; location: StoreLocation }>;
+  // Etiquetas: the Negocio's existing ones; without it (the /demo) they're read-only.
+  tagSuggestions?: string[];
 }) {
   const showAssignment = people.length >= 2;
   const [stores, setStores] = useState(chekelinStores);
@@ -618,7 +622,7 @@ export function ChatView({
             knownConversationIds.current.add(msg.conversation_id);
             supabase
               .from("conversations")
-              .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes), channel:channels(id, type, coexistence, external_id)")
+              .select("*, contact:contacts(id, name, phone, ig_handle, fb_id, notes, tags), channel:channels(id, type, coexistence, external_id)")
               .eq("id", msg.conversation_id)
               .single()
               .then(({ data }) => {
@@ -2332,6 +2336,18 @@ export function ChatView({
                 <div>{selected.contact.phone || selected.contact.ig_handle || selected.contact.fb_id}</div>
                 <div>Conversación desde {relativeTime(selected.created_at)}</div>
               </div>
+
+              <ContactTags
+                key={selected.contact.id}
+                contactId={selected.contact.id}
+                tags={selected.contact.tags ?? []}
+                suggestions={tagSuggestions}
+                onSaved={(tags) =>
+                  setConversations((prev) =>
+                    prev.map((c) => (c.contact_id === selected.contact.id ? { ...c, contact: { ...c.contact, tags } } : c)),
+                  )
+                }
+              />
 
               <div>
                 <div className="mb-1.5 text-xs uppercase tracking-wide text-ink-muted">Notas</div>
