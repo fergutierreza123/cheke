@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "969357637836",
+    "project_id": "cheke-48277",
+    "storage_bucket": "cheke-48277.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:969357637836:android:cd6e36c1603f021160ea69",
+        "android_client_info": {
+          "package_name": "io.cheke.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNU8vYFbHI1MuP3_RX68wJnl2fxHVMcho"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
