@@ -150,11 +150,7 @@ export function ChekelinInfoView({
                   href={`/chekelin?tienda=${s.id}`}
                   role="tab"
                   aria-selected={s.id === store.id}
-                  className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold ${
-                    s.id === store.id
-                      ? "border-brand-dark bg-brand-dark text-white"
-                      : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
-                  }`}
+                  className="chip pressable"
                 >
                   {s.name}
                 </Link>

@@ -28,7 +28,7 @@ function amount(value: number | string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-// Ventas cerradas, ganadas/perdidas and Tasa de conversión (won out of the
+// Ventas cerradas, ganadas/perdidas and Tasa de cierre (won out of the
 // closed ones, in whole percent).
 export function salesSummary(rows: Array<{ stage: string; value_hnl: number | string | null }>) {
   const won = rows.filter((r) => r.stage === "ganado");

@@ -40,11 +40,9 @@ export function StoreFilter({
           <button
             key={id}
             type="button"
-            onClick={() => onChange(id)}
+            onClick={() => onChange(active ? "all" : id)}
             aria-pressed={active}
-            className={`rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold transition-colors ${
-              active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
-            }`}
+            className="chip"
           >
             {label}
           </button>

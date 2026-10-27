@@ -16,7 +16,7 @@ async function managerContext() {
 }
 
 function refresh() {
-  revalidatePath("/quick-replies");
+  revalidatePath("/templates/respuestas");
   revalidatePath("/chat");
 }
 
