@@ -64,11 +64,9 @@ export function NotificationsView({
             return (
               <button
                 key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => setFilter(active ? "todas" : f)}
                 aria-pressed={active}
-                className={`min-h-10 rounded-lg border px-3 py-[7px] text-[13.5px] font-semibold transition-colors lg:min-h-0 lg:text-[12.5px] ${
-                  active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
-                }`}
+                className="chip min-h-10 lg:min-h-0"
               >
                 {f === "todas" ? "Todas" : "No leídas"}
               </button>

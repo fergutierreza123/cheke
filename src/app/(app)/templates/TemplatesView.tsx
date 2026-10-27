@@ -156,7 +156,14 @@ export function TemplatesView({
             Respuestas listas para las preguntas que se repiten todos los días
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Every reusable text lives in Plantillas: "/" shortcuts for Chat too. */}
+          <Link
+            href="/templates/respuestas"
+            className="flex h-10 shrink-0 items-center rounded-[10px] border border-border bg-surface px-3.5 py-2 text-[13.5px] font-semibold text-brand-dark transition-colors hover:bg-surface-2 lg:h-auto"
+          >
+            Respuestas rápidas
+          </Link>
           {whatsapp?.canSubmit && (
             // Campañas live here because they send approved Plantillas.
             <Link
@@ -166,7 +173,7 @@ export function TemplatesView({
               Campañas
             </Link>
           )}
-          <div className="relative min-w-0 flex-1 lg:flex-none">
+          <div className="relative min-w-[160px] flex-1 lg:flex-none">
             <SearchIcon className="pointer-events-none absolute left-[11px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             <input
               value={query}
@@ -193,7 +200,7 @@ export function TemplatesView({
             Todas
           </CategoryChip>
           {TEMPLATE_CATEGORY_ORDER.map((cat) => (
-            <CategoryChip key={cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)}>
+            <CategoryChip key={cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(categoryFilter === cat ? "todas" : cat)}>
               {TEMPLATE_CATEGORY_META[cat].label}
             </CategoryChip>
           ))}
@@ -501,9 +508,8 @@ function CategoryPicker({ name, defaultValue }: { name: string; defaultValue: Te
             key={cat}
             type="button"
             onClick={() => setValue(cat)}
-            className={`flex-1 rounded-lg border px-1 py-2.5 text-[13px] font-semibold transition-colors sm:py-2 sm:text-[11.5px] ${
-              active ? "border-brand bg-brand-tint text-brand-dark" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
-            }`}
+            aria-pressed={active}
+            className="chip min-h-10 flex-1 px-1 sm:min-h-0"
           >
             {meta.label}
           </button>
@@ -525,9 +531,8 @@ function CategoryChip({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-1.5 text-[13px] font-semibold transition-colors lg:px-2.5 lg:py-[5px] lg:text-xs ${
-        active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
-      }`}
+      aria-pressed={active}
+      className="chip"
     >
       {children}
     </button>

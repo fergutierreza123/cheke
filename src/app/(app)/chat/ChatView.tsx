@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
-import { seedDemoData, setConversationStage, setConversationBotEnabled, sendProductToConversation } from "../actions";
+import { setConversationStage, setConversationBotEnabled, sendProductToConversation } from "../actions";
 import {
   sendChatMessage,
   simulateInboundMessage,
@@ -60,7 +60,7 @@ const CHEKELIN_STATE_HINT: Record<ChekelinChatState, string> = {
   off: "chekelin está apagado en esta tienda.",
 };
 import { parseAmount, formatAmount, orderConcept, PURCHASE_STATUS_LABEL, type OrderItem, type PastPurchase } from "@/lib/payments";
-import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER, withAlpha } from "@/lib/format";
+import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { MessageMedia, mediaReplacesBody } from "./MessageMedia";
 import {
@@ -188,8 +188,6 @@ export function ChatView({
   const [toast, setToast] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
-  const [seeding, setSeeding] = useState(false);
-  const [seedError, setSeedError] = useState<string | null>(null);
   // Demo/testing only — lets you type as if you were the customer so
   // Chekelin's first-reply flow can be shown without a real WhatsApp number
   // connected yet.
@@ -1248,38 +1246,13 @@ export function ChatView({
     draftInputRef.current?.focus();
   }
 
-  async function handleSeed() {
-    setSeeding(true);
-    setSeedError(null);
-    try {
-      const result = await seedDemoData();
-      if (result.error) setSeedError(result.error);
-    } catch {
-      setSeedError("No se pudieron crear los datos de ejemplo. Inténtalo de nuevo.");
-    } finally {
-      setSeeding(false);
-    }
-  }
-
   if (conversations.length === 0) {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 text-center">
         <p className="max-w-sm text-[13.5px] text-ink-muted">
-          Todavía no tienes conversaciones. Puedes sembrar datos de ejemplo para probar el chat mientras
-          conectas WhatsApp, Instagram o Facebook.
+          Todavía no tienes conversaciones. Llegan solas cuando un cliente te escribe por WhatsApp, Instagram o
+          Facebook.
         </p>
-        <button
-          onClick={handleSeed}
-          disabled={seeding}
-          className="rounded-lg bg-brand-dark px-4 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
-          {seeding ? "Sembrando…" : "Sembrar datos de ejemplo"}
-        </button>
-        {seedError && (
-          <p role="alert" className="text-[12.5px] text-danger">
-            {seedError}
-          </p>
-        )}
       </div>
     );
   }
@@ -1322,26 +1295,13 @@ export function ChatView({
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {CHANNEL_FILTERS.map((ch) => {
               const active = channelFilter === ch.id;
-              const color = ch.id !== "todos" ? CHANNEL_META[ch.id].color : undefined;
-              const style = color
-                ? active
-                  ? { background: color, borderColor: color, color: "#fff" }
-                  : // The raw channel color (WhatsApp's green above all) is too
-                    // faint as text on its own tint: darken it toward navy.
-                    { background: withAlpha(color, 0.14), borderColor: withAlpha(color, 0.3), color: `color-mix(in srgb, ${color} 55%, #001037)` }
-                : undefined;
               return (
                 <button
                   key={ch.id}
-                  onClick={() => setChannelFilter(ch.id)}
-                  style={style}
-                  className={`rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold transition-colors ${
-                    color
-                      ? ""
-                      : active
-                        ? "border-brand-dark bg-brand-dark text-white"
-                        : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
-                  }`}
+                  // Tapping the chosen network again goes back to Todos.
+                  onClick={() => setChannelFilter(active ? "todos" : ch.id)}
+                  aria-pressed={active}
+                  className="chip"
                 >
                   {ch.label}
                 </button>
@@ -1353,11 +1313,7 @@ export function ChatView({
                 setOpenedId(null);
               }}
               aria-pressed={unreadOnly}
-              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold transition-colors ${
-                unreadOnly
-                  ? "border-brand bg-brand-tint text-brand-dark"
-                  : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
-              }`}
+              className="chip"
             >
               No leídos
               {unreadChats > 0 && (

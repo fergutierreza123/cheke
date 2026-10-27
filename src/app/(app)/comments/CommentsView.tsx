@@ -47,11 +47,6 @@ export function CommentsView({
   const priceUnanswered = comments.filter((c) => c.kind === "price" && !replied(c)).length;
   const repliedCount = comments.filter(replied).length;
 
-  const pill = (active: boolean) =>
-    `rounded-lg border px-3 py-[7px] text-[12.5px] font-semibold ${
-      active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface text-ink-muted"
-    }`;
-
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border bg-surface px-4 py-3.5 lg:min-h-[72px] lg:flex-row lg:items-center lg:justify-between lg:px-8 lg:py-3">
@@ -68,13 +63,18 @@ export function CommentsView({
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           {(["todos", "instagram", "facebook"] as const).map((id) => (
-            <button key={id} onClick={() => setChannel(id)} className={pill(channel === id)} aria-pressed={channel === id}>
+            <button
+              key={id}
+              onClick={() => setChannel(channel === id ? "todos" : id)}
+              className="chip"
+              aria-pressed={channel === id}
+            >
               {id === "todos" ? "Todos" : CHANNEL_LABEL[id]}
             </button>
           ))}
           <button
             onClick={() => setPriceOnly((v) => !v)}
-            className={`flex items-center gap-1.5 ${pill(priceOnly)}`}
+            className="chip"
             aria-pressed={priceOnly}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

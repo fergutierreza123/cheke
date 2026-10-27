@@ -32,7 +32,7 @@ const { deleteAccount } = await import("@/app/(app)/account/actions");
 const { updateMemberRole, cancelInvitation, removeMember } = await import("@/app/(app)/team/actions");
 const { deleteProduct } = await import("@/app/(app)/inventory/actions");
 const { setConversationBotEnabled } = await import("@/app/(app)/actions");
-const { saveQuickReply } = await import("@/app/(app)/quick-replies/actions");
+const { saveQuickReply } = await import("@/app/(app)/templates/respuestas/actions");
 const { renameStore } = await import("@/app/(app)/stores/actions");
 const { saveTemplate } = await import("@/app/(app)/templates/actions");
 
@@ -110,6 +110,13 @@ describe("Contactos: saveContact limits what one contact can hold", () => {
   it("says so when the contact to edit is gone (deleted or another Negocio's)", async () => {
     db.queue("contacts", { data: [] });
     expect((await saveContact(form({ id: "k-other", name: "Ana" }))).error).toBe("No se encontró el contacto. Recarga la página.");
+  });
+
+  it("editing never erases the Facebook id Messenger filled in", async () => {
+    db.queue("contacts", { data: [{ id: "k1" }] });
+    await saveContact(form({ id: "k1", name: "Ana", fb_id: "" }));
+    const update = db.writes("contacts", "update")[0].ops.find((o) => o.op === "update")!.args[0] as object;
+    expect(update).not.toHaveProperty("fb_id");
   });
 });
 

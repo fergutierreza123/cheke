@@ -87,7 +87,7 @@ export function useQuickReplyPicker({
         >
           <div className="flex items-center justify-between px-2 py-1 text-[11px] text-ink-soft">
             <span>Respuestas rápidas</span>
-            <Link href="/quick-replies" className="font-semibold text-brand">
+            <Link href="/templates/respuestas" className="font-semibold text-brand">
               {canManage ? "Administrar" : "Ver todas"}
             </Link>
           </div>

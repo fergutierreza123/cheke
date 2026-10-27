@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { saveContact } from "./actions";
-import { seedDemoData } from "../actions";
 import { initialsFor, relativeTime, primaryChannel, CHANNEL_META } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import type { Contact } from "@/lib/types";
@@ -16,11 +15,10 @@ type Draft = {
   name: string;
   phone: string;
   ig_handle: string;
-  fb_id: string;
   notes: string;
 };
 
-const EMPTY_DRAFT: Draft = { id: null, name: "", phone: "", ig_handle: "", fb_id: "", notes: "" };
+const EMPTY_DRAFT: Draft = { id: null, name: "", phone: "", ig_handle: "", notes: "" };
 
 export function ContactsView({ contacts }: { contacts: Contact[] }) {
   const [query, setQuery] = useState("");
@@ -29,8 +27,6 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [seeding, setSeeding] = useState(false);
-  const [seedError, setSeedError] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   const allTags = useMemo(() => tagsInUse(contacts), [contacts]);
@@ -71,19 +67,6 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
   function closeDraft() {
     setSaveError(null);
     setDraft(null);
-  }
-
-  async function handleSeed() {
-    setSeeding(true);
-    setSeedError(null);
-    try {
-      const result = await seedDemoData();
-      if (result.error) setSeedError(result.error);
-    } catch {
-      setSeedError("No se pudieron crear los datos de ejemplo. Inténtalo de nuevo.");
-    } finally {
-      setSeeding(false);
-    }
   }
 
   return (
@@ -135,9 +118,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                   key={tag}
                   aria-pressed={on}
                   onClick={() => setPickedTags(on ? activeTags.filter((t) => t !== tag) : [...activeTags, tag])}
-                  className={`shrink-0 rounded-lg border px-2.5 py-[5px] text-xs font-semibold transition-colors ${
-                    on ? "border-brand bg-brand-tint text-brand" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
-                  }`}
+                  className="chip"
                 >
                   {tag}
                 </button>
@@ -154,18 +135,6 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
             <p className="text-[13.5px] text-ink-muted">
               Todavía no tienes contactos. Llegan solos cuando un cliente te escribe.
             </p>
-            <button
-              onClick={handleSeed}
-              disabled={seeding}
-              className="rounded-lg bg-brand-dark px-4 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              {seeding ? "Cargando…" : "Cargar clientes de ejemplo"}
-            </button>
-            {seedError && (
-              <p role="alert" className="text-[12.5px] text-danger">
-                {seedError}
-              </p>
-            )}
           </div>
         ) : (
           <>
@@ -283,7 +252,6 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                         name: selected.name,
                         phone: selected.phone ?? "",
                         ig_handle: selected.ig_handle ?? "",
-                        fb_id: selected.fb_id ?? "",
                         notes: selected.notes ?? "",
                       })
                     }
@@ -387,15 +355,6 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                     />
                   </Field>
                 </div>
-
-                <Field label="Facebook">
-                  <input
-                    name="fb_id"
-                    defaultValue={draft.fb_id}
-                    placeholder="usuario.facebook"
-                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
-                  />
-                </Field>
 
                 <Field label="Notas">
                   <textarea

@@ -191,7 +191,7 @@ export function BroadcastView({
                           type="button"
                           aria-pressed={on}
                           onClick={() => setPicked(on ? picked.filter((x) => x !== t) : [...picked, t])}
-                          className={`rounded-full px-3 py-1.5 text-[13px] font-medium ${on ? "bg-brand-dark text-white" : "bg-surface-2 text-ink"}`}
+                          className="chip"
                         >
                           {t}
                         </button>
