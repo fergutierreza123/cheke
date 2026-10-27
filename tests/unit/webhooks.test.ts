@@ -200,14 +200,14 @@ describe("WhatsApp webhook", () => {
     expect(messages()[0].status).toBe("read");
   });
 
-  it("a «BAJA» reply opts the customer out of Difusiones (and still reaches chekelin)", async () => {
+  it("a «BAJA» reply opts the customer out of Campañas (and still reaches chekelin)", async () => {
     await toWhatsApp(waPayload([waText("wamid.1", "BAJA")]));
     await flushAfter();
     expect(state.db.rows("contacts")[0].marketing_opt_out).toBe(true);
     expect(state.inbound).toHaveLength(1);
   });
 
-  it("Difusión failures: 131049 retries once after 24 h, 131050 opts out", async () => {
+  it("Campaña failures: 131049 retries once after 24 h, 131050 opts out", async () => {
     state.db.rows("contacts").push({ id: "ct-1", business_id: BIZ, name: "Ana", phone: "50499223843" });
     state.db.rows("broadcasts").push({ id: "b-1", business_id: BIZ, status: "done" });
     state.db.rows("broadcast_recipients").push(

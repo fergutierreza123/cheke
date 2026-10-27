@@ -1684,7 +1684,7 @@ export function ChatView({
                       <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
                         {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
                         <img src="/logos/cheke-icon-blue.png" alt="" className="h-3 w-3 object-contain" />
-                        {m.source === "broadcast" ? "Difusión" : botLabel}
+                        {m.source === "broadcast" ? "Campaña" : botLabel}
                       </div>
                     )}
                     {m.source === "phone" && !(prev && prev.source === "phone") && (

@@ -10,8 +10,8 @@ import { broadcastRecipients, estimateCost, isMarketing, type BroadcastContact }
 import { normalizeTags } from "@/lib/tags";
 import { fetchDailyLimit, sentLast24h } from "@/lib/broadcastsServer";
 
-// Plantillas → Difusión (migration 0042): the preview (how many, how much)
-// and creating the Difusión. /api/cron/broadcasts does the sending.
+// Plantillas → Campaña (migration 0042): the preview (how many, how much)
+// and creating the Campaña. /api/cron/broadcasts does the sending.
 
 type Input = { channelId: string; templateId: string; tags: string[] };
 
@@ -31,7 +31,7 @@ export type BroadcastPreview = {
 async function prepare(input: Input) {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
-  if (business.role === "agent") return { error: "Solo el dueño o un gerente puede enviar difusiones." };
+  if (business.role === "agent") return { error: "Solo el dueño o un gerente puede enviar campañas." };
   const tags = normalizeTags(input.tags);
   if (!tags.length) return { error: "Elige al menos una etiqueta." };
 
@@ -63,7 +63,7 @@ async function prepare(input: Input) {
       .overlaps("tags", tags)
       .order("id")
       .range(from, from + 999);
-    if (error) return { error: "La difusión todavía no está activada en cheke." };
+    if (error) return { error: "La campaña todavía no está activada en cheke." };
     contacts.push(...(data as BroadcastContact[]));
     if (data.length < 1000) break;
   }
@@ -103,7 +103,7 @@ export async function createBroadcast(
   const invalid = validateTemplateValues(template, input.values);
   if (invalid) return { error: nameVariable ? `${invalid} (para el nombre, escribe qué poner si no tenemos el nombre del cliente).` : invalid };
   const recipients = p.picked.recipients;
-  if (!recipients.length) return { error: "Nadie con esas etiquetas puede recibir esta difusión." };
+  if (!recipients.length) return { error: "Nadie con esas etiquetas puede recibir esta campaña." };
 
   const { data: broadcast, error } = await p.supabase
     .from("broadcasts")
@@ -120,8 +120,8 @@ export async function createBroadcast(
     .select("id")
     .single();
   if (error || !broadcast) {
-    console.error("difusión: not created", error?.message);
-    return { error: "No se pudo crear la difusión. Inténtalo de nuevo." };
+    console.error("campaña: not created", error?.message);
+    return { error: "No se pudo crear la campaña. Inténtalo de nuevo." };
   }
   // Recipients are written by the server only (no insert policy).
   const admin = createAdminClient();
@@ -129,9 +129,9 @@ export async function createBroadcast(
   for (let i = 0; i < rows.length; i += 500) {
     const { error: rowsError } = await admin.from("broadcast_recipients").insert(rows.slice(i, i + 500));
     if (rowsError) {
-      console.error("difusión: recipients not saved", rowsError.message);
+      console.error("campaña: recipients not saved", rowsError.message);
       await admin.from("broadcasts").delete().eq("id", broadcast.id);
-      return { error: "No se pudo crear la difusión. Inténtalo de nuevo." };
+      return { error: "No se pudo crear la campaña. Inténtalo de nuevo." };
     }
   }
   // Every recipient saved: now the cron may start (and finish) it.

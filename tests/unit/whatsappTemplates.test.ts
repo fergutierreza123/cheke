@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { explainWhatsAppError } from "@/lib/whatsappErrors";
+import { TemplateText } from "@/components/TemplateText";
 import {
+  templateCategoryLabel,
+  templateDisplayName,
+  variableLabel,
   buildCreateTemplateRequest,
   buildTemplateMessage,
   parseMetaTemplates,
@@ -301,5 +307,38 @@ describe("template send errors in plain Spanish", () => {
 
   it("paused template (132015)", () => {
     expect(explainWhatsAppError(132015)).toMatch(/pausada/);
+  });
+});
+
+describe("plain words instead of codes (Plantillas, Campañas)", () => {
+  it("names a template like a person would, without _ or a resend's number", () => {
+    expect(templateDisplayName("precio_con_envio")).toBe("Precio con envio");
+    expect(templateDisplayName("seguimiento_pedido_2")).toBe("Seguimiento pedido");
+  });
+
+  it("names the category in Spanish", () => {
+    expect(templateCategoryLabel("MARKETING")).toBe("Promoción");
+    expect(templateCategoryLabel("utility")).toBe("Aviso");
+    expect(templateCategoryLabel("AUTHENTICATION")).toBe("Código");
+  });
+
+  it("says what goes in each variable", () => {
+    expect(variableLabel("producto")).toBe("Producto");
+    expect(variableLabel("nombre")).toBe("Nombre del cliente");
+    expect(variableLabel("2")).toBe("Dato 2");
+    expect(variableLabel("talla_ropa")).toBe("Talla ropa");
+  });
+
+  it("shows variables as chips, never as {{code}}", () => {
+    const html = renderToStaticMarkup(
+      createElement(TemplateText, { text: "Hola {nombre}, la {{producto}} cuesta {{ precio }}. Pedido {{1}}." }),
+    );
+    expect(html).not.toMatch(/[{}]/);
+    expect(html).toContain("Hola ");
+    expect(html).toContain(">Nombre del cliente</span>");
+    expect(html).toContain(">Producto</span>");
+    expect(html).toContain(">Precio</span>");
+    expect(html).toContain(">Dato 1</span>");
+    expect(html).toMatch(/\.$/);
   });
 });

@@ -72,7 +72,7 @@ export type Message = {
   is_bot: boolean;
   // Where an outgoing message was written: in cheke, on the business's phone
   // (WhatsApp Business app, coexistence), imported chat history, or in the
-  // Instagram app / Meta Business Suite (meta_app), or a Difusión
+  // Instagram app / Meta Business Suite (meta_app), or a Campaña
   // (broadcast, migration 0044; also is_bot).
   source?: "cheke" | "phone" | "history" | "meta_app" | "broadcast";
   // Failed sends only: Meta's error code and the Spanish reason shown in Chat.

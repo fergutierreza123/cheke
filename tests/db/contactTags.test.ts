@@ -46,7 +46,7 @@ describe("contacts.tags under RLS", () => {
     expect(row.tags).toEqual(["vip", "mayorista"]);
   });
 
-  it("the Negocio can query contacts by Etiqueta (what a Difusión will use)", async () => {
+  it("the Negocio can query contacts by Etiqueta (what a Campaña will use)", async () => {
     const rows = await rpc(OWNER, `select id from contacts where business_id = $1 and tags && $2`, [biz, ["mayorista", "otra"]]);
     expect(rows.map((r) => r.id)).toEqual([contact]);
   });

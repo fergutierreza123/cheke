@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, userId, type TestDb } from "./harness";
 
-// Difusión (migration 0042): broadcasts are read and created by the Dueños
+// Campaña (migration 0042): broadcasts are read and created by the Dueños
 // and the Gerentes of that Tienda; their recipients are written only by the
 // server. contacts.marketing_opt_out starts false.
 //
@@ -57,7 +57,7 @@ beforeAll(async () => {
   ids.contact = (await one(`insert into contacts (business_id, name, tags) values ($1, 'Ana', '{vip}') returning id`, [ids.biz])).id;
 });
 
-describe("Difusión (broadcasts, migration 0042)", () => {
+describe("Campaña (broadcasts, migration 0042)", () => {
   it("contacts start without opting out of offers", async () => {
     expect((await one(`select marketing_opt_out from contacts where id = $1`, [ids.contact])).marketing_opt_out).toBe(false);
   });
@@ -102,7 +102,7 @@ describe("Difusión (broadcasts, migration 0042)", () => {
   });
 });
 
-describe("Difusión follow-ups (migration 0044)", () => {
+describe("Campaña follow-ups (migration 0044)", () => {
   const sending = async (store: string, channel: string) => {
     const id = (await rpc(null,
       `insert into broadcasts (business_id, store_id, channel_id, template, tags, status) values ($1, $2, $3, '{}', '{vip}', 'sending') returning id`,
@@ -138,7 +138,7 @@ describe("Difusión follow-ups (migration 0044)", () => {
     expect(await cancel(MANAGER_B, bB)).toBe(true);
   });
 
-  it("stuck sends get claimed_at and error_reason; Difusión messages carry source 'broadcast'", async () => {
+  it("stuck sends get claimed_at and error_reason; Campaña messages carry source 'broadcast'", async () => {
     const r = await rpc(null,
       `update broadcast_recipients set claimed_at = now(), error_reason = 'x' where status = 'failed' returning id`);
     expect(r.length).toBeGreaterThan(0);
