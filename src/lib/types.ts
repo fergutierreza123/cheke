@@ -78,6 +78,9 @@ export type Message = {
   // Failed sends only: Meta's error code and the Spanish reason shown in Chat.
   error_code?: number | null;
   error_reason?: string | null;
+  // Who on the team wrote an outgoing message in cheke (migration 0021).
+  // Null for the customer, chekelin and replies from the phone / Meta apps.
+  sent_by?: string | null;
   // Photos, voice notes, documents… received (migration 0023). `body` keeps
   // the plain text ("📷 Foto"), shown while the file downloads or if it fails.
   media_kind?: MediaKind | null;
@@ -139,6 +142,8 @@ export type ConversationWithContact = Conversation & {
   contact: Pick<Contact, "id" | "name" | "phone" | "ig_handle" | "fb_id" | "notes" | "tags">;
   channel: Pick<Channel, "id" | "type" | "coexistence"> & { external_id?: string | null } | null;
   last_message_body: string | null;
+  // Who wrote it: the list's "Tú:" / "chekelin:" and «Sin responder».
+  last_message?: Pick<Message, "direction" | "is_bot" | "source" | "sent_by"> | null;
   // "No leídos": the customer's messages nobody on the team has seen yet
   // (src/lib/unread.ts). Missing = 0.
   unread_count?: number;
