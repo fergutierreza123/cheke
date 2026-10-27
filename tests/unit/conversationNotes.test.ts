@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { noteStrip, noteTag, shortSummary } from "@/lib/conversationNotes";
+import { insertMention, mentionedIds, mentionQuery, noteStrip, noteTag, shortSummary } from "@/lib/conversationNotes";
 import type { ConversationNote } from "@/lib/types";
 
 const note = (extra: Partial<ConversationNote> = {}): ConversationNote => ({
@@ -67,5 +67,32 @@ describe("noteStrip", () => {
     const strip = noteStrip([latest, queja, older], { complaintOpen: true });
     expect(strip?.head.id).toBe("queja");
     expect(strip?.rest.map((n) => n.id)).toEqual(["new", "old"]);
+  });
+});
+
+describe("team notes and @mentions", () => {
+  const people = [
+    { userId: "u1", name: "Ana López" },
+    { userId: "u2", name: "Beto" },
+  ];
+
+  it("a person's note is a Nota", () => {
+    expect(noteTag(note({ kind: "team", reason: null }))).toBe("nota");
+  });
+
+  it("reads the name being typed after @", () => {
+    expect(mentionQuery("@")).toBe("");
+    expect(mentionQuery("ya le cobré @an")).toBe("an");
+    expect(mentionQuery("correo@x")).toBeNull();
+    expect(mentionQuery("sin mención")).toBeNull();
+  });
+
+  it("puts the picked name in place of what was typed", () => {
+    expect(insertMention("ya le cobré @an", "Ana López")).toBe("ya le cobré @Ana López ");
+  });
+
+  it("finds who was mentioned, ignoring case", () => {
+    expect(mentionedIds("@ana lópez y @Beto: pasa el sábado", people)).toEqual(["u1", "u2"]);
+    expect(mentionedIds("Beto ya cobró", people)).toEqual([]);
   });
 });

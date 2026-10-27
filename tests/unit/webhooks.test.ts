@@ -171,6 +171,24 @@ describe("WhatsApp webhook", () => {
     expect(messages()[0].reaction_in).toBeUndefined();
   });
 
+  it("saves the Click-to-WhatsApp ad on the chat; the first ad wins", async () => {
+    const ad = (id: string, adId: string, headline: string) =>
+      waText(id, "Can I get more info about this?", {
+        referral: { source_url: "https://fb.me/3cr4Wqqkv", source_id: adId, source_type: "ad", headline, body: "Summer Succulents are here!", media_type: "image", ctwa_clid: "Aff-n8ZT" },
+      });
+    await toWhatsApp(waPayload([ad("wamid.1", "120226305854810726", "Chat with us")]));
+    await toWhatsApp(waPayload([ad("wamid.2", "999", "Otro anuncio")]));
+    const [conversation] = state.db.rows("conversations");
+    expect(conversation).toMatchObject({
+      referral_source: "anuncio",
+      referral_ad_id: "120226305854810726",
+      referral_headline: "Chat with us",
+      referral_url: "https://fb.me/3cr4Wqqkv",
+    });
+    expect((conversation.referral as { ctwa_clid: string }).ctwa_clid).toBe("Aff-n8ZT");
+    expect(conversation.referral_at).toBeTruthy();
+  });
+
   it("delivery ticks only move forward", async () => {
     state.db.rows("messages").push({ id: "m-out", business_id: BIZ, conversation_id: "c", direction: "out", body: "x", external_message_id: "wamid.out", status: "sent" });
     const status = (s: string) => ({
@@ -267,6 +285,28 @@ describe("Instagram / Messenger webhook", () => {
     state.db.rows("messages").push({ id: "m-out", business_id: BIZ, conversation_id: conversation.id, direction: "out", body: "x", external_message_id: "mid.fbout", status: "delivered", created_at: new Date(1760000001000).toISOString() });
     await toMeta({ object: "page", entry: [{ id: "PAGE1", messaging: [{ sender: { id: "PSID1" }, recipient: { id: "PAGE1" }, timestamp: 1760000005000, read: { watermark: 1760000002000 } }] }] });
     expect(messages().find((m) => m.id === "m-out")?.status).toBe("read");
+  });
+
+  it("saves the Instagram ad the chat came from", async () => {
+    const referral = { ref: "x", ad_id: "AD9", source: "ADS", type: "OPEN_THREAD", ads_context_data: { ad_title: "Zapatos 2x1" } };
+    await toMeta(igEvent({ message: { mid: "mid.ad", text: "info", referral } }));
+    expect(state.db.rows("conversations")[0]).toMatchObject({ referral_source: "anuncio", referral_ad_id: "AD9", referral_headline: "Zapatos 2x1", referral });
+  });
+
+  it("Messenger: an ad tapped from a chat already open, sent on its own", async () => {
+    const fb = (event: Record<string, unknown>) => ({
+      object: "page",
+      entry: [{ id: "PAGE1", messaging: [{ sender: { id: "PSID1" }, recipient: { id: "PAGE1" }, timestamp: 1760000000000, ...event }] }],
+    });
+    const referral = { ad_id: "AD7", source: "ADS", type: "OPEN_THREAD", ads_context_data: { ad_title: "Promo" } };
+    // No chat yet: nothing to attach it to.
+    await toMeta(fb({ referral }));
+    expect(state.db.rows("conversations")).toHaveLength(0);
+
+    await toMeta(fb({ message: { mid: "mid.fb1", text: "hola" } }));
+    await toMeta(fb({ referral }));
+    expect(state.db.rows("conversations")[0]).toMatchObject({ referral_ad_id: "AD7", referral_headline: "Promo" });
+    expect(messages()).toHaveLength(1);
   });
 
   it("an echo of what cheke itself sent is not saved twice", async () => {

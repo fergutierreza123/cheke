@@ -71,7 +71,9 @@ describe("chekelin's map pin and the routing trigger", () => {
 
   it("an Agente sends «Ubicación» as a map card: allowed in their Tienda, it's a person's reply", async () => {
     const conv = await newChat("ubic", ids.storeA);
-    await customerWrites(conv, "¿dirección?");
+    const asked = await customerWrites(conv, "¿dirección?");
+    // A reply in the same microsecond would read as unread (created_at ties).
+    await t.q(`update messages set created_at = created_at - interval '1 second' where id = $1`, [asked]);
     await as(
       AGENT_A,
       `insert into messages (conversation_id, business_id, direction, body, media_kind, media_info) values ($1, $2, 'out', '📍 Tienda Luna', 'location', '{"latitude":14.07,"longitude":-87.19}')`,

@@ -8,6 +8,7 @@ import { explainWhatsAppError } from "@/lib/whatsappErrors";
 import { deletedFields, whatsappChange, whatsappReaction, whatsappReplyTo } from "@/lib/messageEvents";
 import { findMessageId, findOrCreateConversation, insertMessage } from "@/lib/messageRows";
 import { createMessageClock } from "@/lib/messageClock";
+import { saveReferral, whatsappReferral } from "@/lib/adReferral";
 import type { MediaInfo } from "@/lib/types";
 import { isOptOutReply } from "@/lib/broadcasts";
 import { handleTemplateFailure, setMarketingOptOut } from "@/lib/broadcastsServer";
@@ -247,6 +248,8 @@ async function saveInboundMessage(
   queueMedia(media, channel, message);
   // "BAJA": no more Difusiones for them. chekelin or a person still answers.
   if (isOptOutReply(body)) await setMarketingOptOut(supabase, contactId, true);
+  const referral = whatsappReferral(message);
+  if (referral) await saveReferral(supabase, conversation.id, referral, now.toISOString());
 
   return { conversationId: conversation.id, contactName: profileName, body };
 }
