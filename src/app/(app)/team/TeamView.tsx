@@ -9,7 +9,6 @@ import {
   createInvitation,
   cancelInvitation,
   setMemberAway,
-  setNotifyAll,
 } from "./actions";
 import { initialsFromEmail, relativeTime } from "@/lib/format";
 import { canManageStore, ROLE_LABEL, type CurrentBusiness, type Role } from "@/lib/stores";
@@ -66,7 +65,6 @@ export function TeamView({
     if (m.user_id === currentUserId || isOwner) return true;
     return business.role === "manager" && m.role === "agent" && (storeMembership[m.user_id] ?? []).some((id) => managedStoreIds.has(id));
   }
-  const me = members.find((m) => m.user_id === currentUserId);
 
   const owners = members.filter((m) => m.role === "owner");
   const hasStore = (userId: string) => business.stores.some((s) => storeMembership[userId]?.includes(s.id));
@@ -170,29 +168,10 @@ export function TeamView({
         <div className="flex flex-col gap-4 lg:gap-5">
           <InviteCard business={business} demo={demo} onError={setToast} />
 
-          {isOwner && me && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-surface px-4 py-3.5 lg:px-5">
-              <input
-                type="checkbox"
-                checked={Boolean(me.notify_all)}
-                onChange={(e) => run(() => setNotifyAll(e.target.checked))}
-                className="mt-0.5 h-4.5 w-4.5 shrink-0 accent-[var(--color-brand)]"
-              />
-              <span className="min-w-0">
-                <span className="block text-[13.5px] font-semibold text-ink">Avisarme de todo</span>
-                <span className="block text-[12.5px] leading-snug text-ink-muted">
-                  {showAway
-                    ? "Recibe un aviso de cada mensaje, también de los chats de otras personas y de los que atiende chekelin. Si no, solo te avisamos de los tuyos."
-                    : "Recibe un aviso de cada mensaje, también de los que atiende chekelin. Si no, te avisamos cuando chekelin te pasa un chat."}
-                </span>
-              </span>
-            </label>
-          )}
-
           {showAway && (
             <p className="px-1 text-[12.5px] leading-snug text-ink-soft">
-              Los chats nuevos van a quien esté disponible. Marca <span className="font-semibold text-ink-muted">Ausente</span> en
-              tu día libre o vacaciones: conservas tus chats abiertos, pero no te llegan nuevos.
+              Los chats nuevos van a quien esté <span className="font-semibold text-ink-muted">Disponible</span>. Con
+              Ausente no te llegan nuevos.
             </p>
           )}
 

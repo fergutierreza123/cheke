@@ -193,7 +193,11 @@ async function graphPost(
     return { error: "No se pudo contactar a Meta. Inténtalo de nuevo." };
   }
   const data = await res.json().catch(() => null);
-  if (!res.ok) return { error: data?.error?.message ?? "Meta no aceptó la respuesta.", code: data?.error?.code };
+  if (!res.ok) {
+    // Meta's text is English and technical: the log keeps it, the screen gets Spanish.
+    console.error("meta: comment reply refused", data?.error?.code, data?.error?.message);
+    return { error: "Meta no aceptó la respuesta. Inténtalo de nuevo.", code: data?.error?.code };
+  }
   return { data: data ?? {} };
 }
 

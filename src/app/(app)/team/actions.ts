@@ -174,7 +174,7 @@ export async function setNotifyAll(on: boolean): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_notify_all", { p_business_id: business.id, p_on: on });
   if (error) return { error: friendlyError(error) };
-  revalidatePath("/team");
+  revalidatePath("/notifications");
   return {};
 }
 

@@ -95,7 +95,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
             <BrandMark />
           </h1>
           <p className="hidden text-[13.5px] text-ink-muted sm:block">
-            Registro de datos de todos tus clientes, sin importar el canal por el que llegaron
+            Todos tus clientes, de cualquier canal
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -152,14 +152,14 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
         {contacts.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-16 text-center">
             <p className="text-[13.5px] text-ink-muted">
-              Todavía no tienes contactos. Puedes crear uno, o sembrar datos de ejemplo para probar la app.
+              Todavía no tienes contactos. Llegan solos cuando un cliente te escribe.
             </p>
             <button
               onClick={handleSeed}
               disabled={seeding}
               className="rounded-lg bg-brand-dark px-4 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
             >
-              {seeding ? "Sembrando…" : "Sembrar datos de ejemplo"}
+              {seeding ? "Cargando…" : "Cargar clientes de ejemplo"}
             </button>
             {seedError && (
               <p role="alert" className="text-[12.5px] text-danger">

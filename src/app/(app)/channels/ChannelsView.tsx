@@ -172,8 +172,7 @@ function StoreChannels({
                   </p>
                 ) : (
                   <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
-                    Recibe y responde los mensajes de WhatsApp de tus clientes desde cheke, con chekelin atendiendo
-                    la primera respuesta.
+                    Recibe y responde aquí los mensajes de WhatsApp de tus clientes.
                   </p>
                 )}
                 {whatsappReconnect && whatsapp && <ReconnectNotice channel={whatsapp} label="WhatsApp" />}
@@ -290,8 +289,8 @@ function MetaChannelsCard({
             </span>
           </div>
           <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
-            Los mensajes directos de Instagram y de Messenger llegan al mismo buzón que WhatsApp. Necesitas una página
-            de Facebook; si tu Instagram profesional está vinculado a ella, se conecta junto.
+            Recibe aquí los mensajes de Instagram y Messenger. Necesitas una página de Facebook; el Instagram vinculado
+            a ella se conecta junto.
           </p>
         </div>
       </div>
@@ -392,15 +391,12 @@ function BillingBanner({ problem, isOwner }: { problem: BillingProblem; isOwner:
   return (
     <div role="alert" className="rounded-2xl border border-danger-border bg-danger-tint p-4 lg:p-5">
       <h2 className="font-heading text-[15px] font-semibold text-danger">
-        WhatsApp no está entregando tus respuestas por un problema de pago con Meta
+        WhatsApp no está entregando tus respuestas: falta una tarjeta en Meta
       </h2>
       <p className="mt-1 text-[13.5px] leading-relaxed text-ink">
-        {messages} no se entregaron en los últimos días (el último {relativeTime(problem.lastAt)}). Meta cobra las
-        respuestas a tus clientes y, sin una tarjeta, solo entrega las primeras 1,000 del mes.
-      </p>
-      <p className="mt-1 text-[13.5px] leading-relaxed text-ink">
+        {messages} sin entregar (el último {relativeTime(problem.lastAt)}).{" "}
         {isOwner
-          ? "Para arreglarlo: abre Billing Hub con la cuenta de Facebook que conectó WhatsApp, agrega una tarjeta en «Métodos de pago» y vuelve a enviar los mensajes que fallaron."
+          ? "Agrega una tarjeta en Billing Hub de Meta, con la cuenta de Facebook que conectó WhatsApp, y vuelve a enviarlos."
           : "Avísale al dueño del negocio: debe agregar una tarjeta en Billing Hub de Meta."}
       </p>
       <a
@@ -438,7 +434,7 @@ function CoexistenceStatus({
 
   let text: string;
   if (channel.history_sync_error === "declined") text = "Elegiste no compartir tu historial de chats; los mensajes nuevos sí llegan a cheke.";
-  else if (channel.history_sync_error) text = `No se pudo importar tu historial: ${channel.history_sync_error}`;
+  else if (channel.history_sync_error) text = "No se pudo importar tu historial de chats; los mensajes nuevos sí llegan a cheke.";
   else if (!requested) text = withinWindow ? "Tus chats todavía no se han importado." : "Ya no se pueden importar tus chats anteriores (pasaron 24 horas).";
   else if (progress === null) text = "Importando tus chats de los últimos 6 meses… deja la app de WhatsApp Business abierta en tu teléfono.";
   else if (progress < 100) text = `Importando tus chats… ${progress}%`;

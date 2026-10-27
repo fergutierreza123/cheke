@@ -74,7 +74,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
       // The processed photo is always a JPEG, whatever the original was.
       fileName = `${file.name.replace(/\.[^.]*$/, "")}.jpg`;
     } else if (bg.error) {
-      photoWarning = `Se guardó la foto original: ${bg.error}`;
+      photoWarning = "No se pudo quitar el fondo: se guardó la foto original.";
     }
 
     // Storage RLS on `storage.objects` (0009_product_images.sql) is scoped

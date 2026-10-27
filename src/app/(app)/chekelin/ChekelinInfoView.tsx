@@ -163,7 +163,7 @@ export function ChekelinInfoView({
           )}
 
           <p className="px-1 text-[13.5px] leading-relaxed text-ink-muted">
-            chekelin responde, recomienda, toma pedidos y manda los datos de pago usando esto, tu{" "}
+            chekelin vende usando esto, tu{" "}
             <Link href="/inventory" className="font-semibold text-brand">
               Catálogo
             </Link>{" "}
@@ -171,8 +171,7 @@ export function ChekelinInfoView({
             <Link href="/templates" className="font-semibold text-brand">
               Plantillas
             </Link>
-            . Escribe corto, como se lo dirías a un cliente. Si algo no está aquí, chekelin no lo inventa: le dice al
-            cliente que lo confirma, te avisa a ti y sigue atendiendo lo demás.
+            . Escribe corto. Si algo no está aquí, chekelin no lo inventa: te avisa.
           </p>
           {!canEdit && (
             <p className="rounded-xl bg-surface-2 px-4 py-3 text-[13px] text-ink-muted">
@@ -202,8 +201,7 @@ export function ChekelinInfoView({
             <fieldset className="flex flex-col gap-3 rounded-2xl border border-border bg-surface px-4 py-4 lg:px-5">
               <legend className="px-1 text-[13.5px] font-semibold text-ink">Ubicación de la tienda</legend>
               <p className="-mt-1 text-[12px] text-ink-soft">
-                Para «¿Dónde quedan?»: en Chat, toca el botón del pin (en el teléfono, + y «Ubicación»). Por WhatsApp
-                llega como un mapa; por Instagram y Facebook, como un link de Google Maps.
+                Para cuando pregunten «¿Dónde quedan?»: en Chat, toca el pin (en el teléfono, + y «Ubicación»).
               </p>
               <label className="flex flex-col gap-1">
                 <span className="text-[13px] font-semibold text-ink">Dirección</span>
