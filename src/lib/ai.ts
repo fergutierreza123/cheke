@@ -4,6 +4,7 @@ import { formatLempiras } from "@/lib/format";
 import { hasStoreLocation, type StoreLocation } from "@/lib/storeLocation";
 import { hondurasTimeLine } from "@/lib/chekelinState";
 import { usageRecords, type UsageRecord } from "@/lib/chekelinCost";
+import { clampTeamSummary } from "@/lib/conversationNotes";
 
 // chekelin: the AI assistant that answers customers and sells on its own
 // (answers, sends product photos, takes the order, sends the payment
@@ -201,7 +202,7 @@ const SELLER_SCHEMA = {
     },
     action: { type: "string", enum: ["none", "handoff", "complaint", "order_ready", "payment_receipt"] },
     handoff_reason: { type: "string", enum: ["pide_persona", "falta_info", "descuento", "ninguna"] },
-    team_summary: { type: "string", description: "Solo para el equipo: qué quiere el cliente o qué pasó, 1 o 2 oraciones." },
+    team_summary: { type: "string", description: "Solo para el equipo: qué quiere el cliente o qué pasó, 1 oración corta (máximo 120 letras)." },
     order: {
       type: "object",
       description: "Solo con action = order_ready. Si no, deja listas vacías, textos vacíos y ceros.",
@@ -301,7 +302,7 @@ export function sellerPrompt(input: {
     `Si el cliente se queja o está molesto (producto dañado, no le llegó, mal servicio, enojo), usa action = "complaint". En messages: reconoce lo que pasó con empatía de verdad, discúlpate, pide los detalles que falten (qué pedido o fecha, qué pasó, una foto) y dile que ${manager} va a ver su caso personalmente y le responde lo antes posible. Nunca prometas reembolsos, descuentos, cambios ni fechas.`,
     "",
     "# Siempre",
-    "- team_summary: para el equipo (el cliente nunca lo ve): qué quiere el cliente (productos, colores, tallas, ciudad…) o qué pasó. Llénalo siempre.",
+    "- team_summary: para el equipo (el cliente nunca lo ve): qué quiere el cliente (productos, colores, tallas, ciudad…) o qué pasó, en 1 oración corta (máximo 120 letras). Llénalo siempre.",
     "- Nunca des descuentos, nunca confirmes pagos, nunca prometas fechas de entrega que no estén en la información.",
     '- Con action = "none", messages no puede ir vacío.',
     "",
@@ -381,7 +382,7 @@ export function normalizeSeller(raw: RawSeller): SellerDecision {
     sendLocation: raw.send_location === true,
     action: raw.action ?? "none",
     handoffReason: raw.handoff_reason ?? "ninguna",
-    teamSummary: (raw.team_summary ?? "").trim(),
+    teamSummary: clampTeamSummary(raw.team_summary ?? ""),
     order: {
       items: (order.items ?? []).filter((i) => i.product && i.quantity > 0),
       customer_name: order.customer_name?.trim() ?? "",
@@ -459,7 +460,7 @@ const COMMENT_SCHEMA = {
     public_reply: { type: "string", description: "Respuesta pública corta debajo del comentario. Vacía si kind = other." },
     private_reply: { type: "string", description: "Mensaje privado (DM) para quien comentó. Vacío si kind = other." },
     product_ref: { type: "string", description: "Producto del catálogo (P1, P2…) del que pregunta, o vacío si no se sabe." },
-    team_summary: { type: "string", description: "Solo para el equipo: qué quiere o qué pasó, 1 oración." },
+    team_summary: { type: "string", description: "Solo para el equipo: qué quiere o qué pasó, 1 oración corta (máximo 120 letras)." },
   },
   required: ["kind", "public_reply", "private_reply", "product_ref", "team_summary"],
   additionalProperties: false,
@@ -518,7 +519,7 @@ export async function decideComment(args: {
       publicReply: (data.public_reply ?? "").trim(),
       privateReply: (data.private_reply ?? "").trim(),
       productRef: /^P\d+$/.test(ref) ? ref : null,
-      teamSummary: (data.team_summary ?? "").trim(),
+      teamSummary: clampTeamSummary(data.team_summary ?? ""),
     },
   };
 }

@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { formatMessageTime, relativeTime } from "@/lib/format";
-import { NOTE_TAG_LABEL, noteStrip, noteTag, shortSummary, type NoteTag } from "@/lib/conversationNotes";
+import { mentionsMe, NOTE_TAG_LABEL, noteStrip, noteTag, type NoteTag } from "@/lib/conversationNotes";
 import type { ConversationNote } from "@/lib/types";
 
-// Team-only notes (Traspaso, Queja, Pago, falta info, a person's Nota) as one line above the
-// conversation: the newest note's kind, a short summary and when; "Ver más"
-// drops the full text (and the older notes behind "+N") over the chat
-// instead of pushing it down. Never sent to the customer.
+// Team-only notes (Traspaso, Queja, Pago, falta info, a person's Nota) as ONE
+// line above the conversation, like WhatsApp Business / Intercom: who wrote
+// the newest note and what it says, cut to fit. A tap opens a sheet with every
+// note, newest first. Never sent to the customer.
 export function NoteStrip({
   notes,
   complaintOpen,
   onResolveComplaint,
   authorNames = {},
+  me = null,
 }: {
   notes: ConversationNote[];
   // A person's Nota shows who wrote it.
@@ -22,10 +23,11 @@ export function NoteStrip({
   complaintOpen: boolean;
   // Gerentes / Dueños: "Resolver" on an open Queja.
   onResolveComplaint?: () => void;
+  // The person looking: notes that @mention them get a badge.
+  me?: { userId: string; name: string } | null;
 }) {
   const [open, setOpen] = useState(false);
   const reduceMotion = useReducedMotion();
-  const panelId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -39,50 +41,36 @@ export function NoteStrip({
   const strip = noteStrip(notes, { complaintOpen });
   if (!strip) return null;
   const { head, rest } = strip;
+  const all = [head, ...rest];
   const tag = noteTag(head);
-  const short = shortSummary(head.summary);
   const canResolve = complaintOpen && tag === "queja" && Boolean(onResolveComplaint);
+  const mentioned = all.some((n) => mentionsMe(n, me));
 
   return (
-    <div className="relative z-10 shrink-0 border-b border-border bg-surface-2">
-      <div className="relative z-10 flex h-10 items-center gap-1.5 pl-3 pr-2 lg:px-6">
+    <div className="shrink-0 border-b border-border bg-surface-2">
+      <div className="flex h-9 items-center gap-1.5 pl-3 pr-2 lg:px-6">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls={panelId}
-          title="Solo para el equipo: el cliente no ve esta nota"
-          className="flex h-full min-w-0 flex-1 items-center gap-2 text-left text-[12.5px]"
+          onClick={() => setOpen(true)}
+          aria-haspopup="dialog"
+          aria-label={`Notas del equipo (${all.length}). Ver todas`}
+          title="Solo para el equipo: el cliente no ve estas notas"
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-[12.5px]"
         >
           <TagIcon tag={tag} />
           <span className={`shrink-0 font-semibold ${tag === "queja" ? "text-danger" : "text-brand-dark"}`}>
-            {noteLabel(head, authorNames)}
+            {stripLabel(head, authorNames)}:
           </span>
-          <span className="min-w-0 flex-1 truncate text-ink">{short.text}</span>
-          <time dateTime={head.created_at} title={formatMessageTime(head.created_at)} className="shrink-0 text-[11.5px] text-ink-muted">
-            {shortAgo(head.created_at)}
-          </time>
+          <span className="min-w-0 flex-1 truncate text-ink">{head.summary.replace(/\s+/g, " ")}</span>
+          {mentioned && <MentionBadge />}
           {rest.length > 0 && (
             <span className="shrink-0 rounded-full bg-surface px-1.5 text-[11px] font-semibold leading-[18px] text-ink-muted ring-1 ring-border">
               +{rest.length}
             </span>
           )}
-          <span className="flex shrink-0 items-center gap-0.5 font-semibold text-brand">
-            <span className="hidden sm:inline">{open ? "Ver menos" : "Ver más"}</span>
-            <span className="sr-only sm:hidden">{open ? "Ver menos" : "Ver más"}</span>
-            <motion.svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              className="h-4 w-4"
-              animate={{ rotate: open ? 180 : 0 }}
-              transition={reduceMotion ? { duration: 0 } : { type: "spring", bounce: 0, duration: 0.3 }}
-              aria-hidden
-            >
-              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-            </motion.svg>
-          </span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0 text-brand" aria-hidden>
+            <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
         {canResolve && (
           <button
@@ -95,26 +83,51 @@ export function NoteStrip({
         )}
       </div>
 
-      <AnimatePresence initial={false}>
+      <AnimatePresence>
         {open && (
           <>
-            {/* Any tap outside closes it. */}
-            <div className="fixed inset-0 z-0" onClick={() => setOpen(false)} aria-hidden />
             <motion.div
-              id={panelId}
-              key="notes"
-              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              key="scrim"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-40 bg-[#001037]/30 backdrop-blur-[2px]"
+              aria-hidden="true"
+            />
+            <motion.div
+              key="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Notas del equipo"
+              initial={reduceMotion ? { opacity: 0 } : { y: "100%" }}
+              animate={reduceMotion ? { opacity: 1 } : { y: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { y: "100%" }}
               transition={reduceMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }}
-              className="absolute inset-x-0 top-full z-10 max-h-[min(60vh,420px)] overflow-y-auto border-b border-border bg-surface shadow-[0_8px_24px_-12px_rgba(0,16,55,0.35)]"
+              className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[75vh] max-w-lg flex-col rounded-t-[18px] border-t border-border bg-surface pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-8px_32px_rgba(0,16,55,0.16)]"
             >
-              <ul className="divide-y divide-border">
-                {[head, ...rest].map((n) => (
-                  <NoteItem key={n.id} note={n} authorNames={authorNames} />
+              <div className="flex shrink-0 items-center justify-between px-4 pb-1 pt-3">
+                <div>
+                  <div className="font-heading text-[15px] font-semibold text-ink">Notas del equipo</div>
+                  <div className="text-[11.5px] text-ink-muted">El cliente no las ve.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Cerrar notas"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted hover:bg-surface-2"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
+                {all.map((n) => (
+                  <NoteItem key={n.id} note={n} authorNames={authorNames} mentioned={mentionsMe(n, me)} />
                 ))}
               </ul>
-              <p className="px-3 pb-2.5 pt-1 text-[11.5px] text-ink-muted lg:px-6">Solo para el equipo: el cliente no ve estas notas.</p>
             </motion.div>
           </>
         )}
@@ -154,17 +167,26 @@ export function NoteComposerBar({ onCancel }: { onCancel: () => void }) {
   );
 }
 
-function NoteItem({ note, authorNames }: { note: ConversationNote; authorNames: Record<string, string> }) {
+function NoteItem({
+  note,
+  authorNames,
+  mentioned,
+}: {
+  note: ConversationNote;
+  authorNames: Record<string, string>;
+  mentioned: boolean;
+}) {
   const tag = noteTag(note);
   return (
-    <li className="flex gap-2 px-3 py-2.5 text-[13px] leading-snug lg:px-6">
+    <li className="flex gap-2 px-4 py-2.5 text-[13px] leading-snug">
       <TagIcon tag={tag} className="mt-px" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className={`font-semibold ${tag === "queja" ? "text-danger" : "text-brand-dark"}`}>{noteLabel(note, authorNames)}</span>
-          <time dateTime={note.created_at} className="text-[11.5px] text-ink-muted">
-            {relativeTime(note.created_at)} · {formatMessageTime(note.created_at)}
+          <time dateTime={note.created_at} title={formatMessageTime(note.created_at)} className="text-[11.5px] text-ink-muted">
+            {relativeTime(note.created_at)}
           </time>
+          {mentioned && <MentionBadge />}
         </div>
         <p className="mt-0.5 max-w-[72ch] text-ink [overflow-wrap:anywhere]">{note.summary}</p>
         {note.reason && <p className="mt-0.5 text-[12px] text-ink-muted">{note.reason}</p>}
@@ -173,16 +195,28 @@ function NoteItem({ note, authorNames }: { note: ConversationNote; authorNames: 
   );
 }
 
+// The sheet: the kind, and who wrote it ("Traspaso · chekelin", "Nota · Ana").
 function noteLabel(note: ConversationNote, authorNames: Record<string, string>): string {
-  const tag = noteTag(note);
-  if (tag !== "nota") return NOTE_TAG_LABEL[tag];
-  const name = note.author_id ? authorNames[note.author_id] : undefined;
-  return name ? `Nota de ${name}` : "Nota del equipo";
+  return `${NOTE_TAG_LABEL[noteTag(note)]} · ${noteAuthor(note, authorNames)}`;
 }
 
-// "hace 3 min" → "3 min": the strip has one line to spare.
-function shortAgo(iso: string): string {
-  return relativeTime(iso).replace(/^hace /, "");
+// The one line: who wrote it ("chekelin", "Ana"); an open Queja says so.
+function stripLabel(note: ConversationNote, authorNames: Record<string, string>): string {
+  return noteTag(note) === "queja" ? "Queja" : noteAuthor(note, authorNames);
+}
+
+function noteAuthor(note: ConversationNote, authorNames: Record<string, string>): string {
+  if (note.kind !== "team") return "chekelin";
+  return (note.author_id && authorNames[note.author_id]) || "Equipo";
+}
+
+// "@" on a note that mentions the person looking.
+function MentionBadge() {
+  return (
+    <span title="Te mencionaron" className="shrink-0 rounded-full bg-brand px-1.5 text-[11px] font-bold leading-[18px] text-white">
+      @<span className="sr-only"> Te mencionaron</span>
+    </span>
+  );
 }
 
 const TAG_STYLE: Record<NoteTag, string> = {

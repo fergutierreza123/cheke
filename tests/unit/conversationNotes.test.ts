@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { insertMention, mentionedIds, mentionQuery, noteStrip, noteTag, shortSummary } from "@/lib/conversationNotes";
+import { clampTeamSummary, insertMention, mentionedIds, mentionQuery, mentionsMe, noteStrip, noteTag, shortSummary, TEAM_SUMMARY_MAX } from "@/lib/conversationNotes";
 import type { ConversationNote } from "@/lib/types";
 
 const note = (extra: Partial<ConversationNote> = {}): ConversationNote => ({
@@ -94,5 +94,24 @@ describe("team notes and @mentions", () => {
   it("finds who was mentioned, ignoring case", () => {
     expect(mentionedIds("@ana lópez y @Beto: pasa el sábado", people)).toEqual(["u1", "u2"]);
     expect(mentionedIds("Beto ya cobró", people)).toEqual([]);
+  });
+
+  it("badges a team note that mentions me, not one I wrote or chekelin's", () => {
+    const me = { userId: "u1", name: "Ana López" };
+    expect(mentionsMe(note({ kind: "team", author_id: "u2", summary: "@Ana López cobrale" }), me)).toBe(true);
+    expect(mentionsMe(note({ kind: "team", author_id: "u1", summary: "@Ana López ojo" }), me)).toBe(false);
+    expect(mentionsMe(note({ kind: "team", author_id: "u2", summary: "@Beto cobrale" }), me)).toBe(false);
+    expect(mentionsMe(note({ summary: "@Ana López" }), me)).toBe(false);
+    expect(mentionsMe(note({ kind: "team", author_id: "u2", summary: "@Ana López" }), null)).toBe(false);
+  });
+});
+
+describe("clampTeamSummary", () => {
+  it("keeps chekelin's summary to one line of at most 120 characters", () => {
+    const long = "Quiere 2 blusas talla M y pagará por transferencia. ".repeat(5);
+    const out = clampTeamSummary(long);
+    expect(out.length).toBeLessThanOrEqual(TEAM_SUMMARY_MAX);
+    expect(out.endsWith("…")).toBe(true);
+    expect(clampTeamSummary("Quiere 2 blusas talla M.")).toBe("Quiere 2 blusas talla M.");
   });
 });

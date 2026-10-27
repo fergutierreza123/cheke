@@ -40,7 +40,7 @@ import { waitForVoiceTranscription } from "@/lib/voiceTranscription";
 import { EMPTY_CHEKELIN_INFO, type ChannelType, type ChekelinInfo, type Message, type Template } from "@/lib/types";
 import { hasStoreLocation, locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
 import { getStoreLocation } from "@/lib/storeLocationServer";
-import { FALTA_INFO_LABEL } from "@/lib/conversationNotes";
+import { clampTeamSummary, FALTA_INFO_LABEL } from "@/lib/conversationNotes";
 
 // chekelin sells on its own (answers, photos, order, payment details,
 // receipt), hands the chat to a person when it should (Traspaso), handles
@@ -860,7 +860,7 @@ export async function handOffActiveChats(supabase: Admin, storeId: string): Prom
         .limit(1)
         .maybeSingle();
       await handOff(supabase, conv, {
-        summary: last?.body ? `Último mensaje del cliente: "${last.body}"` : "",
+        summary: last?.body ? clampTeamSummary(`Último mensaje del cliente: "${last.body}"`) : "",
         reason: HANDOFF_REASON_LABEL.chekelin_apagado,
         sendExternally: true,
       });
