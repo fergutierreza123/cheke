@@ -10,6 +10,7 @@ import {
   simulateInboundMessage,
   sendPaymentRequest,
   listOpenOrders,
+  listContactPurchases,
   resolveOrder,
   reassignConversation,
   listConversationNotes,
@@ -37,7 +38,7 @@ import { CameraIcon, ClipIcon, PhotoIcon, useComposerMedia, type MediaSendResult
 import { AttachSheet } from "./AttachSheet";
 import { NoteComposerBar, NoteStrip } from "./NoteStrip";
 import { useMentionPicker } from "./MentionPicker";
-import { mentionedIds } from "@/lib/conversationNotes";
+import { mentionedIds, noteStrip } from "@/lib/conversationNotes";
 import { WhatsAppTemplateSender } from "./WhatsAppTemplateSender";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
@@ -58,7 +59,7 @@ const CHEKELIN_STATE_HINT: Record<ChekelinChatState, string> = {
   paused: "chekelin está pausado en este chat. Toca para que vuelva a atender.",
   off: "chekelin está apagado en esta tienda.",
 };
-import { parseAmount, formatAmount, orderConcept, type OrderItem } from "@/lib/payments";
+import { parseAmount, formatAmount, orderConcept, PURCHASE_STATUS_LABEL, type OrderItem, type PastPurchase } from "@/lib/payments";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { MessageMedia, mediaReplacesBody } from "./MessageMedia";
@@ -237,6 +238,15 @@ export function ChatView({
   // list — unless it was opened for one conversation (a tapped notification).
   const [mobileView, setMobileView] = useState<"list" | "thread">(startInThread ? "thread" : "list");
   const [showDetail, setShowDetail] = useState(false);
+  // The contact panel's past purchases (paid / delivered orders), per contact.
+  const [purchasesByContact, setPurchasesByContact] = useState<
+    Record<string, { count: number; totalHnl: number; purchases: PastPurchase[] }>
+  >({});
+  // "Ver más": the contact whose full purchase list is showing.
+  const [allPurchasesFor, setAllPurchasesFor] = useState<string | null>(null);
+  // The conversation whose team notes sheet is open (from the note line or the
+  // contact panel); switching chats closes it.
+  const [notesOpenFor, setNotesOpenFor] = useState<string | null>(null);
   // The failed message whose reason is expanded (tap "No entregado").
   const [openFailureId, setOpenFailureId] = useState<string | null>(null);
   // The failed message being sent again ("Reintentar").
@@ -486,6 +496,8 @@ export function ChatView({
   const assignable = selected ? people.filter((p) => p.storeIds.includes(selected.store_id)) : [];
   const canReassign = Boolean(selectedStore?.canManage) && assignable.length > 1;
   const selectedNotes = (selectedId && notesByConversation[selectedId]) || NO_NOTES;
+  // What the note line shows; null when there's nothing to open.
+  const teamNotes = noteStrip(selectedNotes, { complaintOpen });
   // An open Queja normally comes with its note (shown in NoteStrip); older
   // ones without it still get their own row.
   const complaintWithoutNote = complaintOpen && !selectedNotes.some((n) => n.kind === "complaint");
@@ -554,6 +566,21 @@ export function ChatView({
       cancelled = true;
     };
   }, [selectedId, businessId]);
+
+  // Past purchases, loaded when the contact panel opens.
+  const detailContactId = showDetail ? selected?.contact_id : undefined;
+  useEffect(() => {
+    if (!detailContactId || businessId === "demo") return;
+    let cancelled = false;
+    listContactPurchases(detailContactId)
+      .then((summary) => {
+        if (!cancelled) setPurchasesByContact((prev) => ({ ...prev, [detailContactId]: summary }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [detailContactId, businessId]);
 
   function appendMessage(msg: Message) {
     setMessagesByConversation((prev) => {
@@ -1582,6 +1609,8 @@ export function ChatView({
               me={people.find((p) => p.userId === currentUserId) ?? null}
               complaintOpen={complaintOpen}
               onResolveComplaint={selectedStore?.canManage ? handleResolveComplaint : undefined}
+              open={notesOpenFor === selected.id}
+              onOpenChange={(open) => setNotesOpenFor(open ? selected.id : null)}
             />
 
             {/* Looks and reads like WhatsApp on purpose, so clients moving their
@@ -2400,7 +2429,21 @@ export function ChatView({
                     )}
                   </div>
                 )}
+                <div>
+                  Lo atiende{" "}
+                  <span className="font-semibold text-ink">
+                    {chatState === "active" ? "chekelin" : (assignee?.name ?? "Nadie todavía")}
+                  </span>
+                </div>
               </div>
+
+              {businessId !== "demo" && (
+                <PurchaseHistory
+                  summary={purchasesByContact[selected.contact_id]}
+                  showAll={allPurchasesFor === selected.contact_id}
+                  onShowAll={() => setAllPurchasesFor(selected.contact_id)}
+                />
+              )}
 
               <ContactTags
                 key={selected.contact.id}
@@ -2419,6 +2462,21 @@ export function ChatView({
                 <div className="rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink">
                   {selected.contact.notes || "Sin notas todavía."}
                 </div>
+                {/* Opens the same sheet as the note line above the thread. */}
+                {teamNotes && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDetail(false);
+                      setNotesOpenFor(selected.id);
+                    }}
+                    aria-haspopup="dialog"
+                    className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[12.5px] font-semibold text-brand hover:bg-surface-2"
+                  >
+                    <NoteIcon className="h-3.5 w-3.5" />
+                    Ver notas del equipo ({teamNotes.rest.length + 1})
+                  </button>
+                )}
               </div>
             </motion.div>
           </>
@@ -2531,6 +2589,61 @@ function ChekelinStoreSwitch({
 
 // The red "Queja" tag: an open complaint (chekelin silent until resolved).
 const NO_NOTES: ConversationNote[] = [];
+
+// Contact panel: what the customer has bought (paid or delivered orders), like
+// Contactos' "compras totales / pedidos" tiles and "Historial de compras".
+function PurchaseHistory({
+  summary,
+  showAll,
+  onShowAll,
+}: {
+  summary?: { count: number; totalHnl: number; purchases: PastPurchase[] };
+  showAll: boolean;
+  onShowAll: () => void;
+}) {
+  if (!summary) return null;
+  const shown = showAll ? summary.purchases : summary.purchases.slice(0, 3);
+  return (
+    <div>
+      <div className="mb-1.5 text-xs uppercase tracking-wide text-ink-muted">Compras</div>
+      {summary.count === 0 ? (
+        <div className="text-[13px] text-ink-muted">Todavía no ha comprado.</div>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <div className="flex-1 rounded-[10px] bg-brand-tint px-3 py-2 text-center">
+              <div className="font-heading text-[16px] font-bold text-brand-dark">{formatLempiras(summary.totalHnl)}</div>
+              <div className="text-[11px] text-ink-muted">compras totales</div>
+            </div>
+            <div className="flex-1 rounded-[10px] bg-surface-2 px-3 py-2 text-center">
+              <div className="font-heading text-[16px] font-bold text-ink">{summary.count}</div>
+              <div className="text-[11px] text-ink-muted">{summary.count === 1 ? "pedido" : "pedidos"}</div>
+            </div>
+          </div>
+          <ul className="mt-1.5 divide-y divide-border">
+            {shown.map((p) => (
+              <li key={p.id} className="flex items-baseline gap-1.5 py-1.5 text-[12.5px]">
+                <span className="shrink-0 text-ink-muted">
+                  {new Date(p.created_at).toLocaleDateString("es-HN", { day: "numeric", month: "short", year: "2-digit" })}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-ink" title={p.concept}>
+                  {p.concept || "Pedido"}
+                </span>
+                <span className="shrink-0 font-semibold text-ink">{formatLempiras(p.total_hnl)}</span>
+                <span className="shrink-0 text-[11.5px] text-ink-soft">{PURCHASE_STATUS_LABEL[p.status]}</span>
+              </li>
+            ))}
+          </ul>
+          {!showAll && summary.count > 3 && (
+            <button type="button" onClick={onShowAll} className="mt-1 text-[12.5px] font-semibold text-brand">
+              Ver más ({summary.count - 3})
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 function ComplaintTag() {
   return (
