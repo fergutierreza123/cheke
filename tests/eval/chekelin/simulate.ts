@@ -197,6 +197,11 @@ export function deterministicChecks(t: Transcript): Check[] {
       note: `quería ${want.join("|")}, fue ${last?.decision?.handoffReason ?? "—"}`,
     });
   }
+  // The Traspaso note: "Qué quiere · Qué falta" (falta_info writes the question instead).
+  if (last?.decision?.action === "handoff" && last.decision.handoffReason !== "falta_info") {
+    const note = last.decision.teamSummary;
+    checks.push({ id: "nota_que_quiere_que_falta", pass: / · \S/.test(note), note });
+  }
   if (expect.neverAction) {
     const hit = decided.filter((x) => expect.neverAction?.includes(x.decision!.action));
     checks.push({ id: "accion_prohibida", pass: hit.length === 0, note: hit.map((x) => x.decision?.action).join(",") });

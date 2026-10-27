@@ -1,3 +1,5 @@
+import { firstNameOf } from "@/lib/chekelinState";
+import { formatMessageTime } from "@/lib/format";
 import type { ConversationNote } from "@/lib/types";
 
 // Team-only notes on a chat (table conversation_notes): what Chat's one-line
@@ -71,16 +73,48 @@ export function noteStrip(
   return { head, rest: sorted.filter((n) => n !== head) };
 }
 
-// A team note that @mentions the person looking (not one they wrote).
+// A note that @mentions the person looking (not one they wrote). chekelin's
+// Traspaso / Queja notes mention who gets the chat (author_id null).
 export function mentionsMe(note: ConversationNote, me: { userId: string; name: string } | null): boolean {
-  if (!me || note.kind !== "team" || note.author_id === me.userId) return false;
+  if (!me || note.author_id === me.userId) return false;
   return mentionedIds(note.summary, [me]).length > 0;
 }
 
-// chekelin's team_summary as one short line (≤120 characters with the "…"),
-// so it fits Chat's strip and a phone notification. The prompt asks for one
-// short sentence; this is the guarantee.
-export const TEAM_SUMMARY_MAX = 120;
+// chekelin's team_summary, "Qué quiere · Qué falta", as one line of ≤200
+// characters with the "…", so it fits a phone notification. The prompt asks
+// for it; this is the guarantee.
+export const TEAM_SUMMARY_MAX = 200;
 export function clampTeamSummary(summary: string): string {
   return shortSummary(summary, TEAM_SUMMARY_MAX - 1).text;
+}
+
+// "@Ana López" at the end of chekelin's note, so the person who gets the chat
+// sees the "@" badge. No name in their profile: no mention.
+export function withMention(summary: string, name: string | null): string {
+  return name ? `${summary} · @${name}` : summary;
+}
+
+// The strip's bold part: why chekelin passed the chat ("Pide descuento o
+// pedido especial"), else who wrote the note; an open Queja says so.
+export function stripLabel(note: ConversationNote, authorNames: Record<string, string>): string {
+  const tag = noteTag(note);
+  if (tag === "queja") return "Queja";
+  if (tag === "traspaso" && note.reason) return note.reason;
+  return noteAuthor(note, authorNames);
+}
+
+export function noteAuthor(note: ConversationNote, authorNames: Record<string, string>): string {
+  if (note.kind !== "team") return "chekelin";
+  return (note.author_id && authorNames[note.author_id]) || "Equipo";
+}
+
+// The grey line in the thread at the moment of a Traspaso or a Queja
+// ("chekelin le pasó el chat a Ana · 3:42 p.m."). Other notes: none.
+export function noteMarker(note: ConversationNote, people: { userId: string; name: string }[]): string | null {
+  const tag = noteTag(note);
+  const at = formatMessageTime(note.created_at);
+  if (tag === "queja") return `Se abrió una queja · ${at}`;
+  if (tag !== "traspaso") return null;
+  const to = people.find((p) => mentionedIds(note.summary, [p]).length > 0);
+  return `chekelin le pasó el chat a ${(to && firstNameOf(to.name)) || "una persona"} · ${at}`;
 }

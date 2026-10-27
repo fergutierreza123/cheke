@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { formatMessageTime, relativeTime } from "@/lib/format";
-import { mentionsMe, NOTE_TAG_LABEL, noteStrip, noteTag, type NoteTag } from "@/lib/conversationNotes";
+import { mentionsMe, NOTE_TAG_LABEL, noteAuthor, noteStrip, noteTag, stripLabel, type NoteTag } from "@/lib/conversationNotes";
 import type { ConversationNote } from "@/lib/types";
 
 // Team-only notes (Traspaso, Queja, Pago, falta info, a person's Nota) as ONE
@@ -58,8 +58,10 @@ export function NoteStrip({
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-[12.5px]"
         >
           <TagIcon tag={tag} />
-          <span className={`shrink-0 font-semibold ${tag === "queja" ? "text-danger" : "text-brand-dark"}`}>
-            {stripLabel(head, authorNames)}:
+          <span className={`max-w-[60%] shrink-0 truncate font-semibold ${tag === "queja" ? "text-danger" : "text-brand-dark"}`}>
+            {/* "Pide descuento… · Quiere…" for a Traspaso; "Ana: …" otherwise. */}
+            {stripLabel(head, authorNames)}
+            {tag === "traspaso" && head.reason ? " ·" : ":"}
           </span>
           <span className="min-w-0 flex-1 truncate text-ink">{head.summary.replace(/\s+/g, " ")}</span>
           {mentioned && <MentionBadge />}
@@ -198,16 +200,6 @@ function NoteItem({
 // The sheet: the kind, and who wrote it ("Traspaso · chekelin", "Nota · Ana").
 function noteLabel(note: ConversationNote, authorNames: Record<string, string>): string {
   return `${NOTE_TAG_LABEL[noteTag(note)]} · ${noteAuthor(note, authorNames)}`;
-}
-
-// The one line: who wrote it ("chekelin", "Ana"); an open Queja says so.
-function stripLabel(note: ConversationNote, authorNames: Record<string, string>): string {
-  return noteTag(note) === "queja" ? "Queja" : noteAuthor(note, authorNames);
-}
-
-function noteAuthor(note: ConversationNote, authorNames: Record<string, string>): string {
-  if (note.kind !== "team") return "chekelin";
-  return (note.author_id && authorNames[note.author_id]) || "Equipo";
 }
 
 // "@" on a note that mentions the person looking.

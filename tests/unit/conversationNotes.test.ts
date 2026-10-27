@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { clampTeamSummary, insertMention, mentionedIds, mentionQuery, mentionsMe, noteStrip, noteTag, shortSummary, TEAM_SUMMARY_MAX } from "@/lib/conversationNotes";
+import {
+  clampTeamSummary,
+  insertMention,
+  mentionedIds,
+  mentionQuery,
+  mentionsMe,
+  noteMarker,
+  noteStrip,
+  noteTag,
+  shortSummary,
+  stripLabel,
+  TEAM_SUMMARY_MAX,
+  withMention,
+} from "@/lib/conversationNotes";
+import { formatMessageTime } from "@/lib/format";
 import type { ConversationNote } from "@/lib/types";
 
 const note = (extra: Partial<ConversationNote> = {}): ConversationNote => ({
@@ -96,22 +110,51 @@ describe("team notes and @mentions", () => {
     expect(mentionedIds("Beto ya cobró", people)).toEqual([]);
   });
 
-  it("badges a team note that mentions me, not one I wrote or chekelin's", () => {
+  it("badges a note that mentions me (a teammate's or chekelin's), not one I wrote", () => {
     const me = { userId: "u1", name: "Ana López" };
     expect(mentionsMe(note({ kind: "team", author_id: "u2", summary: "@Ana López cobrale" }), me)).toBe(true);
     expect(mentionsMe(note({ kind: "team", author_id: "u1", summary: "@Ana López ojo" }), me)).toBe(false);
     expect(mentionsMe(note({ kind: "team", author_id: "u2", summary: "@Beto cobrale" }), me)).toBe(false);
-    expect(mentionsMe(note({ summary: "@Ana López" }), me)).toBe(false);
+    expect(mentionsMe(note({ summary: withMention("Quiere 2 blusas · Falta la dirección", "Ana López") }), me)).toBe(true);
+    expect(mentionsMe(note({ summary: "Quiere 2 blusas" }), me)).toBe(false);
     expect(mentionsMe(note({ kind: "team", author_id: "u2", summary: "@Ana López" }), null)).toBe(false);
   });
 });
 
 describe("clampTeamSummary", () => {
-  it("keeps chekelin's summary to one line of at most 120 characters", () => {
+  it("keeps chekelin's summary to one line of at most 200 characters", () => {
     const long = "Quiere 2 blusas talla M y pagará por transferencia. ".repeat(5);
     const out = clampTeamSummary(long);
     expect(out.length).toBeLessThanOrEqual(TEAM_SUMMARY_MAX);
     expect(out.endsWith("…")).toBe(true);
     expect(clampTeamSummary("Quiere 2 blusas talla M.")).toBe("Quiere 2 blusas talla M.");
+  });
+});
+
+describe("Traspaso in the strip and the thread", () => {
+  const people = [{ userId: "u1", name: "Ana López" }];
+
+  it("leads the strip with why chekelin passed the chat", () => {
+    expect(stripLabel(note({ reason: "Pide descuento o pedido especial" }), {})).toBe("Pide descuento o pedido especial");
+    expect(stripLabel(note({ reason: null }), {})).toBe("chekelin");
+    expect(stripLabel(note({ kind: "complaint" }), {})).toBe("Queja");
+    expect(stripLabel(note({ kind: "team", author_id: "u1" }), { u1: "Ana López" })).toBe("Ana López");
+  });
+
+  it("mentions the person only when they have a name", () => {
+    expect(withMention("Quiere 2 blusas", "Ana López")).toBe("Quiere 2 blusas · @Ana López");
+    expect(withMention("Quiere 2 blusas", null)).toBe("Quiere 2 blusas");
+  });
+
+  it("marks a Traspaso and a Queja in the thread, nothing else", () => {
+    const at = formatMessageTime(note().created_at);
+    expect(noteMarker(note({ summary: withMention("Quiere 2 blusas", "Ana López") }), people)).toBe(
+      `chekelin le pasó el chat a Ana · ${at}`,
+    );
+    expect(noteMarker(note(), people)).toBe(`chekelin le pasó el chat a una persona · ${at}`);
+    expect(noteMarker(note({ kind: "complaint" }), people)).toBe(`Se abrió una queja · ${at}`);
+    expect(noteMarker(note({ reason: "chekelin no tenía la información · sigue atendiendo" }), people)).toBeNull();
+    expect(noteMarker(note({ kind: "payment" }), people)).toBeNull();
+    expect(noteMarker(note({ kind: "team", author_id: "u1" }), people)).toBeNull();
   });
 });
