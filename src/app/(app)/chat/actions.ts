@@ -19,7 +19,7 @@ import { getTeamMembers } from "@/lib/team";
 import { displayNameOf } from "@/lib/chekelinState";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness, isArchivedStore } from "@/lib/business";
-import { buildPaymentMessage, normalizePaymentLink, orderConcept, type OrderItem } from "@/lib/payments";
+import { buildPaymentMessage, normalizePaymentLink, orderConcept, purchaseSummary, type OrderItem } from "@/lib/payments";
 import { recordPaymentRequest } from "@/lib/orders";
 import type { ConversationNote, Message } from "@/lib/types";
 // Images sent to customers must come from our own storage.
@@ -587,6 +587,19 @@ export type OpenOrder = {
   // The customer sent a receipt / said they paid: waiting for "Confirmar pago".
   receipt_at?: string | null;
 };
+
+// A contact's past purchases for the contact panel. Signed-in client, so RLS
+// limits it to the Tiendas this person works in (an Agente sees only theirs).
+// shortcut: reads every paid/delivered order of the contact; add a SQL sum if a contact gets thousands.
+export async function listContactPurchases(contactId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("orders")
+    .select("id, created_at, items, total_hnl, status")
+    .eq("contact_id", contactId)
+    .in("status", ["paid", "delivered"]);
+  return purchaseSummary(data ?? []);
+}
 
 // Orders waiting on payment for one conversation (shown above the composer).
 export async function listOpenOrders(conversationId: string): Promise<OpenOrder[]> {

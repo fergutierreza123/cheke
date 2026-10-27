@@ -54,6 +54,30 @@ export function orderConcept(items: OrderItem[], shippingHnl = 0): string {
   return shippingHnl > 0 ? `${list} + envío` : list;
 }
 
+// A contact's past purchases (Chat's contact panel): only paid or delivered
+// orders count, newest first, with the count and the total in Lempiras.
+export type PastPurchase = { id: string; created_at: string; concept: string; total_hnl: number; status: "paid" | "delivered" };
+
+export const PURCHASE_STATUS_LABEL: Record<PastPurchase["status"], string> = { paid: "Pagado", delivered: "Entregado" };
+
+export function purchaseSummary(
+  orders: { id: string; created_at: string; items: unknown; total_hnl: number | string; status: string }[],
+): { count: number; totalHnl: number; purchases: PastPurchase[] } {
+  const purchases: PastPurchase[] = orders
+    .filter((o): o is typeof o & { status: PastPurchase["status"] } => o.status === "paid" || o.status === "delivered")
+    .map((o) => ({
+      id: o.id,
+      created_at: o.created_at,
+      concept: Array.isArray(o.items) ? orderConcept(o.items as OrderItem[]) : "",
+      total_hnl: Number(o.total_hnl) || 0,
+      status: o.status,
+    }))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  // Summed in cents so 0.1 + 0.2 never shows as L 0.30000000004.
+  const cents = purchases.reduce((sum, p) => sum + Math.round(p.total_hnl * 100), 0);
+  return { count: purchases.length, totalHnl: cents / 100, purchases };
+}
+
 // The chat message the customer receives. WhatsApp renders *bold*.
 export function buildPaymentMessage({ concept, amountHnl, link, instructions }: PaymentRequest): string {
   const lines = ["💳 *Pago pendiente*", `Concepto: ${concept.trim()}`, `Total: *${formatAmount(amountHnl)}*`];
