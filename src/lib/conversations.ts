@@ -24,19 +24,17 @@ export async function getConversations(businessId: string, storeIds: string[]): 
   const [{ data: recentMessages }, { data: unreadRows, error: unreadError }] = await Promise.all([
     supabase
       .from("messages")
-      .select("conversation_id, body, created_at, direction, status, is_bot, source")
+      .select("conversation_id, body, created_at, direction, status, is_bot, source, sent_by")
       .in("conversation_id", conversationIds)
       .order("created_at", { ascending: false }),
     // "No leídos" per chat (view from migration 0034, RLS applies).
     supabase.from("conversation_unread").select("conversation_id, unread_count").in("conversation_id", conversationIds),
   ]);
 
-  const lastBodyByConversation = new Map<string, string | null>();
+  const lastByConversation = new Map<string, NonNullable<typeof recentMessages>[number]>();
   const newestFirst = new Map<string, NonNullable<typeof recentMessages>>();
   for (const m of recentMessages ?? []) {
-    if (!lastBodyByConversation.has(m.conversation_id)) {
-      lastBodyByConversation.set(m.conversation_id, m.body);
-    }
+    if (!lastByConversation.has(m.conversation_id)) lastByConversation.set(m.conversation_id, m);
     const list = newestFirst.get(m.conversation_id) ?? [];
     list.push(m);
     newestFirst.set(m.conversation_id, list);
@@ -53,7 +51,8 @@ export async function getConversations(businessId: string, storeIds: string[]): 
 
   return conversations.map((c) => ({
     ...c,
-    last_message_body: lastBodyByConversation.get(c.id) ?? null,
+    last_message_body: lastByConversation.get(c.id)?.body ?? null,
+    last_message: lastByConversation.get(c.id) ?? null,
     unread_count: unreadByConversation.get(c.id) ?? 0,
   }));
 }
