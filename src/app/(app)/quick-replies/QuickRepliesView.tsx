@@ -49,9 +49,8 @@ export function QuickRepliesView({ replies, canEdit }: { replies: QuickReply[]; 
           </Link>
 
           <p className="px-1 text-[13.5px] leading-relaxed text-ink-muted">
-            Guarda lo que más escribes. En el chat escribe <Code>/</Code> y el atajo (por ejemplo{" "}
-            <Code>/horario</Code>) y el mensaje aparece listo para enviar. Si pones <Code>{NAME_PLACEHOLDER}</Code>,
-            cheke lo cambia por el nombre del cliente.
+            Ej. escribe <Code>/horario</Code> en el chat y el mensaje aparece listo. <Code>{NAME_PLACEHOLDER}</Code> se
+            cambia por el nombre del cliente.
           </p>
 
           {!canEdit && (

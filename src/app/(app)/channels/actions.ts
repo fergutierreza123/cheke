@@ -46,7 +46,8 @@ export async function connectWhatsAppChannel(input: {
   try {
     encryptSecret("probe");
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "No se pudo cifrar la conexión." };
+    console.error("channels: encryption not set up", e);
+    return { error: "No se pudo guardar la conexión de forma segura. Avísale a soporte de cheke." };
   }
 
   // The code expires 30 seconds after the popup closes, so trade it first.
@@ -55,7 +56,10 @@ export async function connectWhatsAppChannel(input: {
   );
   const tokenData = await tokenRes.json().catch(() => null);
   let accessToken: string | undefined = tokenData?.access_token;
-  if (!accessToken) return { error: tokenData?.error?.message ?? "Meta no aceptó la autorización. Intenta de nuevo." };
+  if (!accessToken) {
+    console.error("whatsapp: token exchange refused", tokenData?.error?.message);
+    return { error: "Meta no aceptó la autorización. Intenta de nuevo." };
+  }
   // When this token ends, so Canales can warn before it does. Embedded
   // Signup's is 60 days today: swap it for a never-ending one when Meta
   // allows it (issue #56). Onboarding below uses the Canal's own token: the
@@ -111,7 +115,8 @@ export async function connectWhatsAppChannel(input: {
   const subscribeRes = await fetch(`${GRAPH}/${encodeURIComponent(input.wabaId)}/subscribed_apps`, { method: "POST", headers: auth });
   if (!subscribeRes.ok) {
     const data = await subscribeRes.json().catch(() => null);
-    return { error: data?.error?.message ?? "No se pudo activar la recepción de mensajes." };
+    console.error("whatsapp: subscribe refused", data?.error?.message);
+    return { error: "No se pudo activar la recepción de mensajes. Intenta de nuevo." };
   }
 
   // Register a new number for the Cloud API. A coexistence number is already
@@ -130,7 +135,8 @@ export async function connectWhatsAppChannel(input: {
       encryptedPin = encryptSecret(pin);
     } else {
       const data = await registerRes.json().catch(() => null);
-      warning = `El número se conectó, pero Meta no pudo registrarlo: ${data?.error?.message ?? "error desconocido"}`;
+      console.error("whatsapp: register refused", data?.error?.message);
+      warning = "El número se conectó, pero Meta no pudo activarlo para enviar. Desconéctalo y vuelve a conectarlo.";
     }
   }
 

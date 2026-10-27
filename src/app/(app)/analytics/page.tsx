@@ -14,7 +14,7 @@ export default async function AnalyticsPage() {
   // someone (assignment comes later); until then the section stays hidden.
   const assigned = conversations.some((c) => c.assigned_to);
   const people = assigned
-    ? (await getTeamMembers(business.id)).map((m) => ({ id: m.user_id, email: m.email }))
+    ? (await getTeamMembers(business.id)).map((m) => ({ id: m.user_id, name: m.name || m.email }))
     : [];
 
   return (

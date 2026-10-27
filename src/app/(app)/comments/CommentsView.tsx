@@ -63,7 +63,7 @@ export function CommentsView({
             </span>
           </h1>
           <p className="text-[13.5px] text-ink-muted">
-            Lo que preguntan debajo de tus publicaciones — para que ninguna pregunta de precio se quede sin responder
+            Lo que te preguntan en tus publicaciones
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
@@ -86,8 +86,8 @@ export function CommentsView({
       </div>
 
       <div className="flex shrink-0 gap-3 px-4 pt-4 lg:px-8">
-        <Counter value={comments.length} label="comentarios en tus publicaciones" />
-        <Counter value={priceUnanswered} label="preguntan precio y no se les ha respondido" danger />
+        <Counter value={comments.length} label="comentarios" />
+        <Counter value={priceUnanswered} label="precios sin responder" danger />
         <Counter value={repliedCount} label="ya respondidos" />
       </div>
 
@@ -234,7 +234,7 @@ function CommentCard({
         </div>
       )}
       {c.public_reply_error && !c.public_reply_body && (
-        <div className="ml-16 text-[12px] text-danger">No se pudo responder en público: {c.public_reply_error}</div>
+        <div className="ml-16 text-[12px] text-danger">No se pudo responder en público. Inténtalo de nuevo.</div>
       )}
 
       <PrivateLine comment={c} name={name} />

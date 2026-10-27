@@ -83,7 +83,10 @@ export function ConnectWhatsAppButton({
         } else if (data.event === "CANCEL" || data.event === "ERROR") {
           codeRef.current = null;
           setStatus("idle");
-          if (data.data?.error_message) setError(`Meta: ${data.data.error_message}`);
+          if (data.data?.error_message) {
+            console.error("whatsapp signup error", data.data.error_message);
+            setError("Meta no pudo terminar la conexión. Inténtalo de nuevo.");
+          }
         }
       } catch {
         // not one of ours

@@ -6,6 +6,7 @@ import { relativeTime } from "@/lib/format";
 import type { NotificationItem, NotificationKind } from "@/lib/notifications";
 import { BrandMark } from "@/components/BrandMark";
 import { StoreFilter, StoreTag, type StoreNames } from "@/components/StoreTag";
+import { setNotifyAll } from "../team/actions";
 
 const KIND_STYLE: Record<NotificationKind, { bg: string; color: string }> = {
   message: { bg: "var(--color-accent-tint)", color: "var(--color-brand-dark)" },
@@ -16,10 +17,13 @@ const KIND_STYLE: Record<NotificationKind, { bg: string; color: string }> = {
 export function NotificationsView({
   notifications,
   storeNames = null,
+  notifyAll = null,
 }: {
   notifications: NotificationItem[];
   // "Todas las tiendas": tag + filter per Tienda. null with one Tienda in view.
   storeNames?: StoreNames | null;
+  // Dueños: the "Avisarme de todo" switch; `team` = 2+ people in the Negocio.
+  notifyAll?: { on: boolean; team: boolean } | null;
 }) {
   const [storeFilter, setStoreFilter] = useState<string | "all">("all");
   // No persisted read-state (no notifications table) — this resets on
@@ -61,6 +65,7 @@ export function NotificationsView({
               <button
                 key={f}
                 onClick={() => setFilter(f)}
+                aria-pressed={active}
                 className={`min-h-10 rounded-lg border px-3 py-[7px] text-[13.5px] font-semibold transition-colors lg:min-h-0 lg:text-[12.5px] ${
                   active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
                 }`}
@@ -72,6 +77,8 @@ export function NotificationsView({
         </div>
         {storeNames && <StoreFilter storeNames={storeNames} value={storeFilter} onChange={setStoreFilter} className="lg:basis-full" />}
       </div>
+
+      {notifyAll && <NotifyAllRow initial={notifyAll.on} team={notifyAll.team} />}
 
       {/* Flat, full-width feed (like a social app's notification list) —
           no per-row card chrome or gaps eating space, just a continuous
@@ -118,6 +125,42 @@ export function NotificationsView({
         </div>
       </div>
     </div>
+  );
+}
+
+// Optimistic: flips at once, flips back if the save fails.
+function NotifyAllRow({ initial, team }: { initial: boolean; team: boolean }) {
+  const [on, setOn] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle(next: boolean) {
+    setOn(next);
+    setError(null);
+    const result = await setNotifyAll(next);
+    if (result.error) {
+      setOn(!next);
+      setError(result.error);
+    }
+  }
+
+  return (
+    <label className="flex shrink-0 cursor-pointer items-start gap-3 border-b border-border bg-surface px-4 py-3 lg:px-6">
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => toggle(e.target.checked)}
+        className="mt-0.5 h-4.5 w-4.5 shrink-0 accent-[var(--color-brand)]"
+      />
+      <span className="min-w-0">
+        <span className="block text-[13.5px] font-semibold text-ink">Avisarme de todo</span>
+        <span className="block text-[12.5px] leading-snug text-ink-muted">
+          {team
+            ? "Un aviso por cada mensaje, también de los chats de otros y de chekelin."
+            : "Un aviso por cada mensaje, también de los que atiende chekelin."}
+        </span>
+        {error && <span className="block text-[12.5px] text-danger">{error}</span>}
+      </span>
+    </label>
   );
 }
 

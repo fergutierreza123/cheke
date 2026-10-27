@@ -25,7 +25,7 @@ export function AnalyticsView({
   // "Todas las tiendas": the totals above plus a Tienda-by-Tienda comparison.
   storeNames?: StoreNames | null;
   // Teammates, only passed once conversations are assigned to someone.
-  people?: Array<{ id: string; email: string }>;
+  people?: Array<{ id: string; name: string }>;
   firstResponse?: FirstResponseTimes | null;
 }) {
   const [range, setRange] = useState<Range>("mes");
@@ -45,7 +45,7 @@ export function AnalyticsView({
 
   const kpis = [
     { label: "Ventas cerradas", value: formatLempiras(revenue), hint: `${won} venta${won === 1 ? "" : "s"} ganada${won === 1 ? "" : "s"}` },
-    { label: "Tasa de conversión", value: `${conversionRate}%`, hint: "de las conversaciones cerradas" },
+    { label: "Tasa de cierre", value: `${conversionRate}%`, hint: "de los contactos cerrados, cuántos compraron" },
     { label: "Contactos nuevos", value: String(inRange.length), hint: RANGE_LABEL[range].toLowerCase() },
     { label: "Conversaciones activas", value: String(activeNow), hint: "en el chekeo ahora" },
   ];
@@ -200,7 +200,7 @@ export function AnalyticsView({
               <div className="mb-3.5 text-[13px] text-ink-muted">Ventas ganadas en conversaciones asignadas</div>
               {byPerson.map((p) => (
                 <div key={p.id} className="flex justify-between gap-3 border-b border-border py-2.5 text-[13.5px] text-ink last:border-b-0">
-                  <div className="min-w-0 truncate">{p.email}</div>
+                  <div className="min-w-0 truncate">{p.name}</div>
                   <div className="flex shrink-0 gap-6 tabular-nums">
                     <div className="text-ink-muted">
                       {p.won} venta{p.won === 1 ? "" : "s"}
@@ -240,8 +240,8 @@ export function AnalyticsView({
               instead of lining up into a clean 2-column grid. */}
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.3fr_1fr] lg:gap-4">
             <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
-              <div className="font-heading text-[15.5px] font-semibold text-ink">Embudo por etapa</div>
-              <div className="mb-4 text-[13px] text-ink-muted">Cuántos contactos hay en cada etapa del chekeo</div>
+              <div className="font-heading text-[15.5px] font-semibold text-ink">Contactos por etapa</div>
+              <div className="mb-4 text-[13px] text-ink-muted">Dónde está cada contacto en el chekeo</div>
               <div className="flex flex-col gap-3">
                 {funnel.map((f) => (
                   <div key={f.stage} className="flex items-center gap-2.5">

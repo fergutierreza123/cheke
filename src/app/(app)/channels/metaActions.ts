@@ -57,7 +57,10 @@ async function listPages(token: string, withTokens: boolean): Promise<{ pages?: 
       signal: AbortSignal.timeout(15_000),
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok) return { error: data?.error?.message ?? "Meta no devolvió tus páginas de Facebook." };
+    if (!res.ok) {
+      console.error("meta: list pages refused", data?.error?.message);
+      return { error: "Meta no devolvió tus páginas de Facebook. Intenta de nuevo." };
+    }
     const pages: MetaPage[] = data?.data ?? [];
     if (pages.length > 0) return { pages };
     return { pages: await grantedPages(token, fields) };
@@ -105,7 +108,8 @@ export async function startMetaConnection(
   try {
     encryptSecret("probe");
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "No se pudo cifrar la conexión." };
+    console.error("channels: encryption not set up", e);
+    return { error: "No se pudo guardar la conexión de forma segura. Avísale a soporte de cheke." };
   }
 
   // The code expires quickly, so trade it first.
@@ -114,7 +118,10 @@ export async function startMetaConnection(
   ).catch(() => null);
   const tokenData = await tokenRes?.json().catch(() => null);
   let token: string | undefined = tokenData?.access_token;
-  if (!token) return { error: tokenData?.error?.message ?? "Meta no aceptó la autorización. Intenta de nuevo." };
+  if (!token) {
+    console.error("meta: token exchange refused", tokenData?.error?.message);
+    return { error: "Meta no aceptó la autorización. Intenta de nuevo." };
+  }
 
   // A long-lived user token gives Page tokens that never expire. A business
   // (system user) token, from the "General + System-user + Never"
@@ -210,7 +217,9 @@ export async function connectMetaPage(
       { method: "POST", headers: { Authorization: `Bearer ${pageToken}` } },
     ).catch(() => null);
     const data = await res?.json().catch(() => null);
-    return res?.ok ? null : (data?.error?.message ?? "No se pudo activar la recepción de mensajes.");
+    if (res?.ok) return null;
+    console.error("meta: subscribe refused", data?.error?.message);
+    return "No se pudo activar la recepción de mensajes. Intenta de nuevo.";
   };
   let subscribeError = await subscribe(PAGE_SUBSCRIBED_FIELDS);
   if (subscribeError) subscribeError = await subscribe(PAGE_SUBSCRIBED_FIELDS.filter((f) => !PAGE_OPTIONAL_FIELDS.includes(f)));
