@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { formatLempiras } from "@/lib/format";
 import { recipientValues } from "@/lib/broadcasts";
 import { renderTemplate, suggestedValues, templateVariables, type WhatsAppTemplate } from "@/lib/whatsappTemplates";
-import { createBroadcast, previewBroadcast, type BroadcastPreview } from "./actions";
+import { cancelBroadcast, createBroadcast, previewBroadcast, type BroadcastPreview } from "./actions";
 
 // Plantillas → Difusión: pick a number, Etiquetas and an approved template,
 // see who gets it and what it costs, send. /api/cron/broadcasts sends it in
@@ -22,7 +22,12 @@ export type BroadcastRow = {
   sent: number;
   failed: number;
   waiting: number;
+  cancelled: number;
+  // Left "sending" by a run that died; marked failed, never resent.
+  interrupted: number;
 };
+
+const STATUS_LABEL: Record<string, string> = { done: "Terminada", cancelled: "Cancelada", sending: "Enviando…" };
 
 const field = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand";
 const label = "text-[12.5px] font-semibold text-ink";
@@ -51,6 +56,7 @@ export function BroadcastView({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [sending, startSending] = useTransition();
+  const [cancelling, startCancelling] = useTransition();
 
   const numberTemplates = useMemo(() => templates.filter((t) => t.channel_id === channelId), [templates, channelId]);
   const template = numberTemplates.find((t) => t.id === templateId) ?? null;
@@ -103,6 +109,16 @@ export function BroadcastView({
       setTemplateId("");
       setValues({});
       setConsent(false);
+      router.refresh();
+    });
+  }
+
+  function cancel(id: string) {
+    if (!window.confirm("¿Cancelar la difusión? Los clientes que ya la recibieron no cambian; el resto ya no la recibe.")) return;
+    setError(null);
+    startCancelling(async () => {
+      const r = await cancelBroadcast(id);
+      if (r.error) setError(r.error);
       router.refresh();
     });
   }
@@ -279,8 +295,8 @@ export function BroadcastView({
                 <div key={b.id} className="rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-ink">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold">{b.name}</span>
-                    <span className={b.status === "done" ? "text-ink-muted" : "font-semibold text-brand"}>
-                      {b.status === "done" ? "Terminada" : "Enviando…"}
+                    <span className={b.status === "sending" ? "font-semibold text-brand" : "text-ink-muted"}>
+                      {STATUS_LABEL[b.status] ?? b.status}
                     </span>
                   </div>
                   <p className="text-[12.5px] text-ink-muted">
@@ -290,7 +306,23 @@ export function BroadcastView({
                     {b.sent} enviados
                     {b.waiting > 0 && ` · ${b.waiting} por enviar`}
                     {b.failed > 0 && ` · ${b.failed} no se pudieron enviar`}
+                    {b.cancelled > 0 && ` · ${b.cancelled} cancelados`}
                   </p>
+                  {b.interrupted > 0 && (
+                    <p className="text-[12.5px] text-ink-muted">
+                      {b.interrupted} se interrumpieron al enviarse. No se reenvían para no mandar el mensaje dos veces.
+                    </p>
+                  )}
+                  {b.status === "sending" && (
+                    <button
+                      type="button"
+                      disabled={cancelling}
+                      onClick={() => cancel(b.id)}
+                      className="mt-2 text-[13px] font-semibold text-danger disabled:opacity-40"
+                    >
+                      Cancelar difusión
+                    </button>
+                  )}
                 </div>
               ))}
             </section>

@@ -139,3 +139,13 @@ export async function createBroadcast(
   revalidatePath("/templates/difusion");
   return { count: recipients.length };
 }
+
+// Cancelar (migration 0044): customers not sent yet won't get it.
+export async function cancelBroadcast(id: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // cancel_broadcast checks the person manages that Tienda.
+  const { data, error } = await supabase.rpc("cancel_broadcast", { target_broadcast_id: id });
+  if (error || !data) return { error: "No se pudo cancelar: ya terminó o no tienes permiso." };
+  revalidatePath("/templates/difusion");
+  return {};
+}

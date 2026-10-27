@@ -101,3 +101,57 @@ describe("Difusión (broadcasts, migration 0042)", () => {
     await t.applyMigration("0042_broadcasts.sql");
   });
 });
+
+describe("Difusión follow-ups (migration 0044)", () => {
+  const sending = async (store: string, channel: string) => {
+    const id = (await rpc(null,
+      `insert into broadcasts (business_id, store_id, channel_id, template, tags, status) values ($1, $2, $3, '{}', '{vip}', 'sending') returning id`,
+      [ids.biz, store, channel]))[0].id as string;
+    const contacts = await rpc(null,
+      `insert into contacts (business_id, name) select $1, 'C' || g from generate_series(1, 4) g returning id`, [ids.biz]);
+    const statuses = ["sent", "pending", "sending", "failed"];
+    for (const [i, c] of contacts.entries()) {
+      await rpc(null, `insert into broadcast_recipients (broadcast_id, business_id, contact_id, status) values ($1, $2, $3, $4)`,
+        [id, ids.biz, c.id, statuses[i]]);
+    }
+    return id;
+  };
+  const cancel = async (user: string, id: string) =>
+    (await rpc(user, `select cancel_broadcast($1) as ok`, [id]))[0].ok;
+  const recipientStatuses = async (id: string) =>
+    (await t.q(`select status from broadcast_recipients where broadcast_id = $1 order by created_at, id`, [id])).map((r) => (r as { status: string }).status).sort();
+
+  it("Cancelar: the Dueño or that Tienda's Gerente; customers not sent yet become cancelled, the rest stay", async () => {
+    const a = await sending(ids.storeA, ids.chA);
+    expect(await cancel(MANAGER_B, a)).toBe(false);
+    expect(await cancel(AGENT_A, a)).toBe(false);
+    expect(await cancel(OTHER_OWNER, a)).toBe(false);
+    expect((await one(`select status from broadcasts where id = $1`, [a])).status).toBe("sending");
+    expect(await cancel(OWNER, a)).toBe(true);
+    const b = await one(`select status, finished_at from broadcasts where id = $1`, [a]);
+    expect(b.status).toBe("cancelled");
+    expect(b.finished_at).not.toBeNull();
+    expect(await recipientStatuses(a)).toEqual(["cancelled", "cancelled", "failed", "sent"]);
+    expect(await cancel(OWNER, a)).toBe(false); // already cancelled
+
+    const bB = await sending(ids.storeB, ids.chB);
+    expect(await cancel(MANAGER_B, bB)).toBe(true);
+  });
+
+  it("stuck sends get claimed_at and error_reason; Difusión messages carry source 'broadcast'", async () => {
+    const r = await rpc(null,
+      `update broadcast_recipients set claimed_at = now(), error_reason = 'x' where status = 'failed' returning id`);
+    expect(r.length).toBeGreaterThan(0);
+    const conv = (await one(
+      `insert into conversations (business_id, contact_id, channel_id) values ($1, $2, $3) returning id`,
+      [ids.biz, ids.contact, ids.chA])).id;
+    const m = await t.as(null,
+      `insert into messages (conversation_id, business_id, direction, is_bot, source, body) values ($1, $2, 'out', true, 'broadcast', 'Hola') returning source`,
+      [conv, ids.biz]);
+    expect(m.rows?.[0].source).toBe("broadcast");
+  });
+
+  it("the migration can run a second time", async () => {
+    await t.applyMigration("0044_broadcast_followups.sql");
+  });
+});
