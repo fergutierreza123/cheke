@@ -76,6 +76,10 @@ _Avoid_: Marcar pagado, validar pago
 The moment chekelin hands a Conversación to a person, telling the customer who will help them.
 _Avoid_: Handoff, escalamiento, transferencia
 
+**Nota para el equipo**:
+A short note a person writes on a Conversación ("ya le cobré", "pasa el sábado"). The customer never sees it; the people @mentioned in it get a phone alert. Shown with chekelin's notes above the chat, with who wrote it and when.
+_Avoid_: Comentario interno, nota privada
+
 **Asignación**:
 Which person is responsible for a Conversación right now. Only shown when a Negocio has two or more people.
 _Avoid_: Ticket owner, dueño de la conversación

@@ -1,3 +1,4 @@
+import type { WhatsAppReferral } from "@/lib/adReferral";
 import type { MediaInfo, MediaKind } from "@/lib/types";
 
 // Shape of an incoming WhatsApp message as Meta sends it (only the parts we
@@ -23,6 +24,8 @@ export type WhatsAppMessage = {
   reaction?: { message_id?: string; emoji?: string };
   edit?: { original_message_id?: string; message?: Partial<WhatsAppMessage> & { type?: string } };
   revoke?: { original_message_id?: string };
+  // The ad the customer tapped (src/lib/adReferral.ts).
+  referral?: WhatsAppReferral;
 };
 
 // The text saved as the message's body: what the chat list, chekelin and

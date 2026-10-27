@@ -51,6 +51,12 @@ export type Conversation = {
   awaiting_since?: string | null;
   // An open Queja (migration 0022): red tag, chekelin silent until resolved.
   complaint_open_at?: string | null;
+  // The ad (or post) the chat came from (migration 0039, src/lib/adReferral.ts).
+  referral_source?: "anuncio" | "publicación" | null;
+  referral_ad_id?: string | null;
+  referral_headline?: string | null;
+  referral_url?: string | null;
+  referral_at?: string | null;
 };
 
 export type Message = {
@@ -120,9 +126,11 @@ export type ConversationNote = {
   id: string;
   conversation_id: string;
   store_id: string;
-  kind: "handoff" | "complaint" | "payment";
+  // "team" = written by a person in Chat (author_id), not by chekelin.
+  kind: "handoff" | "complaint" | "payment" | "team";
   summary: string;
   reason: string | null;
+  author_id?: string | null;
   created_at: string;
 };
 
