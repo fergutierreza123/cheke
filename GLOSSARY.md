@@ -30,8 +30,12 @@ _Avoid_: Vendedor, empleado, user
 A customer of a Negocio, shared by all its Tiendas. Two contacts are the same person only when a phone number, Instagram account or Facebook account matches, or when merged by hand.
 _Avoid_: Cliente (ambiguous with cheKe's own customers), lead
 
+**Difusión**:
+One approved WhatsApp template sent from a Tienda's number to every Contacto with the picked Etiquetas (Plantillas → Difusión). Sent in parts within Meta's 24 h limit; skips Contactos who asked for no offers (`marketing_opt_out`).
+_Avoid_: Campaña, broadcast list (the WhatsApp Business app feature)
+
 **Etiqueta**:
-A free word a Negocio puts on its Contactos ("mayorista", "vip") to group and filter them; stored lowercase in `contacts.tags`. Any member can add or remove them. The base for Difusiones later.
+A free word a Negocio puts on its Contactos ("mayorista", "vip") to group and filter them; stored lowercase in `contacts.tags`. Any member can add or remove them. The base for Difusiones.
 _Avoid_: Tag, label, segmento (a segment is a saved filter, not built yet)
 
 **Invitación**:

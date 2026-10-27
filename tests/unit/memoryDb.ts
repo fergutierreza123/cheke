@@ -161,6 +161,10 @@ export function memoryDb(seed: Record<string, Row[]> = {}) {
         filters.push((r) => r[col] != null && String(r[col]) > value);
         return builder;
       },
+      gte(col: string, value: string) {
+        filters.push((r) => r[col] != null && String(r[col]) >= value);
+        return builder;
+      },
       // PostgREST `or` filters aren't parsed: they match everything.
       or() {
         return builder;
