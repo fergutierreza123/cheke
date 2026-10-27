@@ -14,13 +14,10 @@ interacción/animación.
 - El "shell" de la app: el menú lateral con las 9 secciones del diseño, con
   un indicador de sección activa que se desliza suavemente (usando `motion`).
 - **Contactos** conectado a datos reales: lista, búsqueda, crear/editar
-  contacto (nombre, teléfono, Instagram, Facebook, notas), panel de detalle.
+  contacto (nombre, teléfono, Instagram, notas), panel de detalle.
 - **Chat** conectado a datos reales: lista de conversaciones con filtro por
   canal, hilo de mensajes, enviar respuesta — y **Realtime**: los mensajes
   nuevos aparecen al instante sin recargar la página.
-- Ambas pantallas incluyen un botón de "Sembrar datos de ejemplo" cuando un
-  negocio está vacío, para poder probar/mostrar la app sin depender de
-  WhatsApp real.
 - **Desplegado de verdad** en Vercel (Fase 3), conectado a GitHub — cada
   `git push` a `main` publica una nueva versión automáticamente.
 - **WhatsApp Cloud API** conectado con un número de prueba: los mensajes que
@@ -49,7 +46,7 @@ interacción/animación.
   un vendedor específico ni registra metas; ver el comentario en
   `supabase/migrations/0007_team_management.sql`.
 - **Analítica** conectado a datos reales: KPIs (ventas cerradas, tasa de
-  conversión, contactos nuevos, activos), embudo por etapa, conversaciones
+  cierre, contactos nuevos, activos), contactos por etapa, conversaciones
   por canal, tendencia de 7 días —
   con selector de semana/mes/trimestre.
 - **Notificaciones** conectado a datos reales: mensajes nuevos, contactos
@@ -142,8 +139,8 @@ design/                mockups aprobados (no editar — son la referencia)
 ## Cómo probar Chat y Contactos
 
 1. Entra a la app y ve a **Contactos** o **Chat**.
-2. Si el negocio está vacío, verás un botón **"Sembrar datos de ejemplo"** —
-   haz clic para crear 6 contactos, sus conversaciones y algunos mensajes.
+2. Si el negocio está vacío, escríbele al número conectado desde otro
+   teléfono (o abre **/demo** para ver una muestra sin datos reales).
 3. En **Contactos**: busca, haz clic en un contacto para ver su detalle, o
    en "Nuevo contacto" para agregar uno (o el lápiz para editar).
 4. En **Chat**: elige una conversación, escribe una respuesta y presiona

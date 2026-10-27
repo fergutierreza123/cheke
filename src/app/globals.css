@@ -99,6 +99,20 @@ a.pressable:active {
   transform: scale(0.97);
 }
 
+/* The one filter chip / segmented-control look in the app: selected is dark
+   blue. State comes from aria-pressed (or aria-selected on tabs), so the
+   look can't drift from what screen readers hear. Layout classes on the
+   element (min-h, flex-1, shrink-0…) still win: utilities beat components. */
+@layer components {
+  .chip {
+    @apply inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-ink-muted hover:bg-surface-2;
+  }
+  .chip[aria-pressed="true"],
+  .chip[aria-selected="true"] {
+    @apply border-brand-dark bg-brand-dark text-white hover:bg-brand-dark;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

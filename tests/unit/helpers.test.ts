@@ -5,7 +5,7 @@ import { WINDOW_CLOSED_MESSAGE, isWhatsAppWindowClosed } from "@/lib/whatsappWin
 import { BILLING_ERROR_CODE, explainWhatsAppError, isBillingError, markMessageFailed } from "@/lib/whatsappErrors";
 import { formatLocal, formatPhone, isForeignNumber, isHondurasE164, localDigits, toE164 } from "@/lib/auth/phone";
 import { USE_EMAIL_INSTEAD, sendErrorMessage, verifyErrorMessage } from "@/lib/auth/errors";
-import { formatMessageTime, initialsFor, initialsFromEmail, primaryChannel, productMessageText, relativeTime, withAlpha } from "@/lib/format";
+import { formatMessageTime, initialsFor, initialsFromEmail, primaryChannel, productMessageText, relativeTime } from "@/lib/format";
 import { countAwaitingReply } from "@/lib/push";
 import { getDeletionPlan } from "@/app/(app)/account/deletion";
 
@@ -143,7 +143,6 @@ describe("format", () => {
     expect(primaryChannel({ phone: null, ig_handle: "@a", fb_id: "b" })).toBe("instagram");
     expect(primaryChannel({ phone: null, ig_handle: null, fb_id: null })).toBeNull();
     expect(productMessageText({ name: "Blusa", price_hnl: 300, description: null }, " ¡Oferta! ")).toBe("Blusa — L 300\n¡Oferta!");
-    expect(withAlpha("#0043F8", 0.5)).toBe("rgba(0, 67, 248, 0.5)");
   });
 });
 

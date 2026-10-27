@@ -26,8 +26,8 @@ function isStale(c: ConversationWithContact): boolean {
   return Date.now() - new Date(c.last_message_at).getTime() > STALE_MS;
 }
 
-type Draft = { name: string; phone: string; ig_handle: string; fb_id: string };
-const EMPTY_DRAFT: Draft = { name: "", phone: "", ig_handle: "", fb_id: "" };
+type Draft = { name: string; phone: string; ig_handle: string };
+const EMPTY_DRAFT: Draft = { name: "", phone: "", ig_handle: "" };
 
 export function ChekeoView({
   conversations: initialConversations,
@@ -148,7 +148,6 @@ export function ChekeoView({
         name: String(formData.get("name") ?? ""),
         phone: String(formData.get("phone") ?? "").trim() || null,
         ig_handle: String(formData.get("ig_handle") ?? "").trim() || null,
-        fb_id: String(formData.get("fb_id") ?? "").trim() || null,
         storeId: String(formData.get("store_id") ?? "") || null,
       });
       if (result.conversation) {
@@ -237,7 +236,7 @@ export function ChekeoView({
             <StageChip
               key={stage}
               active={mobileStage === stage}
-              onClick={() => setMobileStage(stage)}
+              onClick={() => setMobileStage(mobileStage === stage ? "todos" : stage)}
               label={STAGE_META[stage].label}
               count={items.length}
               color={STAGE_META[stage].color}
@@ -569,13 +568,6 @@ export function ChekeoView({
                     />
                   </Field>
                 </div>
-                <Field label="Facebook">
-                  <input
-                    name="fb_id"
-                    placeholder="usuario.facebook"
-                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
-                  />
-                </Field>
                 {storeNames && (
                   <Field label="Tienda">
                     <select
@@ -764,9 +756,8 @@ function StageChip({
   return (
     <button
       onClick={onClick}
-      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors ${
-        active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface text-ink-muted"
-      }`}
+      aria-pressed={active}
+      className="chip h-9"
     >
       {color && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />}
       {label}

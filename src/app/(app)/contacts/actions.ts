@@ -20,7 +20,7 @@ export async function saveContact(formData: FormData): Promise<{ error?: string 
 
   const phone = String(formData.get("phone") ?? "").trim() || null;
   const ig_handle = String(formData.get("ig_handle") ?? "").trim() || null;
-  const fb_id = String(formData.get("fb_id") ?? "").trim() || null;
+  // fb_id isn't on the form: Messenger fills it in, and saving must keep it.
   const notes = String(formData.get("notes") ?? "").trim() || null;
   if (notes && notes.length > NOTES_MAX) return { error: `Las notas son muy largas (máximo ${NOTES_MAX} letras).` };
 
@@ -29,7 +29,7 @@ export async function saveContact(formData: FormData): Promise<{ error?: string 
   if (id) {
     const { data: updated, error } = await supabase
       .from("contacts")
-      .update({ name, phone, ig_handle, fb_id, notes })
+      .update({ name, phone, ig_handle, notes })
       .eq("id", id)
       .eq("business_id", business.id)
       .select("id");
@@ -38,7 +38,7 @@ export async function saveContact(formData: FormData): Promise<{ error?: string 
   } else {
     const { error } = await supabase
       .from("contacts")
-      .insert({ business_id: business.id, name, phone, ig_handle, fb_id, notes });
+      .insert({ business_id: business.id, name, phone, ig_handle, notes });
     if (error) return { error: friendlyError(error, "No se pudo guardar el contacto. Inténtalo de nuevo.") };
   }
 

@@ -133,9 +133,8 @@ export function AnalyticsView({
               <button
                 key={r}
                 onClick={() => setRange(r)}
-                className={`min-h-10 rounded-lg border px-1 py-2 text-[13.5px] font-semibold transition-colors lg:min-h-0 lg:px-3.5 ${
-                  active ? "border-brand-dark bg-brand-dark text-white" : "border-border bg-surface text-ink-muted hover:bg-surface-2"
-                }`}
+                aria-pressed={active}
+                className="chip min-h-10 lg:min-h-0"
               >
                 {RANGE_LABEL[r]}
               </button>
