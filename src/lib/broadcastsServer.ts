@@ -169,8 +169,8 @@ async function sendOne(
 // /api/cron/broadcasts: sends the next customers of every Difusión in
 // progress, one at a time (far below Coexistence's 20 per second), never past
 // the Negocio's 24 h limit. What's left goes out on later runs.
-// shortcut: a run that dies mid-send leaves that customer "sending" forever
-// (never sent twice); add a sweeper if it ever shows up in progress.
+// shortcut: a run that dies mid-send leaves that one customer "sending"
+// forever (never sent twice); add a sweeper if it ever shows up in progress.
 export async function runBroadcasts(
   admin: SupabaseClient,
   { maxPerRun = 60, deadline = Date.now() + 50_000 } = {},
@@ -196,43 +196,44 @@ export async function runBroadcasts(
     if (n > 0) {
       const { data: due } = await admin
         .from("broadcast_recipients")
-        .select("id")
+        .select("id, contact_id")
         .eq("broadcast_id", b.id)
         .eq("status", "pending")
         .lte("next_attempt_at", new Date().toISOString())
         .order("created_at")
         .limit(n);
-      // Claimed before sending, so two runs at once never send twice.
-      const { data: claimed } = due?.length
-        ? await admin
-            .from("broadcast_recipients")
-            .update({ status: "sending" })
-            .in("id", due.map((d) => d.id))
-            .eq("status", "pending")
-            .select("id, attempts, contact_id")
-        : { data: [] };
-      const recipients = (claimed ?? []) as Recipient[];
-      const { data: contacts } = recipients.length
+      const { data: contacts } = due?.length
         ? await admin
             .from("contacts")
             .select("id, name, phone, marketing_opt_out")
-            .in("id", recipients.map((r) => r.contact_id))
+            .in("id", due.map((r) => r.contact_id))
         : { data: [] };
       const byId = new Map(((contacts ?? []) as Contact[]).map((c) => [c.id, c]));
       const { data: business } = await admin.from("businesses").select("is_demo").eq("id", b.business_id).maybeSingle();
       const credentials = credentialsForChannel(channel);
 
-      for (const [i, r] of recipients.entries()) {
-        if (Date.now() > deadline) {
-          // Out of time: give the rest back for the next run.
-          await admin.from("broadcast_recipients").update({ status: "pending" }).in("id", recipients.slice(i).map((x) => x.id));
-          break;
+      for (const d of due ?? []) {
+        if (Date.now() > deadline) break; // the rest stay pending for the next run
+        // Claimed one at a time, right before sending: two runs at once never
+        // send twice, and a run killed mid-send strands only this customer.
+        const { data: claimed } = await admin
+          .from("broadcast_recipients")
+          .update({ status: "sending" })
+          .eq("id", d.id)
+          .eq("status", "pending")
+          .select("id, attempts, contact_id");
+        const r = (claimed as Recipient[] | null)?.[0];
+        if (!r) continue;
+        let outcome: Awaited<ReturnType<typeof sendOne>>;
+        try {
+          outcome = await sendOne(admin, b, channel, credentials, business?.is_demo === true, r, byId.get(r.contact_id));
+        } catch (error) {
+          // Unknown whether Meta got it: failed, never retried (no double send).
+          console.error("difusión: send error", error);
+          await admin.from("broadcast_recipients").update({ status: "failed", attempts: r.attempts + 1 }).eq("id", r.id);
+          outcome = "failed";
         }
-        const outcome = await sendOne(admin, b, channel, credentials, business?.is_demo === true, r, byId.get(r.contact_id));
-        if (outcome === "stop") {
-          await admin.from("broadcast_recipients").update({ status: "pending" }).in("id", recipients.slice(i + 1).map((x) => x.id));
-          break;
-        }
+        if (outcome === "stop") break;
         if (outcome === "sent") {
           totals.sent++;
           room.set(b.business_id, room.get(b.business_id)! - 1);
