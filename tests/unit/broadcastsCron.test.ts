@@ -77,4 +77,29 @@ describe("runBroadcasts", () => {
   it("caps each run", async () => {
     expect(await runBroadcasts(admin(), { maxPerRun: 1 })).toEqual({ sent: 1, failed: 0 });
   });
+
+  // Vercel kills a run at 60 s: only the customer being sent may be left
+  // "sending", never the rest of the batch.
+  it("claims each customer only when it is their turn", async () => {
+    const from = db.client.from;
+    const seen: string[][] = [];
+    db.client.from = ((table: string) => {
+      if (table === "messages") seen.push(recipients().map((r) => r.status as string));
+      return from(table);
+    }) as typeof from;
+    await runBroadcasts(admin());
+    expect(seen[0]).toEqual(["sending", "pending", "pending"]);
+  });
+
+  it("one customer that throws doesn't strand the others", async () => {
+    const from = db.client.from;
+    let calls = 0;
+    db.client.from = ((table: string) => {
+      if (table === "conversations" && calls++ === 0) throw new Error("boom");
+      return from(table);
+    }) as typeof from;
+    expect(await runBroadcasts(admin())).toEqual({ sent: 2, failed: 1 });
+    expect(recipients().map((r) => r.status)).toEqual(["failed", "sent", "sent"]);
+    expect(db.rows("broadcasts")[0].status).toBe("done");
+  });
 });
