@@ -160,7 +160,7 @@ async function handlePayload(payload: WhatsAppWebhookPayload, media: MediaJob[])
         continue;
       }
       // The customer stopped (or resumed) offers from this business in
-      // WhatsApp: Difusiones skip them (migration 0042).
+      // WhatsApp: Campañas skip them (migration 0042).
       if (change.field === "user_preferences") {
         await saveUserPreferences(supabase, book, channel, value);
         continue;
@@ -246,7 +246,7 @@ async function saveInboundMessage(
     throw new Error(insertError.message);
   }
   queueMedia(media, channel, message);
-  // "BAJA": no more Difusiones for them. chekelin or a person still answers.
+  // "BAJA": no more Campañas for them. chekelin or a person still answers.
   if (isOptOutReply(body)) await setMarketingOptOut(supabase, contactId, true);
   const referral = whatsappReferral(message);
   if (referral) await saveReferral(supabase, conversation.id, referral, now.toISOString());

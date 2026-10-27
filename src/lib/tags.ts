@@ -1,5 +1,5 @@
 // Etiquetas of a Contacto (contacts.tags): free words like "mayorista" or
-// "vip", stored lowercase so the filter (and later a Difusión) matches
+// "vip", stored lowercase so the filter (and later a Campaña) matches
 // "VIP" and "vip" as one.
 
 export const TAG_MAX = 30;

@@ -50,7 +50,7 @@ const admin = () => db.client as unknown as SupabaseClient;
 const recipients = () => db.rows("broadcast_recipients").filter((r) => r.broadcast_id === "b1");
 
 describe("runBroadcasts", () => {
-  it("sends in Chat with each customer's name and finishes the Difusión", async () => {
+  it("sends in Chat with each customer's name and finishes the Campaña", async () => {
     expect(await runBroadcasts(admin())).toEqual({ sent: 3, failed: 0 });
     expect(recipients().map((r) => r.status)).toEqual(["sent", "sent", "sent"]);
     expect(db.rows("messages")[0]).toMatchObject({ body: "Hola Ana, 20% hoy", direction: "out", is_bot: true });
@@ -104,8 +104,8 @@ describe("runBroadcasts", () => {
   });
 });
 
-describe("Difusión follow-ups (migration 0044)", () => {
-  it("labels its messages as a Difusión (source) and keeps them automated for chekelin", async () => {
+describe("Campaña follow-ups (migration 0044)", () => {
+  it("labels its messages as a Campaña (source) and keeps them automated for chekelin", async () => {
     await runBroadcasts(admin());
     expect(db.rows("messages").every((m) => m.source === "broadcast" && m.is_bot === true)).toBe(true);
   });
@@ -129,7 +129,7 @@ describe("Difusión follow-ups (migration 0044)", () => {
     expect(db.rows("broadcasts")[0].status).toBe("cancelled");
   });
 
-  it("a cancelled Difusión is never sent", async () => {
+  it("a cancelled Campaña is never sent", async () => {
     db.rows("broadcasts")[0].status = "cancelled";
     expect(await runBroadcasts(admin())).toEqual({ sent: 0, failed: 0 });
     expect(db.rows("messages")).toHaveLength(0);

@@ -6,7 +6,7 @@ import { templateProblem, type WhatsAppTemplate } from "@/lib/whatsappTemplates"
 import { STUCK_REASON } from "@/lib/broadcastsServer";
 import { BroadcastView, type BroadcastRow, type BroadcastTemplate } from "./BroadcastView";
 
-// Plantillas → Difusión (migration 0042). Dueños and Gerentes only.
+// Plantillas → Campaña (migration 0042). Dueños and Gerentes only.
 export default async function DifusionPage() {
   const business = await getCurrentBusiness();
   if (!business) redirect("/onboarding");
@@ -40,7 +40,7 @@ export default async function DifusionPage() {
       .limit(5),
   ]);
 
-  // Progress of each recent Difusión.
+  // Progress of each recent Campaña.
   const count = async (id: string, statuses: string[], stuck = false) => {
     let q = supabase
       .from("broadcast_recipients")

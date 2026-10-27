@@ -5,10 +5,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatLempiras } from "@/lib/format";
 import { recipientValues } from "@/lib/broadcasts";
-import { renderTemplate, suggestedValues, templateVariables, type WhatsAppTemplate } from "@/lib/whatsappTemplates";
+import {
+  renderTemplate,
+  suggestedValues,
+  templateCategoryLabel,
+  templateDisplayName,
+  templateVariables,
+  variableLabel,
+  type WhatsAppTemplate,
+} from "@/lib/whatsappTemplates";
+import { TemplateText } from "@/components/TemplateText";
 import { cancelBroadcast, createBroadcast, previewBroadcast, type BroadcastPreview } from "./actions";
 
-// Plantillas → Difusión: pick a number, Etiquetas and an approved template,
+// Plantillas → Campañas (`broadcasts` in code): pick a number, Etiquetas and an approved template,
 // see who gets it and what it costs, send. /api/cron/broadcasts sends it in
 // parts; the list below shows how it's going.
 
@@ -88,7 +97,7 @@ export function BroadcastView({
     };
   }, [previewKey, channelId, templateId, picked]);
 
-  // Refresh the progress while a Difusión is still going out.
+  // Refresh the progress while a Campaña is still going out.
   const going = history.some((b) => b.status === "sending");
   useEffect(() => {
     if (!going) return;
@@ -104,7 +113,7 @@ export function BroadcastView({
         setError(r.error);
         return;
       }
-      setDone(`Listo: la difusión va para ${r.count} clientes. Se envía por partes; mira el avance abajo.`);
+      setDone(`Listo: la campaña va para ${r.count} clientes. Se envía por partes; mira el avance abajo.`);
       setPicked([]);
       setTemplateId("");
       setValues({});
@@ -114,7 +123,7 @@ export function BroadcastView({
   }
 
   function cancel(id: string) {
-    if (!window.confirm("¿Cancelar la difusión? Los clientes que ya la recibieron no cambian; el resto ya no la recibe.")) return;
+    if (!window.confirm("¿Cancelar la campaña? Los clientes que ya la recibieron no cambian; el resto ya no la recibe.")) return;
     setError(null);
     startCancelling(async () => {
       const r = await cancelBroadcast(id);
@@ -132,9 +141,9 @@ export function BroadcastView({
         <Link href="/templates" className="text-[12.5px] text-ink-muted hover:text-ink">
           ‹ Plantillas
         </Link>
-        <h1 className="font-heading text-xl font-semibold text-ink">Difusión</h1>
+        <h1 className="font-heading text-xl font-semibold text-ink">Campañas</h1>
         <p className="text-[13.5px] text-ink-muted">
-          Envía una plantilla aprobada por WhatsApp a todos los clientes con una etiqueta.
+          Envía una plantilla aprobada a todos los clientes con una etiqueta.
         </p>
       </div>
 
@@ -142,7 +151,7 @@ export function BroadcastView({
         <div className="flex max-w-[640px] flex-col gap-4">
           {channels.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-ink-muted">
-              Conecta un número de WhatsApp en Canales para enviar difusiones.
+              Conecta un número de WhatsApp en Canales para enviar campañas.
             </p>
           ) : (
             <>
@@ -198,7 +207,7 @@ export function BroadcastView({
                   <option value="">Elige una plantilla</option>
                   {numberTemplates.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} · {t.category.toUpperCase() === "MARKETING" ? "Promoción" : "Utilidad"}
+                      {templateDisplayName(t.name)} · {templateCategoryLabel(t.category)}
                     </option>
                   ))}
                 </select>
@@ -211,7 +220,7 @@ export function BroadcastView({
 
               {variables.map((key) => (
                 <div key={key} className="flex flex-col gap-1.5">
-                  <span className={label}>Dato {`{{${key}}}`}</span>
+                  <span className={label}>{variableLabel(key)}</span>
                   <label className="flex items-center gap-2 text-[13px] text-ink">
                     <input
                       type="checkbox"
@@ -231,7 +240,7 @@ export function BroadcastView({
 
               {template && (
                 <div className="rounded-[14px] bg-surface-2 px-4 py-3 text-[13px] leading-relaxed text-ink whitespace-pre-wrap">
-                  {sample}
+                  <TemplateText text={sample} />
                 </div>
               )}
 
@@ -269,7 +278,7 @@ export function BroadcastView({
                   <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
                   <span>
                     Confirmo que mis clientes aceptaron recibir ofertas de {businessName}. Si alguien responde «BAJA», cheke
-                    no le vuelve a enviar difusiones.
+                    no le vuelve a enviar campañas.
                   </span>
                 </label>
               )}
@@ -290,11 +299,11 @@ export function BroadcastView({
 
           {history.length > 0 && (
             <section className="mt-4 flex flex-col gap-2">
-              <h2 className="font-heading text-[15.5px] font-semibold text-brand-dark">Difusiones recientes</h2>
+              <h2 className="font-heading text-[15.5px] font-semibold text-brand-dark">Campañas recientes</h2>
               {history.map((b) => (
                 <div key={b.id} className="rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-ink">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">{b.name}</span>
+                    <span className="font-semibold">{templateDisplayName(b.name)}</span>
                     <span className={b.status === "sending" ? "font-semibold text-brand" : "text-ink-muted"}>
                       {STATUS_LABEL[b.status] ?? b.status}
                     </span>
@@ -320,7 +329,7 @@ export function BroadcastView({
                       onClick={() => cancel(b.id)}
                       className="mt-2 text-[13px] font-semibold text-danger disabled:opacity-40"
                     >
-                      Cancelar difusión
+                      Cancelar campaña
                     </button>
                   )}
                 </div>

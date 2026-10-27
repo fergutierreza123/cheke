@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Server-only helpers the webhooks (and Difusión) share: quoted replies
+// Server-only helpers the webhooks (and Campaña) share: quoted replies
 // (issue #51) and finding the customer's conversation.
 
 // cheke's id for the message Meta knows as `externalId`, in this Negocio.

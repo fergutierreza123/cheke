@@ -146,6 +146,39 @@ export function templateProblem(t: Pick<WhatsAppTemplate, "status" | "components
 }
 
 // ---------------------------------------------------------------------------
+// Names people read instead of WhatsApp's codes.
+
+// "seguimiento_pedido_2" → "Seguimiento pedido" (the _2 is a resend's).
+export function templateDisplayName(name: string): string {
+  const text = name.replace(/_\d+$/, "").replace(/_/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// MARKETING / UTILITY → the words on screen.
+export function templateCategoryLabel(category: string | null | undefined): string {
+  const c = (category ?? "").toUpperCase();
+  return c === "MARKETING" ? "Promoción" : c === "AUTHENTICATION" ? "Código" : "Aviso";
+}
+
+const VARIABLE_LABELS: Record<string, string> = {
+  nombre: "Nombre del cliente",
+  name: "Nombre del cliente",
+  cliente: "Nombre del cliente",
+  producto: "Producto",
+  precio: "Precio",
+  ciudad: "Ciudad",
+};
+
+// {{producto}} → "Producto", {{2}} → "Dato 2": a variable as a chip reads it.
+export function variableLabel(key: string): string {
+  const k = key.trim().toLowerCase();
+  if (VARIABLE_LABELS[k]) return VARIABLE_LABELS[k];
+  if (/^\d+$/.test(k)) return `Dato ${k}`;
+  const text = k.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// ---------------------------------------------------------------------------
 // Status, as people read it on the Plantillas screen and in Chat.
 
 export function templateStatusLabel(status: string | null | undefined): string {
@@ -169,7 +202,7 @@ export function templateStatusLabel(status: string | null | undefined): string {
 // Meta's rejected_reason values, in plain Spanish. null = no reason to show.
 const REJECTED_REASONS: Record<string, string> = {
   ABUSIVE_CONTENT: "WhatsApp considera que el mensaje tiene contenido ofensivo o no permitido.",
-  INVALID_FORMAT: "El mensaje tiene un problema de formato (por ejemplo, datos {{1}} mal colocados o muy seguidos).",
+  INVALID_FORMAT: "El mensaje tiene un problema de formato (por ejemplo, partes que cambian mal colocadas o muy seguidas).",
   PROMOTIONAL: "El mensaje parece una promoción: envíalo otra vez como tipo «Promoción».",
   INCORRECT_CATEGORY: "El tipo elegido no corresponde al mensaje: prueba con el otro tipo.",
   TAG_CONTENT_MISMATCH: "El tipo elegido no corresponde al mensaje: prueba con el otro tipo.",
@@ -266,11 +299,11 @@ export function validateNewTemplate(t: NewTemplate): string | null {
   if (!/^[a-z][a-z0-9_]{0,511}$/.test(t.name)) return "El nombre solo puede llevar letras minúsculas, números y _.";
   if (body.length > TEMPLATE_BODY_MAX) return `El mensaje es muy largo: WhatsApp acepta hasta ${TEMPLATE_BODY_MAX} caracteres.`;
   if (/^\{\{/.test(body) || /\}\}[\s.,!?¡¿]*$/.test(body)) {
-    return "WhatsApp no acepta que el mensaje empiece ni termine con un dato {{1}}. Agrega texto antes o después.";
+    return "WhatsApp no acepta que el mensaje empiece ni termine con una parte que cambia (como el producto). Agrega texto antes o después.";
   }
   const count = placeholdersIn(body).length;
   if (t.examples.slice(0, count).filter((e) => e?.trim()).length < count) {
-    return "Escribe un ejemplo para cada dato {{1}}: WhatsApp lo usa para revisar la plantilla.";
+    return "Escribe un ejemplo para cada parte que cambia: WhatsApp lo usa para revisar la plantilla.";
   }
   return null;
 }

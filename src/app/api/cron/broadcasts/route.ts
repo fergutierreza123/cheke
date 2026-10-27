@@ -3,8 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isCronRequest } from "@/lib/cron";
 import { runBroadcasts } from "@/lib/broadcastsServer";
 
-// Difusión (migration 0042), every minute (vercel.json): sends the next
-// customers of every Difusión in progress, within each Negocio's 24 h limit.
+// Campaña (migration 0042), every minute (vercel.json): sends the next
+// customers of every Campaña in progress, within each Negocio's 24 h limit.
 // Safe to run twice at once: each customer is claimed before sending.
 export const maxDuration = 60;
 

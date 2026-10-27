@@ -1,4 +1,4 @@
-// Difusión: one approved WhatsApp template to every Contacto with an
+// Campaña: one approved WhatsApp template to every Contacto with an
 // Etiqueta. Pure helpers, safe in browser components. Tables: broadcasts,
 // broadcast_recipients (migration 0042); server side: broadcastsServer.ts.
 // Facts and sources: docs/research/difusion-whatsapp.md.
@@ -40,7 +40,7 @@ export function isMarketing(category: string | null | undefined): boolean {
   return (category ?? "").toUpperCase() === "MARKETING";
 }
 
-// Who gets the Difusión: contacts with any picked Etiqueta, a phone, not
+// Who gets the Campaña: contacts with any picked Etiqueta, a phone, not
 // opted out of offers and (Marketing only) not a +1 number. One per phone.
 export function broadcastRecipients<T extends BroadcastContact>(
   contacts: T[],

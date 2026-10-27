@@ -10,10 +10,12 @@ import {
   templateSlug,
   templateStatusLabel,
   validateNewTemplate,
+  variableLabel,
   type NewTemplateCategory,
 } from "@/lib/whatsappTemplates";
 import type { Template } from "@/lib/types";
 import { ChannelIcon } from "@/components/ChannelIcon";
+import { TemplateText } from "@/components/TemplateText";
 
 // Plantillas → "Enviar a aprobación de WhatsApp" (migration 0033). A saved
 // reply becomes a WhatsApp template Meta reviews; once approved, Chat can
@@ -23,7 +25,7 @@ export type WhatsAppChannelOption = { id: string; label: string };
 
 const CATEGORY_COPY: Record<NewTemplateCategory, { title: string; hint: string }> = {
   UTILITY: {
-    title: "Utilidad",
+    title: "Aviso",
     hint: "Sobre algo que el cliente ya pidió o compró: su pedido, envío, pago o cita. Es la más barata.",
   },
   MARKETING: {
@@ -66,12 +68,15 @@ export function WhatsAppStatus({ approval }: { approval: TemplateApproval }) {
 
 export function WhatsAppApprovalDialog({
   template,
+  attempt = 1,
   channels,
   demo = false,
   onClose,
   onSubmitted,
 }: {
   template: Template | null;
+  // 2+ when resending: WhatsApp won't take the same name twice.
+  attempt?: number;
   channels: WhatsAppChannelOption[];
   demo?: boolean;
   onClose: () => void;
@@ -105,6 +110,7 @@ export function WhatsAppApprovalDialog({
             <ApprovalForm
               key={template.id}
               template={template}
+              attempt={attempt}
               channels={channels}
               demo={demo}
               onClose={onClose}
@@ -119,41 +125,39 @@ export function WhatsAppApprovalDialog({
 
 function ApprovalForm({
   template,
+  attempt,
   channels,
   demo,
   onClose,
   onSubmitted,
 }: {
   template: Template;
+  attempt: number;
   channels: WhatsAppChannelOption[];
   demo: boolean;
   onClose: () => void;
   onSubmitted: (approval: TemplateApproval) => void;
 }) {
-  const converted = useMemo(() => savedReplyToMetaBody(template.body), [template.body]);
-  const [name, setName] = useState(templateSlug(template.name));
   const [category, setCategory] = useState<NewTemplateCategory>(
     template.category === "bienvenida" || template.category === "seguimiento" ? "MARKETING" : "UTILITY",
   );
-  const [body, setBody] = useState(converted.text);
-  const [examples, setExamples] = useState<string[]>(converted.variables.map((v) => EXAMPLES[v] ?? ""));
+  const [examples, setExamples] = useState<Record<string, string>>({});
   const [channelId, setChannelId] = useState(channels[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // {{1}}, {{2}}… as they are in the message right now.
-  const slots = useMemo(() => {
-    const seen: number[] = [];
-    for (const m of body.matchAll(/\{\{\s*(\d+)\s*\}\}/g)) {
-      const n = Number(m[1]);
-      if (!seen.includes(n)) seen.push(n);
-    }
-    return seen.sort((a, b) => a - b);
-  }, [body]);
+  const converted = useMemo(() => savedReplyToMetaBody(template.body), [template.body]);
+  const exampleOf = (v: string) => examples[v] ?? EXAMPLES[v] ?? "";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const request = { name: templateSlug(name), category, body, examples: slots.map((n) => examples[n - 1] ?? "") };
+    const slug = templateSlug(template.name);
+    const request = {
+      name: attempt > 1 ? `${slug.slice(0, 56)}_${attempt}` : slug,
+      category,
+      body: converted.text,
+      examples: converted.variables.map(exampleOf),
+    };
     const invalid = validateNewTemplate(request);
     if (invalid) {
       setError(invalid);
@@ -234,38 +238,28 @@ function ApprovalForm({
           })}
         </div>
         <p className="mt-1.5 text-[11.5px] leading-snug text-ink-soft">
-          Si dudas, elige Utilidad. Si WhatsApp cree que es promoción, la cambia o la rechaza.
+          Si dudas, elige Aviso. Si WhatsApp cree que es promoción, la cambia o la rechaza.
         </p>
       </Field>
 
       <Field label="Mensaje">
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          maxLength={1024}
-          className="min-h-[110px] w-full resize-y rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
-        />
+        <div className="whitespace-pre-wrap break-words rounded-lg bg-surface-2 px-3 py-2.5 text-sm leading-relaxed text-ink">
+          <TemplateText text={template.body} />
+        </div>
         <p className="mt-1.5 text-[11.5px] leading-snug text-ink-soft">
-          Los datos que cambian van como {"{{1}}"}, {"{{2}}"}… y se llenan al enviar desde el Chat. No pueden ir al
-          inicio ni al final del mensaje.
+          Lo resaltado se llena al enviar desde el Chat. Para cambiar el mensaje, edita la plantilla.
         </p>
       </Field>
 
-      {slots.length > 0 && (
+      {converted.variables.length > 0 && (
         <Field label="Ejemplos para la revisión">
           <div className="flex flex-col gap-2">
-            {slots.map((n) => (
-              <label key={n} className="flex items-center gap-2">
-                <span className="w-10 shrink-0 font-heading text-[12.5px] text-brand-dark">{`{{${n}}}`}</span>
+            {converted.variables.map((v) => (
+              <label key={v} className="flex items-center gap-2">
+                <span className="w-32 shrink-0 text-[12.5px] font-semibold text-brand-dark">{variableLabel(v)}</span>
                 <input
-                  value={examples[n - 1] ?? ""}
-                  onChange={(e) =>
-                    setExamples((prev) => {
-                      const next = [...prev];
-                      next[n - 1] = e.target.value;
-                      return next;
-                    })
-                  }
+                  value={exampleOf(v)}
+                  onChange={(e) => setExamples((prev) => ({ ...prev, [v]: e.target.value }))}
                   placeholder="Ej. Ana"
                   className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
                 />
@@ -275,15 +269,6 @@ function ApprovalForm({
           <p className="mt-1.5 text-[11.5px] leading-snug text-ink-soft">WhatsApp los usa solo para revisar la plantilla.</p>
         </Field>
       )}
-
-      <Field label="Nombre en WhatsApp">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => setName(templateSlug(name))}
-          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 font-heading text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
-        />
-      </Field>
 
       {channels.length > 1 && (
         <Field label="Número de WhatsApp">

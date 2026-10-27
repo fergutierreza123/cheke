@@ -7,6 +7,8 @@ import { dismissSuggestion, saveTemplate } from "./actions";
 import { TEMPLATE_CATEGORY_META, TEMPLATE_CATEGORY_ORDER } from "@/lib/format";
 import type { Template, TemplateCategory, TemplateSuggestion } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
+import { TemplateText } from "@/components/TemplateText";
+import { variableLabel } from "@/lib/whatsappTemplates";
 import { WhatsAppApprovalDialog, WhatsAppStatus, type WhatsAppChannelOption } from "./WhatsAppApproval";
 import { refreshTemplateApprovals, type TemplateApproval } from "./whatsappActions";
 
@@ -155,6 +157,15 @@ export function TemplatesView({
           </p>
         </div>
         <div className="flex items-center gap-2.5">
+          {whatsapp?.canSubmit && (
+            // Campañas live here because they send approved Plantillas.
+            <Link
+              href="/templates/difusion"
+              className="flex h-10 shrink-0 items-center rounded-[10px] border border-border bg-surface px-3.5 py-2 text-[13.5px] font-semibold text-brand-dark transition-colors hover:bg-surface-2 lg:h-auto"
+            >
+              Campañas
+            </Link>
+          )}
           <div className="relative min-w-0 flex-1 lg:flex-none">
             <SearchIcon className="pointer-events-none absolute left-[11px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             <input
@@ -187,40 +198,9 @@ export function TemplatesView({
             </CategoryChip>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-ink-soft lg:ml-auto lg:flex-nowrap">
-          <span className="sm:hidden">Variables:</span>
-          <span className="hidden sm:inline">Variables (se rellenan al usar la plantilla en el Chat):</span>
-          <VarTag>{"{{producto}}"}</VarTag>
-          <VarTag>{"{{precio}}"}</VarTag>
-          <VarTag>{"{{ciudad}}"}</VarTag>
-        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8 lg:pt-4">
-        <Link
-          href="/chekelin"
-          className="mb-4 flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3 text-[13px] text-ink hover:bg-surface-2"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
-          <img src="/logos/cheke-icon-blue.png" alt="" className="h-4 w-4 shrink-0 object-contain" />
-          <span className="min-w-0 flex-1">
-            <span className="font-semibold">Lo que chekelin sabe de tu negocio</span>
-            <span className="text-ink-muted"> · formas de pago, envíos, horarios y cambios que chekelin usa para vender</span>
-          </span>
-          <span aria-hidden className="text-ink-soft">›</span>
-        </Link>
-        {whatsapp?.canSubmit && (
-          <Link
-            href="/templates/difusion"
-            className="-mt-2 mb-4 flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3 text-[13px] text-ink hover:bg-surface-2"
-          >
-            <span className="min-w-0 flex-1">
-              <span className="font-semibold">Difusión</span>
-              <span className="text-ink-muted"> · envía una plantilla aprobada a todos los clientes con una etiqueta</span>
-            </span>
-            <span aria-hidden className="text-ink-soft">›</span>
-          </Link>
-        )}
         {suggestions.length > 0 && (
           <section aria-labelledby="sugerencias" className="mb-5 rounded-2xl bg-accent-tint p-4 lg:p-5">
             <h2 id="sugerencias" className="flex items-center gap-2 font-heading text-[15.5px] font-semibold text-brand-dark">
@@ -245,7 +225,7 @@ export function TemplatesView({
                     </div>
                     <div className="flex-1 break-words rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink-muted lg:text-[12.5px]">
                       <div className="mb-1 text-[11px] font-semibold text-ink">{s.name}</div>
-                      {s.body}
+                      <TemplateText text={s.body} />
                     </div>
                     <div className="flex gap-1.5">
                       <button
@@ -333,7 +313,7 @@ export function TemplatesView({
                     </button>
                   </div>
                   <div className="flex-1 break-words rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink-muted lg:text-[12.5px]">
-                    {t.body}
+                    <TemplateText text={t.body} />
                   </div>
                   {approval && <WhatsAppStatus approval={approval} />}
                   <button
@@ -433,15 +413,15 @@ export function TemplatesView({
                         // keep the cursor in the message instead of stealing focus
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => insertVariable(tag)}
-                        className="rounded-md border border-border bg-surface px-2 py-1 font-heading text-[12px] text-brand-dark transition-colors hover:bg-surface-2"
+                        className="rounded-md bg-brand-tint px-2 py-1 text-[12px] font-semibold text-brand-dark transition-colors hover:bg-surface-2"
                       >
-                        {tag}
+                        {variableLabel(tag.slice(2, -2))}
                       </button>
                     ))}
                   </div>
                   <p className="mt-1.5 text-[11.5px] leading-snug text-ink-soft">
-                    En el Chat, {"{{producto}}"} y {"{{precio}}"} se rellenan solos si eliges un producto antes; lo que
-                    quede sin rellenar queda resaltado para que lo escribas encima.
+                    En el Chat, el producto y el precio se llenan solos si eliges un producto antes; lo que falte queda
+                    resaltado para que lo escribas.
                   </p>
                 </Field>
 
@@ -469,6 +449,7 @@ export function TemplatesView({
 
       <WhatsAppApprovalDialog
         template={approving}
+        attempt={approvals.filter((a) => a.source_template_id === approving?.id).length + 1}
         channels={whatsapp?.channels ?? []}
         demo={demo}
         onClose={() => setApproving(null)}
@@ -550,12 +531,6 @@ function CategoryChip({
     >
       {children}
     </button>
-  );
-}
-
-function VarTag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-[5px] bg-surface-2 px-1.5 py-0.5 font-heading text-brand-dark">{children}</span>
   );
 }
 

@@ -14,7 +14,7 @@ import {
   recipientValues,
 } from "@/lib/broadcasts";
 
-// Server-only side of Difusión (migration 0042): the daily limit, the
+// Server-only side of Campaña (migration 0042): the daily limit, the
 // sending done by /api/cron/broadcasts, and opt-outs from the webhook.
 // Pure helpers: broadcasts.ts.
 
@@ -40,7 +40,7 @@ export async function fetchDailyLimit(channel: TemplateChannel): Promise<number>
   }
 }
 
-// Difusión messages the Negocio sent in the last 24 h.
+// Campaña messages the Negocio sent in the last 24 h.
 // shortcut: ignores templates sent one by one from Chat; count those too if
 // businesses start hitting Meta's limit before cheke's.
 export async function sentLast24h(supabase: SupabaseClient, businessId: string): Promise<number> {
@@ -54,11 +54,11 @@ export async function sentLast24h(supabase: SupabaseClient, businessId: string):
 
 export async function setMarketingOptOut(admin: SupabaseClient, contactId: string, optOut: boolean): Promise<void> {
   const { error } = await admin.from("contacts").update({ marketing_opt_out: optOut }).eq("id", contactId);
-  if (error) console.error("difusión: opt-out not saved", error.message);
+  if (error) console.error("campaña: opt-out not saved", error.message);
 }
 
 // A template we sent failed later (status webhook). 131050 opts the
-// customer out; for a Difusión, 131049 schedules the one retry after 24 h.
+// customer out; for a Campaña, 131049 schedules the one retry after 24 h.
 export async function handleTemplateFailure(
   admin: SupabaseClient,
   externalMessageId: string,
@@ -73,7 +73,7 @@ export async function handleTemplateFailure(
   if (recipient) {
     const next = afterFailure(code, recipient.attempts, Date.now());
     const { data: parent } = await admin.from("broadcasts").select("status").eq("id", recipient.broadcast_id).maybeSingle();
-    // A cancelled Difusión never retries.
+    // A cancelled Campaña never retries.
     const status = next.status === "pending" && parent?.status === "cancelled" ? "cancelled" : next.status;
     await admin
       .from("broadcast_recipients")
@@ -112,8 +112,8 @@ type Contact = { id: string; name: string | null; phone: string | null; marketin
 // One customer: saved in Chat (a new conversation if needed, like any
 // template) and sent. The message counts as automated (is_bot), so the chat
 // isn't handed to a person and chekelin answers the customer's reply;
-// source "broadcast" labels it "Difusión" in Chat (migration 0044).
-// "stop" = the number lost its connection: stop this Difusión for now.
+// source "broadcast" labels it "Campaña" in Chat (migration 0044).
+// "stop" = the number lost its connection: stop this Campaña for now.
 async function sendOne(
   admin: SupabaseClient,
   b: Broadcast,
@@ -138,7 +138,7 @@ async function sendOne(
     .select("id, created_at")
     .single();
   if (error || !message) {
-    console.error("difusión: message not saved", error?.message);
+    console.error("campaña: message not saved", error?.message);
     await done({ status: "failed" });
     return "failed";
   }
@@ -172,7 +172,7 @@ async function sendOne(
   return "sent";
 }
 
-// /api/cron/broadcasts: sends the next customers of every Difusión in
+// /api/cron/broadcasts: sends the next customers of every Campaña in
 // progress, one at a time (far below Coexistence's 20 per second), never past
 // the Negocio's 24 h limit. What's left goes out on later runs.
 export async function runBroadcasts(
@@ -242,7 +242,7 @@ export async function runBroadcasts(
           outcome = await sendOne(admin, b, channel, credentials, business?.is_demo === true, r, byId.get(r.contact_id));
         } catch (error) {
           // Unknown whether Meta got it: failed, never retried (no double send).
-          console.error("difusión: send error", error);
+          console.error("campaña: send error", error);
           await admin.from("broadcast_recipients").update({ status: "failed", attempts: r.attempts + 1 }).eq("id", r.id);
           outcome = "failed";
         }
