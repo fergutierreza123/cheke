@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countUnread, unreadAfterMessage, unreadBadge } from "@/lib/unread";
+import { countUnread, inUnreadFilter, unreadAfterMessage, unreadBadge } from "@/lib/unread";
 
 type M = Parameters<typeof countUnread>[0][number];
 const inbound = (status: M["status"] = "delivered", extra: Partial<M> = {}): M => ({
@@ -60,5 +60,20 @@ describe("unreadBadge", () => {
     expect(unreadBadge(7)).toBe("7");
     expect(unreadBadge(99)).toBe("99");
     expect(unreadBadge(140)).toBe("99+");
+  });
+});
+
+describe("inUnreadFilter", () => {
+  const read = { id: "a", unread_count: 0 };
+  const unread = { id: "b", unread_count: 2 };
+
+  it("on the first tap, hides every read chat, even the one Chat opened on its own", () => {
+    // Chat selects the newest chat when it loads; that used to keep it listed.
+    expect(inUnreadFilter(read, null)).toBe(false);
+    expect(inUnreadFilter(unread, null)).toBe(true);
+  });
+
+  it("keeps the chat the person opened from the filtered list while they read it", () => {
+    expect(inUnreadFilter(read, "a")).toBe(true);
   });
 });

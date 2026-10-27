@@ -81,7 +81,7 @@ import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/li
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import { ContactTags } from "@/components/ContactTags";
 import type { ChannelType, ConversationNote, ConversationStage, ConversationWithContact, Message, Product, Template } from "@/lib/types";
-import { countUnread, unreadAfterMessage, unreadBadge } from "@/lib/unread";
+import { countUnread, inUnreadFilter, unreadAfterMessage, unreadBadge } from "@/lib/unread";
 import { locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
 import { copyableText } from "@/lib/copyMessage";
 import { dayLabel, displayStatus, insertInOrder, sameDay } from "@/lib/chatTimeline";
@@ -178,6 +178,8 @@ export function ChatView({
   const [storeFilter, setStoreFilter] = useState<string | "all">("all");
   // "No leídos": only chats with messages nobody on the team has opened.
   const [unreadOnly, setUnreadOnly] = useState(false);
+  // The chat tapped in the list: stays under "No leídos" while it's read.
+  const [openedId, setOpenedId] = useState<string | null>(null);
   // "Ubicación" picked in the "+" sheet: a preview to confirm before it goes.
   const [pendingLocation, setPendingLocation] = useState(false);
   const [sendingLocation, setSendingLocation] = useState(false);
@@ -819,11 +821,10 @@ export function ChatView({
       const matchesChannel = channelFilter === "todos" || c.channel?.type === channelFilter;
       const matchesQuery = !q || c.contact.name.toLowerCase().includes(q);
       const matchesStore = storeFilter === "all" || c.store_id === storeFilter;
-      // Like WhatsApp, the chat being read stays in the list until you leave it.
-      const matchesUnread = !unreadOnly || (c.unread_count ?? 0) > 0 || c.id === selectedId;
+      const matchesUnread = !unreadOnly || inUnreadFilter(c, openedId);
       return matchesChannel && matchesQuery && matchesStore && matchesUnread;
     });
-  }, [conversations, query, channelFilter, storeFilter, unreadOnly, selectedId]);
+  }, [conversations, query, channelFilter, storeFilter, unreadOnly, openedId]);
   const unreadChats = conversations.filter((c) => (c.unread_count ?? 0) > 0).length;
 
   // Each Tienda has its own catalog: offer the open conversation's.
@@ -1320,7 +1321,10 @@ export function ChatView({
               );
             })}
             <button
-              onClick={() => setUnreadOnly((v) => !v)}
+              onClick={() => {
+                setUnreadOnly((v) => !v);
+                setOpenedId(null);
+              }}
               aria-pressed={unreadOnly}
               className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-[5px] text-[12.5px] font-semibold transition-colors ${
                 unreadOnly
@@ -1348,6 +1352,7 @@ export function ChatView({
                 key={c.id}
                 onClick={() => {
                   setSelectedId(c.id);
+                  setOpenedId(c.id);
                   if (c.id !== selectedId) {
                     setReplyTo(null);
                     setNoteMode(false);
@@ -1427,7 +1432,10 @@ export function ChatView({
           <>
             <div className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-border bg-surface px-3 py-2.5 lg:h-16 lg:flex-nowrap lg:px-6 lg:py-0">
               <button
-                onClick={() => setMobileView("list")}
+                onClick={() => {
+                  setMobileView("list");
+                  setOpenedId(null);
+                }}
                 aria-label="Volver a la lista de chats"
                 className="-ml-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-muted lg:hidden"
               >
@@ -1610,12 +1618,12 @@ export function ChatView({
               </div>
             )}
 
-            {/* Team-only notes (Traspaso, Queja, Pago, falta info): one line,
-                "Ver más" opens the full text over the chat. */}
+            {/* Team-only notes: one line; a tap opens all of them in a sheet. */}
             <NoteStrip
               key={selected.id}
               notes={selectedNotes}
               authorNames={Object.fromEntries(people.map((p) => [p.userId, p.name]))}
+              me={people.find((p) => p.userId === currentUserId) ?? null}
               complaintOpen={complaintOpen}
               onResolveComplaint={selectedStore?.canManage ? handleResolveComplaint : undefined}
             />
