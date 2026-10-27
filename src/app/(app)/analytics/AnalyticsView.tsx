@@ -6,6 +6,8 @@ import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ChannelType, ConversationWithContact } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
 import type { StoreNames } from "@/components/StoreTag";
+import type { FirstResponseTimes } from "@/lib/analyticsServer";
+import { FirstResponseCard } from "./FirstResponseCard";
 import { adCounts, channelShares, periodStart, salesSummary, type AnalyticsRange } from "@/lib/analytics";
 
 type Range = AnalyticsRange;
@@ -17,12 +19,14 @@ export function AnalyticsView({
   conversations,
   storeNames = null,
   people = [],
+  firstResponse = null,
 }: {
   conversations: ConversationWithContact[];
   // "Todas las tiendas": the totals above plus a Tienda-by-Tienda comparison.
   storeNames?: StoreNames | null;
   // Teammates, only passed once conversations are assigned to someone.
   people?: Array<{ id: string; email: string }>;
+  firstResponse?: FirstResponseTimes | null;
 }) {
   const [range, setRange] = useState<Range>("mes");
   // Captured once per mount rather than read fresh in useMemo/render — an
@@ -208,6 +212,7 @@ export function AnalyticsView({
             </div>
           )}
 
+          {firstResponse && <FirstResponseCard rows={firstResponse[range]} period={RANGE_LABEL[range].toLowerCase()} />}
           {byAd.length > 0 && (
             <div className="rounded-2xl border border-border bg-surface p-4 lg:p-5">
               <div className="font-heading text-[15.5px] font-semibold text-ink">Por anuncio</div>

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentBusiness, storeNamesForTags } from "@/lib/business";
 import { getTeamMembers } from "@/lib/team";
 import { getConversations } from "@/lib/conversations";
+import { getFirstResponseTimes } from "@/lib/analyticsServer";
 import { AnalyticsView } from "./AnalyticsView";
 
 export default async function AnalyticsPage() {
@@ -21,6 +22,7 @@ export default async function AnalyticsPage() {
       conversations={conversations}
       storeNames={storeNamesForTags(business)}
       people={people}
+      firstResponse={await getFirstResponseTimes(business)}
     />
   );
 }
