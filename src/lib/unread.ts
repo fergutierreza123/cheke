@@ -42,6 +42,14 @@ export function unreadAfterMessage(current: number, m: UnreadFields): number {
   return current;
 }
 
+// "No leídos" on: chats with unread messages, plus the one the person opened
+// from the filtered list (it stays while they read it, like WhatsApp). Never
+// the chat Chat selected on its own when it loaded: that one kept a read chat
+// on the list, so the filter looked like it hadn't applied.
+export function inUnreadFilter(c: { id: string; unread_count?: number | null }, openedId: string | null): boolean {
+  return (c.unread_count ?? 0) > 0 || c.id === openedId;
+}
+
 // The green badge's text; null = no badge.
 export function unreadBadge(count: number): string | null {
   if (count <= 0) return null;

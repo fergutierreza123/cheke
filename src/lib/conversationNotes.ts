@@ -70,3 +70,17 @@ export function noteStrip(
   const head = (complaintOpen && sorted.find((n) => n.kind === "complaint")) || sorted[0];
   return { head, rest: sorted.filter((n) => n !== head) };
 }
+
+// A team note that @mentions the person looking (not one they wrote).
+export function mentionsMe(note: ConversationNote, me: { userId: string; name: string } | null): boolean {
+  if (!me || note.kind !== "team" || note.author_id === me.userId) return false;
+  return mentionedIds(note.summary, [me]).length > 0;
+}
+
+// chekelin's team_summary as one short line (≤120 characters with the "…"),
+// so it fits Chat's strip and a phone notification. The prompt asks for one
+// short sentence; this is the guarantee.
+export const TEAM_SUMMARY_MAX = 120;
+export function clampTeamSummary(summary: string): string {
+  return shortSummary(summary, TEAM_SUMMARY_MAX - 1).text;
+}
