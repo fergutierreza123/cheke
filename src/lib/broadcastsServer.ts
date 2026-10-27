@@ -19,6 +19,8 @@ import {
 // Pure helpers: broadcasts.ts.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const STUCK_AFTER_MS = 15 * 60 * 1000;
+export const STUCK_REASON = "El envío se interrumpió; no se reenvía para no mandar el mensaje dos veces.";
 
 // The portfolio's customers-per-24 h limit from Meta, or 250 when it can't
 // be read (docs/research/difusion-whatsapp.md §2).
@@ -70,12 +72,15 @@ export async function handleTemplateFailure(
     .maybeSingle();
   if (recipient) {
     const next = afterFailure(code, recipient.attempts, Date.now());
+    const { data: parent } = await admin.from("broadcasts").select("status").eq("id", recipient.broadcast_id).maybeSingle();
+    // A cancelled Difusión never retries.
+    const status = next.status === "pending" && parent?.status === "cancelled" ? "cancelled" : next.status;
     await admin
       .from("broadcast_recipients")
-      .update({ status: next.status, error_code: code, sent_at: null, ...(next.nextAttemptAt ? { next_attempt_at: next.nextAttemptAt } : {}) })
+      .update({ status, error_code: code, sent_at: null, ...(next.nextAttemptAt ? { next_attempt_at: next.nextAttemptAt } : {}) })
       .eq("id", recipient.id);
-    if (next.status === "pending") {
-      await admin.from("broadcasts").update({ status: "sending", finished_at: null }).eq("id", recipient.broadcast_id);
+    if (status === "pending") {
+      await admin.from("broadcasts").update({ status: "sending", finished_at: null }).eq("id", recipient.broadcast_id).eq("status", "done");
     }
   }
   if (code === 131050) {
@@ -106,7 +111,8 @@ type Contact = { id: string; name: string | null; phone: string | null; marketin
 
 // One customer: saved in Chat (a new conversation if needed, like any
 // template) and sent. The message counts as automated (is_bot), so the chat
-// isn't handed to a person and chekelin answers the customer's reply.
+// isn't handed to a person and chekelin answers the customer's reply;
+// source "broadcast" labels it "Difusión" in Chat (migration 0044).
 // "stop" = the number lost its connection: stop this Difusión for now.
 async function sendOne(
   admin: SupabaseClient,
@@ -128,7 +134,7 @@ async function sendOne(
   const conversation = await findOrCreateConversation(admin, channel, contact.id);
   const { data: message, error } = await admin
     .from("messages")
-    .insert({ conversation_id: conversation.id, business_id: b.business_id, direction: "out", is_bot: true, body: renderTemplate(b.template, values) })
+    .insert({ conversation_id: conversation.id, business_id: b.business_id, direction: "out", is_bot: true, source: "broadcast", body: renderTemplate(b.template, values) })
     .select("id, created_at")
     .single();
   if (error || !message) {
@@ -169,13 +175,18 @@ async function sendOne(
 // /api/cron/broadcasts: sends the next customers of every Difusión in
 // progress, one at a time (far below Coexistence's 20 per second), never past
 // the Negocio's 24 h limit. What's left goes out on later runs.
-// shortcut: a run that dies mid-send leaves that one customer "sending"
-// forever (never sent twice); add a sweeper if it ever shows up in progress.
 export async function runBroadcasts(
   admin: SupabaseClient,
   { maxPerRun = 60, deadline = Date.now() + 50_000 } = {},
 ): Promise<{ sent: number; failed: number }> {
   const totals = { sent: 0, failed: 0 };
+  // A run that died mid-send (runs last at most 60 s) left these "sending".
+  // Never resent: the message may already have reached the customer.
+  await admin
+    .from("broadcast_recipients")
+    .update({ status: "failed", error_reason: STUCK_REASON })
+    .eq("status", "sending")
+    .lt("claimed_at", new Date(Date.now() - STUCK_AFTER_MS).toISOString());
   const { data: broadcasts } = await admin
     .from("broadcasts")
     .select(`id, business_id, template, template_values, name_variable, channel:channels(${TEMPLATE_CHANNEL_COLUMNS})`)
@@ -215,10 +226,12 @@ export async function runBroadcasts(
       for (const d of due ?? []) {
         if (Date.now() > deadline) break; // the rest stay pending for the next run
         // Claimed one at a time, right before sending: two runs at once never
-        // send twice, and a run killed mid-send strands only this customer.
+        // send twice, a run killed mid-send strands only this customer (the
+        // sweeper above fails it after 15 min), and once cancel_broadcast
+        // turned it "cancelled" the claim misses and it's never sent.
         const { data: claimed } = await admin
           .from("broadcast_recipients")
-          .update({ status: "sending" })
+          .update({ status: "sending", claimed_at: new Date().toISOString() })
           .eq("id", d.id)
           .eq("status", "pending")
           .select("id, attempts, contact_id");
@@ -247,7 +260,7 @@ export async function runBroadcasts(
       .eq("broadcast_id", b.id)
       .in("status", ["pending", "sending"]);
     if (left === 0) {
-      await admin.from("broadcasts").update({ status: "done", finished_at: new Date().toISOString() }).eq("id", b.id);
+      await admin.from("broadcasts").update({ status: "done", finished_at: new Date().toISOString() }).eq("id", b.id).eq("status", "sending");
     }
   }
   return totals;

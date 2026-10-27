@@ -3,6 +3,7 @@ import { canManageStore, getCurrentBusiness } from "@/lib/business";
 import { createClient } from "@/lib/supabase/server";
 import { tagsInUse } from "@/lib/tags";
 import { templateProblem, type WhatsAppTemplate } from "@/lib/whatsappTemplates";
+import { STUCK_REASON } from "@/lib/broadcastsServer";
 import { BroadcastView, type BroadcastRow, type BroadcastTemplate } from "./BroadcastView";
 
 // Plantillas → Difusión (migration 0042). Dueños and Gerentes only.
@@ -40,22 +41,37 @@ export default async function DifusionPage() {
   ]);
 
   // Progress of each recent Difusión.
-  const count = async (id: string, statuses: string[]) => {
-    const { count: n } = await supabase
+  const count = async (id: string, statuses: string[], stuck = false) => {
+    let q = supabase
       .from("broadcast_recipients")
       .select("id", { count: "exact", head: true })
       .eq("broadcast_id", id)
       .in("status", statuses);
+    if (stuck) q = q.eq("error_reason", STUCK_REASON);
+    const { count: n } = await q;
     return n ?? 0;
   };
   const history: BroadcastRow[] = await Promise.all(
     (broadcasts ?? []).map(async (b) => {
-      const [sent, failed, waiting] = await Promise.all([
+      const [sent, failed, waiting, cancelled, interrupted] = await Promise.all([
         count(b.id, ["sent"]),
         count(b.id, ["failed", "skipped"]),
         count(b.id, ["pending", "sending"]),
+        count(b.id, ["cancelled"]),
+        count(b.id, ["failed"], true),
       ]);
-      return { id: b.id, name: (b.template as { name?: string })?.name ?? "", tags: b.tags ?? [], status: b.status, created_at: b.created_at, sent, failed, waiting };
+      return {
+        id: b.id,
+        name: (b.template as { name?: string })?.name ?? "",
+        tags: b.tags ?? [],
+        status: b.status,
+        created_at: b.created_at,
+        sent,
+        failed: failed - interrupted,
+        waiting,
+        cancelled,
+        interrupted,
+      };
     }),
   );
 

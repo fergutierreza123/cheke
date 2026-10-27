@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { memoryDb } from "./memoryDb";
-import { runBroadcasts } from "@/lib/broadcastsServer";
+import { handleTemplateFailure, runBroadcasts, STUCK_REASON } from "@/lib/broadcastsServer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // /api/cron/broadcasts against the in-memory database. The Negocio is the
@@ -101,5 +101,54 @@ describe("runBroadcasts", () => {
     expect(await runBroadcasts(admin())).toEqual({ sent: 2, failed: 1 });
     expect(recipients().map((r) => r.status)).toEqual(["failed", "sent", "sent"]);
     expect(db.rows("broadcasts")[0].status).toBe("done");
+  });
+});
+
+describe("Difusión follow-ups (migration 0044)", () => {
+  it("labels its messages as a Difusión (source) and keeps them automated for chekelin", async () => {
+    await runBroadcasts(admin());
+    expect(db.rows("messages").every((m) => m.source === "broadcast" && m.is_bot === true)).toBe(true);
+  });
+
+  it("Cancelar mid-run: the claimed customers not sent yet are not sent, and it stays cancelled", async () => {
+    const client = db.client as unknown as { from: (t: string) => unknown };
+    const from = client.from.bind(client);
+    let cancelled = false;
+    client.from = (table: string) => {
+      // cancel_broadcast runs right after the first message is saved.
+      if (table === "conversations" && db.rows("messages").length === 1 && !cancelled) {
+        cancelled = true;
+        db.rows("broadcasts")[0].status = "cancelled";
+        for (const r of recipients()) if (r.status === "pending" || r.status === "sending") r.status = "cancelled";
+      }
+      return from(table);
+    };
+    expect(await runBroadcasts(admin())).toEqual({ sent: 1, failed: 0 });
+    expect(recipients().map((r) => r.status)).toEqual(["sent", "cancelled", "cancelled"]);
+    expect(db.rows("messages")).toHaveLength(1);
+    expect(db.rows("broadcasts")[0].status).toBe("cancelled");
+  });
+
+  it("a cancelled Difusión is never sent", async () => {
+    db.rows("broadcasts")[0].status = "cancelled";
+    expect(await runBroadcasts(admin())).toEqual({ sent: 0, failed: 0 });
+    expect(db.rows("messages")).toHaveLength(0);
+  });
+
+  it("131049 after Cancelar doesn't bring it back", async () => {
+    db.rows("broadcasts")[0].status = "cancelled";
+    Object.assign(recipients()[0], { status: "sent", attempts: 1, external_message_id: "wamid.1" });
+    await handleTemplateFailure(admin(), "wamid.1", 131049);
+    expect(recipients()[0].status).toBe("cancelled");
+    expect(db.rows("broadcasts")[0].status).toBe("cancelled");
+  });
+
+  it("a customer stuck 'sending' over 15 min is marked failed with a reason, never resent", async () => {
+    Object.assign(recipients()[0], { status: "sending", claimed_at: new Date(Date.now() - 16 * 60_000).toISOString() });
+    Object.assign(recipients()[1], { status: "sending", claimed_at: new Date(Date.now() - 60_000).toISOString() });
+    expect(await runBroadcasts(admin())).toEqual({ sent: 1, failed: 0 });
+    expect(recipients().map((r) => r.status)).toEqual(["failed", "sending", "sent"]);
+    expect(recipients()[0].error_reason).toBe(STUCK_REASON);
+    expect(db.rows("messages")).toHaveLength(1);
   });
 });
