@@ -12,10 +12,14 @@ import {
 import {
   renderTemplate,
   suggestedValues,
+  templateCategoryLabel,
+  templateDisplayName,
   templateProblem,
   templateVariables,
   validateTemplateValues,
+  variableLabel,
 } from "@/lib/whatsappTemplates";
+import { TemplateText } from "@/components/TemplateText";
 import { DEMO_WHATSAPP_TEMPLATES } from "@/lib/demoData";
 import type { Message } from "@/lib/types";
 
@@ -23,18 +27,6 @@ import type { Message } from "@/lib/types";
 // WhatsApp chat's 24 h window has closed. Pick an approved template, fill its
 // {{1}}… data, see exactly what the customer will read, send. Kept in its
 // own file so the composer itself stays untouched.
-
-const CATEGORY_LABEL: Record<string, string> = {
-  UTILITY: "Utilidad",
-  MARKETING: "Promoción",
-  AUTHENTICATION: "Código",
-};
-
-// "seguimiento_pedido" → "Seguimiento pedido"
-function displayName(name: string): string {
-  const text = name.replace(/_/g, " ").trim();
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
 
 // The few words before a variable, so each field says what it's for
 // ("Hola {{1}}" → "Hola …").
@@ -220,9 +212,9 @@ export function WhatsAppTemplateSender({
                     >
                       <span aria-hidden>‹</span> Plantillas
                     </button>
-                    <span className="text-[11.5px] text-ink-soft">{CATEGORY_LABEL[picked.category] ?? picked.category}</span>
+                    <span className="text-[11.5px] text-ink-soft">{templateCategoryLabel(picked.category)}</span>
                   </div>
-                  <div className="font-heading text-[15px] font-semibold text-ink">{displayName(picked.name)}</div>
+                  <div className="font-heading text-[15px] font-semibold text-ink">{templateDisplayName(picked.name)}</div>
 
                   {variables.length > 0 && (
                     <div className="flex flex-col gap-2">
@@ -231,7 +223,7 @@ export function WhatsAppTemplateSender({
                         return (
                           <label key={key} className="flex flex-col gap-1">
                             <span className="text-[11.5px] text-ink-muted">
-                              Dato <span className="font-heading text-brand-dark">{`{{${key}}}`}</span>
+                              <span className="font-semibold text-brand-dark">{variableLabel(key)}</span>
                               {context && <span className="text-ink-soft"> · {context}</span>}
                             </span>
                             <input
@@ -250,7 +242,7 @@ export function WhatsAppTemplateSender({
                     <div className="mb-1.5 text-[11.5px] text-ink-muted">Así lo verá el cliente</div>
                     <div className="rounded-[10px] bg-[#EFEAE2] p-3">
                       <div className="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-[7.5px] rounded-tr-none bg-[#D9FDD3] px-3 py-2 text-[13.5px] leading-[19px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">
-                        {preview}
+                        <TemplateText text={preview} />
                       </div>
                     </div>
                   </div>
@@ -318,12 +310,12 @@ export function WhatsAppTemplateSender({
                               className="flex w-full flex-col gap-0.5 rounded-[10px] border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:opacity-70"
                             >
                               <span className="flex items-center justify-between gap-2">
-                                <span className="truncate text-[13px] font-semibold text-ink">{displayName(t.name)}</span>
+                                <span className="truncate text-[13px] font-semibold text-ink">{templateDisplayName(t.name)}</span>
                                 <span className="shrink-0 rounded-md bg-brand-tint px-1.5 py-0.5 text-[10.5px] font-bold text-brand-dark">
-                                  {CATEGORY_LABEL[t.category] ?? t.category}
+                                  {templateCategoryLabel(t.category)}
                                 </span>
                               </span>
-                              <span className="line-clamp-2 text-[12px] leading-snug text-ink-muted">{renderTemplate(t, {})}</span>
+                              <span className="line-clamp-2 text-[12px] leading-snug text-ink-muted"><TemplateText text={renderTemplate(t, {})} /></span>
                               {problem && <span className="text-[11.5px] text-ink-soft">{problem}</span>}
                             </button>
                           </li>

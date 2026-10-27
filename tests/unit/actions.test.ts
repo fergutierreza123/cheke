@@ -18,7 +18,7 @@ vi.mock("@/lib/bot", () => ({ handOffActiveChats: vi.fn(), handleInboundMessage:
 vi.mock("@/lib/push", () => ({ sendPushToPeople: vi.fn(), notifyConversation: vi.fn() }));
 vi.mock("@/lib/images", () => ({ removeBackgroundToWhite: async () => ({}) }));
 
-const { createLead, setConversationStage, setConversationValue, seedDemoData } = await import("@/app/(app)/actions");
+const { createLead, setConversationStage, setConversationValue } = await import("@/app/(app)/actions");
 const { saveProduct } = await import("@/app/(app)/inventory/actions");
 const { saveTemplate } = await import("@/app/(app)/templates/actions");
 const { setMemberStore } = await import("@/app/(app)/team/actions");
@@ -62,7 +62,7 @@ beforeEach(() => {
 
 describe("archived Tiendas are read-only (issue #35)", () => {
   it("createLead refuses an archived Tienda", async () => {
-    const result = await createLead({ name: "Ana", phone: null, ig_handle: null, fb_id: null, storeId: "X" });
+    const result = await createLead({ name: "Ana", phone: null, ig_handle: null, storeId: "X" });
     expect(result.error).toMatch(/archivada/);
     expect(db.writes("contacts", "insert")).toHaveLength(0);
   });
@@ -70,14 +70,14 @@ describe("archived Tiendas are read-only (issue #35)", () => {
   it("createLead still works in an open Tienda", async () => {
     db.queue("contacts", { data: { id: "k1", name: "Ana", phone: null, ig_handle: null, fb_id: null, notes: null } });
     db.queue("conversations", { data: { id: "c1" } });
-    const result = await createLead({ name: "Ana", phone: null, ig_handle: null, fb_id: null, storeId: "A" });
+    const result = await createLead({ name: "Ana", phone: null, ig_handle: null, storeId: "A" });
     expect(result.error).toBeUndefined();
     expect(result.conversation?.id).toBe("c1");
   });
 
   it("createLead refuses a Tienda the person doesn't work in", async () => {
     business = as("agent", { mine: ["A"] });
-    expect((await createLead({ name: "Ana", phone: null, ig_handle: null, fb_id: null, storeId: "B" })).error).toBe("Elige la tienda del contacto.");
+    expect((await createLead({ name: "Ana", phone: null, ig_handle: null, storeId: "B" })).error).toBe("Elige la tienda del contacto.");
   });
 
   it("saveProduct refuses while viewing an archived Tienda", async () => {
@@ -86,25 +86,6 @@ describe("archived Tiendas are read-only (issue #35)", () => {
     form.set("name", "Blusa");
     expect((await saveProduct(form)).error).toMatch(/archivada/);
     expect(db.writes("products", "insert")).toHaveLength(0);
-  });
-
-  it("seedDemoData uses an open Tienda, never the archived one on screen", async () => {
-    business = as("owner", { selected: "X" });
-    db.queue("contacts", { count: 0 });
-    for (let i = 0; i < 3; i++) db.queue("channels", { data: { id: `ch${i}` } });
-    for (let i = 0; i < 6; i++) {
-      db.queue("contacts", { data: { id: `k${i}` } });
-      db.queue("conversations", { data: { id: `c${i}` } });
-    }
-    expect(await seedDemoData()).toEqual({});
-    const channelInsert = db.writes("channels", "insert")[0].ops.find((o) => o.op === "insert")!.args[0] as { store_id: string };
-    expect(channelInsert.store_id).toBe("A");
-  });
-
-  it("seedDemoData reports a failure instead of throwing", async () => {
-    db.queue("contacts", { count: 0 });
-    db.queue("channels", { data: null, error: { message: "permission denied" } });
-    expect(await seedDemoData()).toEqual({ error: "No se pudieron crear los datos de ejemplo. Inténtalo de nuevo." });
   });
 });
 
@@ -327,7 +308,7 @@ describe("errors are plain Spanish, never the database's English text", () => {
 
   it("createLead", async () => {
     db.queue("contacts", { data: null, error: RAW });
-    const result = await createLead({ name: "Ana", phone: null, ig_handle: null, fb_id: null, storeId: "A" });
+    const result = await createLead({ name: "Ana", phone: null, ig_handle: null, storeId: "A" });
     expect(result.error).toBe("No se pudo crear el contacto.");
   });
 
