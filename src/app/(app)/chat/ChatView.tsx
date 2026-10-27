@@ -82,6 +82,7 @@ import { countUnread, unreadAfterMessage, unreadBadge } from "@/lib/unread";
 import { locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
 import { copyableText } from "@/lib/copyMessage";
 import { dayLabel, displayStatus, insertInOrder, sameDay } from "@/lib/chatTimeline";
+import { referralLabel } from "@/lib/adReferral";
 
 const CHANNEL_FILTERS: Array<{ id: ChannelType | "todos"; label: string }> = [
   { id: "todos", label: "Todos" },
@@ -681,6 +682,10 @@ export function ChatView({
                     awaiting_since: row.awaiting_since,
                     complaint_open_at: row.complaint_open_at ?? null,
                     stage: row.stage ?? c.stage,
+                    // Saved by the webhook right after the chat's first message.
+                    referral_source: row.referral_source ?? c.referral_source,
+                    referral_headline: row.referral_headline ?? c.referral_headline,
+                    referral_url: row.referral_url ?? c.referral_url,
                   }
                 : c,
             ),
@@ -1400,6 +1405,9 @@ export function ChatView({
                     </>
                   )}
                 </div>
+                {referralLabel(selected) && (
+                  <div className="truncate text-xs font-medium text-brand">{referralLabel(selected)}</div>
+                )}
               </div>
 
               {/* On phones the controls drop to their own row under the name; on
@@ -2335,6 +2343,17 @@ export function ChatView({
               <div className="flex flex-col gap-1 text-[13.5px] text-ink-muted">
                 <div>{selected.contact.phone || selected.contact.ig_handle || selected.contact.fb_id}</div>
                 <div>Conversación desde {relativeTime(selected.created_at)}</div>
+                {referralLabel(selected) && (
+                  <div className="font-medium text-brand">
+                    {selected.referral_url ? (
+                      <a href={selected.referral_url} target="_blank" rel="noopener noreferrer" className="underline">
+                        {referralLabel(selected)}
+                      </a>
+                    ) : (
+                      referralLabel(selected)
+                    )}
+                  </div>
+                )}
               </div>
 
               <ContactTags

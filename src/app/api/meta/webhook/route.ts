@@ -7,6 +7,7 @@ import { saveMessageMedia, type MediaJob } from "@/lib/messageMedia";
 import { processComments, saveIncomingComments } from "@/lib/commentsServer";
 import { deletedFields, metaReaction, metaReplyTo } from "@/lib/messageEvents";
 import { findMessageId, insertMessage } from "@/lib/messageRows";
+import { metaReferral, saveReferral, type MetaReferral } from "@/lib/adReferral";
 
 // Instagram DMs and Facebook Messenger webhook (Messenger Platform), one URL
 // for every business: Meta tells us which Page (object "page") or Instagram
@@ -200,6 +201,8 @@ async function handlePayload(payload: MetaWebhookPayload): Promise<HandleResult>
           }
         } else if (event.read) {
           await markRead(supabase, channel, event);
+        } else if (event.referral) {
+          await saveReferralOnly(supabase, channel, event);
         }
       } catch (error) {
         console.error("meta webhook event error", event.message?.mid, error);
@@ -251,6 +254,8 @@ async function saveInboundMessage(
     if (error.code === "23505") return null;
     throw new Error(error.message);
   }
+  const referral = metaReferral(event);
+  if (referral) await saveReferral(supabase, conversation.id, referral, createdAt);
   const first = mediaJob(event.message);
   const extras = await saveExtraAttachments(
     supabase,
@@ -598,6 +603,34 @@ async function advanceUpTo(
     .lte("created_at", upTo);
 }
 
+// A customer who already had a chat tapped an ad: Meta sends the referral on
+// its own, without a message. Only an existing chat gets it; a new
+// customer's referral comes on their first message instead.
+async function saveReferralOnly(supabase: Admin, channel: Channel, event: MessagingEvent) {
+  const referral = metaReferral(event);
+  const customerId = event.sender?.id;
+  if (!referral || !customerId) return;
+  const column = channel.type === "instagram" ? "ig_id" : "fb_psid";
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("id")
+    .eq("business_id", channel.business_id)
+    .eq(column, customerId)
+    .limit(1)
+    .maybeSingle();
+  if (!contact) return;
+  const { data: conversations } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("business_id", channel.business_id)
+    .eq("contact_id", contact.id)
+    .eq("channel_id", channel.id)
+    .order("created_at", { ascending: true })
+    .limit(1);
+  const conversation = conversations?.[0];
+  if (conversation) await saveReferral(supabase, conversation.id, referral, messageTime(event.timestamp, new Date()));
+}
+
 // Messenger Platform timestamps are in milliseconds.
 function messageTime(timestamp: number | undefined, fallback: Date): string {
   const ms = Number(timestamp);
@@ -627,6 +660,7 @@ type MetaMessage = {
   is_unsupported?: boolean;
   reply_to?: { mid?: string; story?: { url?: string; id?: string } };
   attachments?: MetaAttachment[];
+  referral?: MetaReferral;
 };
 type MetaAttachment = {
   type?: string;
@@ -638,7 +672,9 @@ type MessagingEvent = {
   recipient?: { id?: string };
   timestamp?: number;
   message?: MetaMessage;
-  postback?: { mid?: string; title?: string; payload?: string };
+  postback?: { mid?: string; title?: string; payload?: string; referral?: MetaReferral };
+  // A Click-to-Messenger / Instagram ad (src/lib/adReferral.ts).
+  referral?: MetaReferral;
   delivery?: { mids?: string[]; watermark?: number };
   read?: { watermark?: number; mid?: string };
   reaction?: { mid?: string; action?: string; reaction?: string; emoji?: string };

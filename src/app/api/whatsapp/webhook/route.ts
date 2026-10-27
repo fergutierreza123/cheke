@@ -8,6 +8,7 @@ import { explainWhatsAppError } from "@/lib/whatsappErrors";
 import { deletedFields, whatsappChange, whatsappReaction, whatsappReplyTo } from "@/lib/messageEvents";
 import { findMessageId, insertMessage } from "@/lib/messageRows";
 import { createMessageClock } from "@/lib/messageClock";
+import { saveReferral, whatsappReferral } from "@/lib/adReferral";
 import type { MediaInfo } from "@/lib/types";
 
 // Meta resends if we answer slowly, so the push alert and Chekelin's AI reply
@@ -237,6 +238,8 @@ async function saveInboundMessage(
     throw new Error(insertError.message);
   }
   queueMedia(media, channel, message);
+  const referral = whatsappReferral(message);
+  if (referral) await saveReferral(supabase, conversation.id, referral, now.toISOString());
 
   return { conversationId: conversation.id, contactName: profileName, body };
 }

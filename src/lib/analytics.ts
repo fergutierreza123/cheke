@@ -38,6 +38,34 @@ export function salesSummary(rows: Array<{ stage: string; value_hnl: number | st
   return { won: won.length, lost, revenue, conversionRate: closed > 0 ? Math.round((won.length / closed) * 100) : 0 };
 }
 
+// "Por anuncio": chats that came from an ad or post since `since`, grouped by
+// ad (same ad id = same ad), most chats first, with the sales won from them.
+export function adCounts(
+  rows: Array<{
+    referral_source?: string | null;
+    referral_ad_id?: string | null;
+    referral_headline?: string | null;
+    referral_at?: string | null;
+    stage: string;
+  }>,
+  since: number,
+) {
+  const ads = new Map<string, { label: string; chats: number; won: number }>();
+  for (const r of rows) {
+    if (!r.referral_source || !r.referral_at || new Date(r.referral_at).getTime() < since) continue;
+    const key = r.referral_ad_id ?? r.referral_headline ?? r.referral_source;
+    const ad = ads.get(key) ?? {
+      label: r.referral_headline ?? (r.referral_source === "anuncio" ? "Anuncio sin título" : "Publicación sin título"),
+      chats: 0,
+      won: 0,
+    };
+    ad.chats += 1;
+    if (r.stage === "ganado") ad.won += 1;
+    ads.set(key, ad);
+  }
+  return [...ads.values()].sort((a, b) => b.chats - a.chats);
+}
+
 // Share of conversations per channel, in whole percent. Contacts added by
 // hand in chekeo have no channel and are left out.
 export function channelShares(rows: Array<{ channel?: { type: string } | null }>): Record<ChannelType, number> {
