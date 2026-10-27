@@ -126,9 +126,11 @@ export type ConversationNote = {
   id: string;
   conversation_id: string;
   store_id: string;
-  kind: "handoff" | "complaint" | "payment";
+  // "team" = written by a person in Chat (author_id), not by chekelin.
+  kind: "handoff" | "complaint" | "payment" | "team";
   summary: string;
   reason: string | null;
+  author_id?: string | null;
   created_at: string;
 };
 

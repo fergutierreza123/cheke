@@ -8,9 +8,10 @@ import type { ConversationNote } from "@/lib/types";
 // reason starts with this is "falta info", not a Traspaso.
 export const FALTA_INFO_LABEL = "chekelin no tenía la información";
 
-export type NoteTag = "traspaso" | "queja" | "pago" | "falta_info";
+export type NoteTag = "traspaso" | "queja" | "pago" | "falta_info" | "nota";
 
 export function noteTag(note: Pick<ConversationNote, "kind" | "reason">): NoteTag {
+  if (note.kind === "team") return "nota";
   if (note.kind === "complaint") return "queja";
   if (note.kind === "payment") return "pago";
   if (note.reason?.startsWith(FALTA_INFO_LABEL)) return "falta_info";
@@ -36,7 +37,27 @@ export const NOTE_TAG_LABEL: Record<NoteTag, string> = {
   queja: "Queja",
   pago: "Pago",
   falta_info: "Falta info",
+  nota: "Nota",
 };
+
+// "@" in a team note: the name typed so far after the last "@" (at the start
+// or after a space), or null when the person isn't mentioning anyone.
+// Names have spaces ("Ana López"), so the query may too, up to 30 chars.
+export function mentionQuery(draft: string): string | null {
+  const match = /(?:^|\s)@([^@\n]{0,30})$/.exec(draft);
+  return match ? match[1] : null;
+}
+
+// Replace the "@query" being typed with "@Name ".
+export function insertMention(draft: string, name: string): string {
+  return draft.replace(/@[^@\n]{0,30}$/, `@${name} `);
+}
+
+// Who a note mentions: everyone whose "@Name" appears in it.
+export function mentionedIds(text: string, people: { userId: string; name: string }[]): string[] {
+  const lower = text.toLowerCase();
+  return people.filter((p) => p.name && lower.includes(`@${p.name.toLowerCase()}`)).map((p) => p.userId);
+}
 
 // What the strip shows: one note in front, the rest behind "+N" (newest
 // first). An open Queja stays in front: chekelin is quiet until it's resolved.

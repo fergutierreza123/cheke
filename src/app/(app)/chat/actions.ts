@@ -15,6 +15,8 @@ import { replyWindow, windowClosedMessage } from "@/lib/messagingWindow";
 import { markMessageFailed } from "@/lib/whatsappErrors";
 import { afterPaymentConfirmed, handleInboundMessage } from "@/lib/bot";
 import { sendPushToPeople } from "@/lib/push";
+import { getTeamMembers } from "@/lib/team";
+import { displayNameOf } from "@/lib/chekelinState";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness, isArchivedStore } from "@/lib/business";
 import { buildPaymentMessage, normalizePaymentLink, orderConcept, type OrderItem } from "@/lib/payments";
@@ -504,11 +506,74 @@ export async function listConversationNotes(conversationId: string): Promise<Con
   const supabase = await createClient();
   const { data } = await supabase
     .from("conversation_notes")
-    .select("id, conversation_id, store_id, kind, summary, reason, created_at")
+    .select("id, conversation_id, store_id, kind, summary, reason, author_id, created_at")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(20);
   return (data ?? []) as ConversationNote[];
+}
+
+// "Nota para el equipo": a person's note on the chat (never sent to the
+// customer). Saved as the signed-in person (RLS: author = auth.uid(), same
+// Tienda as the chat); the people @mentioned get a push to open it.
+export async function addTeamNote(
+  conversationId: string,
+  text: string,
+  mentionIds: string[],
+): Promise<{ note?: ConversationNote; error?: string }> {
+  const summary = text.trim();
+  if (!summary) return { error: "Escribe la nota." };
+  if (summary.length > 2000) return { error: "La nota es muy larga (máximo 2000 letras)." };
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+
+  const supabase = await createClient();
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, store_id, contact:contacts(name)")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (!conversation) return { error: "No se encontró la conversación." };
+  if (!canWriteToStore(business, conversation.store_id)) return { error: ARCHIVED_STORE_READ_ONLY };
+
+  const { data: note, error } = await supabase
+    .from("conversation_notes")
+    .insert({
+      business_id: business.id,
+      store_id: conversation.store_id,
+      conversation_id: conversationId,
+      kind: "team",
+      summary,
+      author_id: business.userId,
+    })
+    .select("id, conversation_id, store_id, kind, summary, reason, author_id, created_at")
+    .single();
+  if (error || !note) return { error: friendlyError(error, "No se pudo guardar la nota.") };
+
+  // Only people who can open this chat (its Tienda's people and the Dueños).
+  const wanted = [...new Set(mentionIds)].filter((id) => id !== business.userId);
+  if (wanted.length > 0) {
+    const admin = createAdminClient();
+    const [{ data: members }, { data: inStore }] = await Promise.all([
+      admin.from("members").select("user_id, role").eq("business_id", business.id).in("user_id", wanted),
+      admin.from("store_members").select("user_id").eq("store_id", conversation.store_id).in("user_id", wanted),
+    ]);
+    const storePeople = new Set((inStore ?? []).map((r) => r.user_id as string));
+    const people = (members ?? [])
+      .filter((m) => m.role === "owner" || storePeople.has(m.user_id))
+      .map((m) => m.user_id as string);
+    if (people.length > 0) {
+      const team = await getTeamMembers(business.id).catch(() => []);
+      const me = team.find((m) => m.user_id === business.userId);
+      const contact = Array.isArray(conversation.contact) ? conversation.contact[0] : conversation.contact;
+      await sendPushToPeople(admin, business.id, conversation.store_id, people, {
+        title: `${me ? displayNameOf(me) : "Alguien"} te mencionó en el chat de ${contact?.name ?? "un cliente"}`,
+        body: summary.length > 140 ? `${summary.slice(0, 139)}…` : summary,
+        conversationId,
+      });
+    }
+  }
+  return { note: note as ConversationNote };
 }
 
 export type OpenOrder = {

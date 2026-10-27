@@ -13,6 +13,7 @@ import {
   resolveOrder,
   reassignConversation,
   listConversationNotes,
+  addTeamNote,
   resolveComplaint,
   reactToMessage,
   retryMessage,
@@ -34,7 +35,9 @@ import type { QuickReply } from "@/lib/quickReplies";
 import { useQuickReplyPicker } from "./QuickReplyPicker";
 import { CameraIcon, ClipIcon, PhotoIcon, useComposerMedia, type MediaSendResult } from "./ComposerMedia";
 import { AttachSheet } from "./AttachSheet";
-import { NoteStrip } from "./NoteStrip";
+import { NoteComposerBar, NoteStrip } from "./NoteStrip";
+import { useMentionPicker } from "./MentionPicker";
+import { mentionedIds } from "@/lib/conversationNotes";
 import { WhatsAppTemplateSender } from "./WhatsAppTemplateSender";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
@@ -241,6 +244,10 @@ export function ChatView({
   // "Responder": the message the next send quotes, and the bubble whose
   // menu (reactions + Responder) is open.
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  // "Nota para el equipo": the composer saves a team-only note instead of
+  // writing to the customer, until its X closes it.
+  const [noteMode, setNoteMode] = useState(false);
+  const [sendingNote, setSendingNote] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   // The bubble just jumped to from a quote, briefly highlighted.
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -334,8 +341,19 @@ export function ChatView({
     setDraft,
     contactName: selected?.contact.name,
     inputRef: draftInputRef,
-    disabled: !selected || sendBlocked || simulateMode,
+    disabled: !selected || sendBlocked || simulateMode || noteMode,
     canManage: canManageQuickReplies,
+  });
+  // "@" in a note: the people who can open this chat, except yourself.
+  const mentionable = selected
+    ? people.filter((p) => p.storeIds.includes(selected.store_id) && p.userId !== currentUserId)
+    : [];
+  const mentionPicker = useMentionPicker({
+    people: mentionable,
+    draft,
+    setDraft,
+    inputRef: draftInputRef,
+    disabled: !noteMode,
   });
   // Why nothing but Plantillas can go out right now: the mic stays visible
   // (grey) and says this when tapped.
@@ -736,7 +754,7 @@ export function ChatView({
         (payload) => {
           const note = payload.new as ConversationNote;
           setNotesByConversation((prev) =>
-            prev[note.conversation_id]
+            prev[note.conversation_id] && !prev[note.conversation_id].some((n) => n.id === note.id)
               ? { ...prev, [note.conversation_id]: [note, ...prev[note.conversation_id]] }
               : prev,
           );
@@ -811,7 +829,35 @@ export function ChatView({
   // Each Tienda has its own catalog: offer the open conversation's.
   const storeProducts = selected ? products.filter((p) => p.store_id === selected.store_id) : products;
 
+  // "Nota para el equipo": saved for the team, never sent to the customer;
+  // the people @mentioned get a push.
+  async function handleSendNote() {
+    const text = draft.trim();
+    if (!selected || !text || sendingNote) return;
+    setSendError(null);
+    setSendingNote(true);
+    try {
+      const result = await addTeamNote(selected.id, text, mentionedIds(text, mentionable));
+      const note = result.note;
+      if (!note) {
+        setSendError(result.error ?? "No se pudo guardar la nota.");
+        return;
+      }
+      setDraft("");
+      setNotesByConversation((prev) => {
+        const list = prev[note.conversation_id] ?? [];
+        return list.some((n) => n.id === note.id) ? prev : { ...prev, [note.conversation_id]: [note, ...list] };
+      });
+    } finally {
+      setSendingNote(false);
+    }
+  }
+
   async function handleSend() {
+    if (noteMode) {
+      handleSendNote();
+      return;
+    }
     // A photo or video waiting in the strip: Send sends it, the typed text
     // as its caption.
     if (composerMedia.hasPendingVisual) {
@@ -1304,6 +1350,7 @@ export function ChatView({
                   setSelectedId(c.id);
                   if (c.id !== selectedId) {
                     setReplyTo(null);
+                    setNoteMode(false);
                     setPendingLocation(false);
                   }
                   setMenuFor(null);
@@ -1568,6 +1615,7 @@ export function ChatView({
             <NoteStrip
               key={selected.id}
               notes={selectedNotes}
+              authorNames={Object.fromEntries(people.map((p) => [p.userId, p.name]))}
               complaintOpen={complaintOpen}
               onResolveComplaint={selectedStore?.canManage ? handleResolveComplaint : undefined}
             />
@@ -1906,7 +1954,8 @@ export function ChatView({
               </div>
             ))}
             <AnimatePresence initial={false}>
-              {replyTo && replyTo.conversation_id === selected.id && !sendBlocked && !simulateMode && (
+              {noteMode && <NoteComposerBar key="note" onCancel={() => setNoteMode(false)} />}
+              {replyTo && replyTo.conversation_id === selected.id && !sendBlocked && !simulateMode && !noteMode && (
                 <ReplyBar
                   key="reply"
                   message={replyTo}
@@ -1917,7 +1966,7 @@ export function ChatView({
             </AnimatePresence>
             {composerMedia.strip}
             <div className="relative flex shrink-0 items-end gap-1.5 border-t border-border bg-surface px-3 py-2.5 sm:gap-2 lg:px-6 lg:py-3.5">
-              {quickReplyPicker.picker}
+              {noteMode ? mentionPicker.picker : quickReplyPicker.picker}
               {composerMedia.inputs}
               {/* Phones and tablets: one "+" opens WhatsApp's attach sheet.
                   Computers keep the inline buttons of design/Inbox.html. */}
@@ -2148,14 +2197,30 @@ export function ChatView({
                   )}
                 </AnimatePresence>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setNoteMode((v) => !v);
+                  draftInputRef.current?.focus();
+                }}
+                disabled={businessId === "demo"}
+                title="Nota para el equipo: el cliente no la ve"
+                aria-label="Nota para el equipo"
+                aria-pressed={noteMode}
+                className={`hidden lg:flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
+                  noteMode ? "border-brand bg-accent-tint text-brand-dark" : "border-border bg-surface-2 text-ink-muted hover:bg-surface-3"
+                }`}
+              >
+                <NoteIcon className="h-4 w-4" />
+              </button>
               <textarea
                 ref={draftInputRef}
                 rows={1}
-                disabled={sendBlocked}
+                disabled={sendBlocked && !noteMode}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (quickReplyPicker.onKeyDown(e)) return;
+                  if (noteMode ? mentionPicker.onKeyDown(e) : quickReplyPicker.onKeyDown(e)) return;
                   // Enter sends; Shift+Enter starts a new line.
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
@@ -2163,7 +2228,11 @@ export function ChatView({
                   }
                 }}
                 placeholder={
-                  sendBlocked
+                  noteMode
+                    ? mentionable.length > 0
+                      ? "Nota para el equipo (@ para mencionar)"
+                      : "Nota para el equipo"
+                    : sendBlocked
                     ? selected.channel?.type === "whatsapp" || !selected.channel
                       ? "Ventana de 24 h cerrada"
                       : "Ventana de 7 días cerrada"
@@ -2175,22 +2244,24 @@ export function ChatView({
                         ? "Escribe un mensaje o /atajo"
                         : "Escribe un mensaje"
                 }
-                className="max-h-[140px] min-w-0 flex-1 resize-none rounded-[22px] border border-border bg-surface-2 px-3.5 py-2.5 text-[13.5px] leading-[18px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+                className={`max-h-[140px] min-w-0 flex-1 resize-none rounded-[22px] border px-3.5 py-2.5 text-[13.5px] leading-[18px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint ${
+                  noteMode ? "border-accent bg-accent-tint" : "border-border bg-surface-2"
+                }`}
               />
               {/* WhatsApp-style: while the box is empty, phones get the camera
                   and the mic takes Send's place. The mic is always there; when
                   nothing can be sent (window closed) it is grey
                   and says why when tapped. */}
-              {!draft.trim() && !pendingProduct && !composerMedia.hasPendingVisual && !composerMedia.recording && (
+              {!noteMode && !draft.trim() && !pendingProduct && !composerMedia.hasPendingVisual && !composerMedia.recording && (
                 <div className="flex lg:hidden">{composerMedia.cameraButton}</div>
               )}
-              {composerMedia.recording || (!draft.trim() && !pendingProduct && !composerMedia.hasPendingVisual) ? (
+              {!noteMode && (composerMedia.recording || (!draft.trim() && !pendingProduct && !composerMedia.hasPendingVisual)) ? (
                 composerMedia.micButton
               ) : (
                 <button
                   onClick={handleSend}
-                  disabled={botTyping || sendingProduct || sendBlocked}
-                  aria-label="Enviar"
+                  disabled={noteMode ? sendingNote || !draft.trim() : botTyping || sendingProduct || sendBlocked}
+                  aria-label={noteMode ? "Guardar nota" : "Enviar"}
                   className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-60"
                 >
                   <SendIcon className="h-4 w-4" />
@@ -2259,6 +2330,17 @@ export function ChatView({
                     window.setTimeout(() => draftInputRef.current?.focus(), 0);
                   },
                   disabled: sendBlocked || simulateMode,
+                },
+                {
+                  key: "note",
+                  label: "Nota para el equipo",
+                  tint: "#001037",
+                  icon: <NoteIcon className="h-6 w-6" />,
+                  onSelect: () => {
+                    setNoteMode(true);
+                    window.setTimeout(() => draftInputRef.current?.focus(), 0);
+                  },
+                  disabled: businessId === "demo",
                 },
                 {
                   key: "template",
@@ -2633,6 +2715,14 @@ function PlusIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </svg>
+  );
+}
+function NoteIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
+      <path d="M13.5 6.5l4 4" />
     </svg>
   );
 }
