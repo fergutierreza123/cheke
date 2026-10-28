@@ -104,8 +104,9 @@ type Broadcast = {
   template: Pick<WhatsAppTemplate, "name" | "language" | "category" | "components">;
   template_values: Record<string, string>;
   name_variable: string | null;
-  channel: TemplateChannel | TemplateChannel[] | null;
+  channel: BroadcastChannel | BroadcastChannel[] | null;
 };
+type BroadcastChannel = TemplateChannel & { reauth_required_at: string | null };
 type Recipient = { id: string; attempts: number; contact_id: string };
 type Contact = { id: string; name: string | null; phone: string | null; marketing_opt_out: boolean };
 
@@ -189,15 +190,21 @@ export async function runBroadcasts(
     .lt("claimed_at", new Date(Date.now() - STUCK_AFTER_MS).toISOString());
   const { data: broadcasts } = await admin
     .from("broadcasts")
-    .select(`id, business_id, template, template_values, name_variable, channel:channels(${TEMPLATE_CHANNEL_COLUMNS})`)
+    .select(`id, business_id, template, template_values, name_variable, channel:channels(${TEMPLATE_CHANNEL_COLUMNS}, reauth_required_at)`)
     .eq("status", "sending")
     .order("created_at")
-    .limit(10);
+    // shortcut: Campañas that can't go out now (number disconnected or
+    // waiting for «Reconectar») are skipped at no cost; past 200 of them at
+    // once, newer ones would wait. Filter them in the query if that happens.
+    .limit(200);
   const room = new Map<string, number>(); // what each Negocio may still send today
 
   for (const b of (broadcasts ?? []) as Broadcast[]) {
+    if (totals.sent + totals.failed >= maxPerRun || Date.now() > deadline) break;
     const channel = Array.isArray(b.channel) ? b.channel[0] : b.channel;
-    if (!channel || channel.status !== "connected") continue;
+    // Meta refused the token: each try would add a failed message to the
+    // customer's chat. It resumes once the number is reconnected.
+    if (!channel || channel.status !== "connected" || channel.reauth_required_at) continue;
     if (!room.has(b.business_id)) {
       const [limit, used] = await Promise.all([fetchDailyLimit(channel), sentLast24h(admin, b.business_id)]);
       room.set(b.business_id, batchSize(limit, used, Number.MAX_SAFE_INTEGER));
