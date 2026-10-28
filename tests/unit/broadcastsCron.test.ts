@@ -78,6 +78,29 @@ describe("runBroadcasts", () => {
     expect(await runBroadcasts(admin(), { maxPerRun: 1 })).toEqual({ sent: 1, failed: 0 });
   });
 
+  // Meta refused the number's token ("Reconectar"): the channel stays
+  // "connected", so each minute used to add one more failed Campaña message
+  // to the same customer's chat until someone reconnected.
+  it("waits while the number needs «Reconectar», without touching the chats", async () => {
+    db.rows("channels")[0].reauth_required_at = hourAgo;
+    expect(await runBroadcasts(admin())).toEqual({ sent: 0, failed: 0 });
+    expect(await runBroadcasts(admin())).toEqual({ sent: 0, failed: 0 });
+    expect(db.rows("messages")).toHaveLength(0);
+    expect(recipients().map((r) => r.status)).toEqual(["pending", "pending", "pending"]);
+    expect(db.rows("broadcasts")[0].status).toBe("sending");
+  });
+
+  // Campañas that can't go out now (number disconnected) stay "sending":
+  // they must not hold up every other Negocio's Campaña.
+  it("a newer Campaña still goes out behind many waiting ones", async () => {
+    const dayAgo = new Date(Date.now() - 86_400_000).toISOString();
+    for (let i = 0; i < 12; i++) {
+      db.rows("channels").push({ id: `off${i}`, business_id: `biz-off${i}`, store_id: "s", type: "whatsapp", status: "disconnected" });
+      db.rows("broadcasts").push({ ...db.rows("broadcasts")[0], id: `old${i}`, business_id: `biz-off${i}`, channel_id: `off${i}`, created_at: dayAgo });
+    }
+    expect(await runBroadcasts(admin())).toEqual({ sent: 3, failed: 0 });
+  });
+
   // Vercel kills a run at 60 s: only the customer being sent may be left
   // "sending", never the rest of the batch.
   it("claims each customer only when it is their turn", async () => {

@@ -46,6 +46,9 @@ async function structuredCall<T>(input: {
   messages: Anthropic.Beta.BetaMessageParam[];
   schema: Record<string, unknown>;
   maxTokens: number;
+  // Per try (one retry). Customer-facing calls run inside a 60 s webhook or
+  // cron: they must give up in time for the fallback (route to a person).
+  timeoutMs?: number;
 }): Promise<{ data?: T; error?: string; usage?: UsageRecord[] }> {
   const anthropic = getClient();
   if (!anthropic) return { error: "Falta configurar ANTHROPIC_API_KEY en el servidor." };
@@ -60,7 +63,7 @@ async function structuredCall<T>(input: {
       system: [{ type: "text", text: input.system, cache_control: { type: "ephemeral" } }],
       messages: input.messages,
       output_config: { effort: EFFORT, format: { type: "json_schema", schema: input.schema } },
-    });
+    }, { timeout: input.timeoutMs ?? 20_000, maxRetries: 1 });
     const usage = usageRecords(response.model, response.usage);
     if (response.stop_reason === "refusal") return { error: "chekelin no pudo responder este mensaje.", usage };
     if (response.stop_reason === "max_tokens") return { error: "La respuesta de chekelin quedó incompleta.", usage };
@@ -593,6 +596,8 @@ export async function proposeTemplates(args: {
     messages: [{ role: "user", content: numbered }],
     schema: SUGGESTIONS_SCHEMA,
     maxTokens: 8000,
+    // Weekly cron with 300 s: no customer is waiting.
+    timeoutMs: 120_000,
   });
   if (!data) return { error: error ?? "chekelin no pudo preparar sugerencias.", usage };
   return { suggestions: data.suggestions ?? [], usage };

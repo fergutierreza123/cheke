@@ -41,6 +41,7 @@ import { EMPTY_CHEKELIN_INFO, type ChannelType, type ChekelinInfo, type Message,
 import { hasStoreLocation, locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
 import { getStoreLocation } from "@/lib/storeLocationServer";
 import { clampTeamSummary, FALTA_INFO_LABEL, withMention } from "@/lib/conversationNotes";
+import { isLiveChannel } from "@/lib/modoPrueba";
 
 // chekelin sells on its own (answers, photos, order, payment details,
 // receipt), hands the chat to a person when it should (Traspaso), handles
@@ -934,7 +935,8 @@ async function runDue(supabase: Admin, item: Due): Promise<void> {
       });
       await recordChekelinUsage(
         supabase,
-        { businessId: conv.businessId, storeId: conv.storeId, conversationId: conv.id, kind: "simple_fact" },
+        // A sample chat or the demo Negocio (modo prueba): not a real customer.
+        { businessId: conv.businessId, storeId: conv.storeId, conversationId: conv.id, kind: "simple_fact", test: conv.isDemo || !isLiveChannel(conv.channel) },
         usage,
       );
       if (decision?.simpleFact && decision.reply) {
