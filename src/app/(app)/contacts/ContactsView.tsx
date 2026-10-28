@@ -118,7 +118,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                   key={tag}
                   aria-pressed={on}
                   onClick={() => setPickedTags(on ? activeTags.filter((t) => t !== tag) : [...activeTags, tag])}
-                  className="chip"
+                  className="chip min-h-10 lg:min-h-0"
                 >
                   {tag}
                 </button>
@@ -229,7 +229,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
               transition={
                 prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }
               }
-              className="fixed right-0 top-0 z-20 flex h-full w-full flex-col sm:w-[380px] gap-5 overflow-y-auto bg-surface p-6 shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
+              className="fixed right-0 top-0 z-20 flex h-full w-full flex-col sm:w-[380px] gap-5 overflow-y-auto bg-surface p-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -255,14 +255,14 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                         notes: selected.notes ?? "",
                       })
                     }
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-brand-dark"
+                    className="flex h-10 w-10 lg:h-7 lg:w-7 items-center justify-center rounded-lg bg-surface-2 text-brand-dark"
                   >
                     <EditIcon className="h-3.5 w-3.5" />
                   </button>
                   <button
                     aria-label="Cerrar"
                     onClick={() => setSelectedId(null)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+                    className="flex h-10 w-10 lg:h-7 lg:w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
                   </button>
@@ -319,7 +319,7 @@ export function ContactsView({ contacts }: { contacts: Contact[] }) {
                     type="button"
                     aria-label="Cerrar"
                     onClick={() => closeDraft()}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+                    className="flex h-10 w-10 lg:h-7 lg:w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
                   </button>

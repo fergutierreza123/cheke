@@ -422,7 +422,7 @@ export function ChekeoView({
               animate={{ x: 0, opacity: 1 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { x: 24, opacity: 0 }}
               transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.35 }}
-              className="fixed right-0 top-0 z-20 flex h-full w-full flex-col sm:w-[380px] sm:max-w-[calc(100vw-32px)] gap-5 overflow-y-auto bg-surface p-6 shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
+              className="fixed right-0 top-0 z-20 flex h-full w-full flex-col sm:w-[380px] sm:max-w-[calc(100vw-32px)] gap-5 overflow-y-auto bg-surface p-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[-12px_0_32px_rgba(0,0,0,0.14)]"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -439,7 +439,7 @@ export function ChekeoView({
                 <button
                   aria-label="Cerrar"
                   onClick={() => setSelectedId(null)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+                  className="flex h-10 w-10 lg:h-7 lg:w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                 >
                   <CloseIcon className="h-3.5 w-3.5" />
                 </button>
@@ -539,7 +539,7 @@ export function ChekeoView({
                       setLeadError(null);
                       setDraft(null);
                     }}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+                    className="flex h-10 w-10 lg:h-7 lg:w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
                   </button>
@@ -757,7 +757,7 @@ function StageChip({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className="chip h-9"
+      className="chip h-10"
     >
       {color && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />}
       {label}

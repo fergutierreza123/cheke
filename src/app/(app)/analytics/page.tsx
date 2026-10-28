@@ -13,8 +13,11 @@ export default async function AnalyticsPage() {
   // Per-person sales only once conversations are actually assigned to
   // someone (assignment comes later); until then the section stays hidden.
   const assigned = conversations.some((c) => c.assigned_to);
+  // Agentes only see their own sales, as in "Tiempo de primera respuesta".
   const people = assigned
-    ? (await getTeamMembers(business.id)).map((m) => ({ id: m.user_id, name: m.name || m.email }))
+    ? (await getTeamMembers(business.id))
+        .filter((m) => business.role !== "agent" || m.user_id === business.userId)
+        .map((m) => ({ id: m.user_id, name: m.name || m.email }))
     : [];
 
   return (

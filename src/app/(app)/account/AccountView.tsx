@@ -143,7 +143,7 @@ export function AccountView({
               href={demo ? "#" : "/team"}
               className="flex items-center justify-between px-5 py-3.5 text-[13.5px] font-semibold text-brand hover:bg-surface-2"
             >
-              Ver mi equipo e invitar personas
+              {business.role === "agent" ? "Ver mi equipo" : "Ver mi equipo e invitar personas"}
               <span aria-hidden>›</span>
             </Link>
             {storesLink && !demo && (

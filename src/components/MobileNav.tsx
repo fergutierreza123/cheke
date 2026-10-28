@@ -93,7 +93,7 @@ export function MobileNav({
               animate={prefersReducedMotion ? { opacity: 1 } : { y: 0 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { y: "100%" }}
               transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", bounce: 0, duration: 0.4 }}
-              className="fixed inset-x-0 bottom-0 z-50 rounded-t-[20px] bg-brand-dark px-2 pt-3 lg:hidden"
+              className="fixed inset-x-0 bottom-0 z-50 max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_12px)] overflow-y-auto rounded-t-[20px] bg-brand-dark px-2 pt-3 lg:hidden"
               style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
             >
               <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-white/20" />
