@@ -71,7 +71,8 @@ export default async function ChatPage({
     (storeRows ?? []).filter((s) => locations[s.id]).map((s) => [s.id, { name: s.name, location: locations[s.id] }]),
   );
   const requested = c && conversations.some((conv) => conv.id === c) ? c : null;
-  const firstId = requested ?? conversations[0]?.id ?? null;
+  // Never a chat marked «Listo»: it isn't on the list, so nothing would look selected.
+  const firstId = requested ?? conversations.find((conv) => conv.status !== "closed")?.id ?? null;
   const initialMessages = firstId ? await getMessages(firstId) : [];
 
   return (

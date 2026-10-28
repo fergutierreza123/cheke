@@ -55,10 +55,20 @@ export function insertMention(draft: string, name: string): string {
   return draft.replace(/@[^@\n]{0,30}$/, `@${name} `);
 }
 
-// Who a note mentions: everyone whose "@Name" appears in it.
+// Who a note mentions: everyone whose "@Name" appears in it as a whole name.
+// Longest names first, so "@Juana" isn't Juan and "@Ana López" isn't Ana.
 export function mentionedIds(text: string, people: { userId: string; name: string }[]): string[] {
-  const lower = text.toLowerCase();
-  return people.filter((p) => p.name && lower.includes(`@${p.name.toLowerCase()}`)).map((p) => p.userId);
+  let rest = text.toLowerCase();
+  const found = new Set<string>();
+  for (const p of [...people].sort((a, b) => b.name.length - a.name.length)) {
+    if (!p.name) continue;
+    const name = p.name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const at = new RegExp(`@${name}(?![\\p{L}\\p{N}])`, "gu");
+    if (!at.test(rest)) continue;
+    found.add(p.userId);
+    rest = rest.replace(at, " ");
+  }
+  return people.filter((p) => found.has(p.userId)).map((p) => p.userId);
 }
 
 // What the strip shows: one note in front, the rest behind "+N" (newest
