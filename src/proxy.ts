@@ -66,8 +66,10 @@ export async function proxy(request: NextRequest) {
     return redirect;
   }
 
-  // Signed in: everyone lands on Chat (web and phone app alike).
-  if (user && pathname === "/login") {
+  // Signed in: everyone lands on Chat (web and phone app alike). Only when
+  // the page is opened: right after a code is verified, finishSignIn (a
+  // POST to /login) must run here, or the login hangs on "Entrando…".
+  if (user && pathname === "/login" && request.method === "GET") {
     const url = request.nextUrl.clone();
     url.pathname = NATIVE_APP_HOME;
     return NextResponse.redirect(url);
