@@ -10,6 +10,7 @@ import {
   simulateInboundMessage,
   sendPaymentRequest,
   listOpenOrders,
+  listContactPurchases,
   resolveOrder,
   reassignConversation,
   listConversationNotes,
@@ -19,8 +20,10 @@ import {
   retryMessage,
   markConversationRead,
   sendStoreLocation,
+  setConversationClosed,
   type OpenOrder,
 } from "./actions";
+import { inUnrepliedFilter, lastMessagePrefix } from "@/lib/chatList";
 import { setChekelinOff } from "../actions";
 import {
   CHEKELIN_OFF_OPTIONS,
@@ -37,7 +40,7 @@ import { CameraIcon, ClipIcon, PhotoIcon, useComposerMedia, type MediaSendResult
 import { AttachSheet } from "./AttachSheet";
 import { NoteComposerBar, NoteStrip } from "./NoteStrip";
 import { useMentionPicker } from "./MentionPicker";
-import { mentionedIds, noteMarker } from "@/lib/conversationNotes";
+import { mentionedIds, noteMarker, noteStrip } from "@/lib/conversationNotes";
 import { WhatsAppTemplateSender } from "./WhatsAppTemplateSender";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
@@ -58,7 +61,7 @@ const CHEKELIN_STATE_HINT: Record<ChekelinChatState, string> = {
   paused: "chekelin está pausado en este chat. Toca para que vuelva a atender.",
   off: "chekelin está apagado en esta tienda.",
 };
-import { parseAmount, formatAmount, orderConcept, type OrderItem } from "@/lib/payments";
+import { parseAmount, formatAmount, orderConcept, PURCHASE_STATUS_LABEL, type OrderItem, type PastPurchase } from "@/lib/payments";
 import { initialsFor, relativeTime, formatLempiras, formatMessageTime, CHANNEL_META, STAGE_META, STAGE_ORDER } from "@/lib/format";
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { MessageMedia, mediaReplacesBody } from "./MessageMedia";
@@ -178,6 +181,14 @@ export function ChatView({
   const [storeFilter, setStoreFilter] = useState<string | "all">("all");
   // "No leídos": only chats with messages nobody on the team has opened.
   const [unreadOnly, setUnreadOnly] = useState(false);
+  // «Míos» (2+ people only): chats assigned to me. An Agente starts there.
+  const [mineOnly, setMineOnly] = useState(
+    () => showAssignment && people.find((p) => p.userId === currentUserId)?.role === "agent",
+  );
+  // «Sin responder»: the customer wrote last and nobody answered yet.
+  const [unrepliedOnly, setUnrepliedOnly] = useState(false);
+  // «Ver chats cerrados»: the list shows only the chats marked «Listo».
+  const [showClosed, setShowClosed] = useState(false);
   // The chat tapped in the list: stays under "No leídos" while it's read.
   const [openedId, setOpenedId] = useState<string | null>(null);
   // "Ubicación" picked in the "+" sheet: a preview to confirm before it goes.
@@ -237,6 +248,15 @@ export function ChatView({
   // list — unless it was opened for one conversation (a tapped notification).
   const [mobileView, setMobileView] = useState<"list" | "thread">(startInThread ? "thread" : "list");
   const [showDetail, setShowDetail] = useState(false);
+  // The contact panel's past purchases (paid / delivered orders), per contact.
+  const [purchasesByContact, setPurchasesByContact] = useState<
+    Record<string, { count: number; totalHnl: number; purchases: PastPurchase[] }>
+  >({});
+  // "Ver más": the contact whose full purchase list is showing.
+  const [allPurchasesFor, setAllPurchasesFor] = useState<string | null>(null);
+  // The conversation whose team notes sheet is open (from the note line or the
+  // contact panel); switching chats closes it.
+  const [notesOpenFor, setNotesOpenFor] = useState<string | null>(null);
   // The failed message whose reason is expanded (tap "No entregado").
   const [openFailureId, setOpenFailureId] = useState<string | null>(null);
   // The failed message being sent again ("Reintentar").
@@ -486,6 +506,8 @@ export function ChatView({
   const assignable = selected ? people.filter((p) => p.storeIds.includes(selected.store_id)) : [];
   const canReassign = Boolean(selectedStore?.canManage) && assignable.length > 1;
   const selectedNotes = (selectedId && notesByConversation[selectedId]) || NO_NOTES;
+  // What the note line shows; null when there's nothing to open.
+  const teamNotes = noteStrip(selectedNotes, { complaintOpen });
   // An open Queja normally comes with its note (shown in NoteStrip); older
   // ones without it still get their own row.
   const complaintWithoutNote = complaintOpen && !selectedNotes.some((n) => n.kind === "complaint");
@@ -570,6 +592,21 @@ export function ChatView({
     };
   }, [selectedId, businessId]);
 
+  // Past purchases, loaded when the contact panel opens.
+  const detailContactId = showDetail ? selected?.contact_id : undefined;
+  useEffect(() => {
+    if (!detailContactId || businessId === "demo") return;
+    let cancelled = false;
+    listContactPurchases(detailContactId)
+      .then((summary) => {
+        if (!cancelled) setPurchasesByContact((prev) => ({ ...prev, [detailContactId]: summary }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [detailContactId, businessId]);
+
   function appendMessage(msg: Message) {
     setMessagesByConversation((prev) => {
       // A conversation that was never opened has no history loaded; adding
@@ -603,11 +640,13 @@ export function ChatView({
     });
   }
 
-  function bumpConversation(conversationId: string, lastMessageAt: string, body: string | null) {
+  function bumpConversation(msg: Message) {
     setConversations((prev) =>
       [...prev]
         .map((c) =>
-          c.id === conversationId ? { ...c, last_message_at: lastMessageAt, last_message_body: body } : c,
+          c.id === msg.conversation_id
+            ? { ...c, last_message_at: msg.created_at, last_message_body: msg.body, last_message: msg }
+            : c,
         )
         .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? "")),
     );
@@ -644,7 +683,7 @@ export function ChatView({
           if (msg.store_id && !storeIdsRef.current.includes(msg.store_id)) return;
           appendMessage(msg);
           if (knownConversationIds.current.has(msg.conversation_id)) {
-            bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+            bumpConversation(msg);
             setConversations((prev) =>
               prev.map((c) =>
                 c.id === msg.conversation_id ? { ...c, unread_count: unreadAfterMessage(c.unread_count ?? 0, msg) } : c,
@@ -671,6 +710,7 @@ export function ChatView({
                   contact,
                   channel: chan ?? null,
                   last_message_body: msg.body,
+                  last_message: msg,
                   unread_count: countUnread([msg]),
                 } as ConversationWithContact;
                 setConversations((prev) =>
@@ -713,6 +753,8 @@ export function ChatView({
                     handed_off_at: row.handed_off_at,
                     chekelin_replies: row.chekelin_replies,
                     awaiting_since: row.awaiting_since,
+                    // «Listo», and reopened when the customer writes (0045).
+                    status: row.status ?? c.status,
                     complaint_open_at: row.complaint_open_at ?? null,
                     stage: row.stage ?? c.stage,
                     // Saved by the webhook right after the chat's first message.
@@ -835,10 +877,19 @@ export function ChatView({
       const matchesQuery = !q || c.contact.name.toLowerCase().includes(q);
       const matchesStore = storeFilter === "all" || c.store_id === storeFilter;
       const matchesUnread = !unreadOnly || inUnreadFilter(c, openedId);
-      return matchesChannel && matchesQuery && matchesStore && matchesUnread;
+      const matchesMine = !mineOnly || c.assigned_to === currentUserId;
+      const matchesUnreplied =
+        !unrepliedOnly || inUnrepliedFilter(c, messagesByConversation[c.id]?.at(-1) ?? c.last_message, openedId);
+      const matchesStatus = showClosed === (c.status === "closed");
+      return matchesChannel && matchesQuery && matchesStore && matchesUnread && matchesMine && matchesUnreplied && matchesStatus;
     });
-  }, [conversations, query, channelFilter, storeFilter, unreadOnly, openedId]);
-  const unreadChats = conversations.filter((c) => (c.unread_count ?? 0) > 0).length;
+  }, [conversations, query, channelFilter, storeFilter, unreadOnly, mineOnly, unrepliedOnly, showClosed, openedId, currentUserId, messagesByConversation]);
+  const openChats = conversations.filter((c) => c.status !== "closed");
+  const unreadChats = openChats.filter((c) => (c.unread_count ?? 0) > 0).length;
+  const unrepliedChats = openChats.filter((c) =>
+    inUnrepliedFilter(c, messagesByConversation[c.id]?.at(-1) ?? c.last_message, null),
+  ).length;
+  const closedChats = conversations.length - openChats.length;
 
   // Each Tienda has its own catalog: offer the open conversation's.
   const storeProducts = selected ? products.filter((p) => p.store_id === selected.store_id) : products;
@@ -925,14 +976,14 @@ export function ChatView({
         const result = await simulateInboundMessage(selected.id, text);
         if (result.inbound) {
           appendMessage(result.inbound);
-          bumpConversation(selected.id, result.inbound.created_at, result.inbound.body);
+          bumpConversation(result.inbound);
           // The "customer" wrote: the reply window is open again (server too).
           const reopened = new Date(Date.now() + DAY_MS).toISOString();
           setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, window_expires_at: reopened } : c)));
         }
         if (result.reply) {
           appendMessage(result.reply);
-          bumpConversation(selected.id, result.reply.created_at, result.reply.body);
+          bumpConversation(result.reply);
         }
         if (result.error && !result.inbound) {
           // The test message wasn't saved (real customer's chat, archived
@@ -952,7 +1003,7 @@ export function ChatView({
 
     if (result.message) {
       appendMessage(result.message);
-      bumpConversation(selected.id, result.message.created_at, result.message.body);
+      bumpConversation(result.message);
     }
     if (result.message) {
       // A person replied: chekelin goes silent and an unassigned chat is
@@ -981,10 +1032,10 @@ export function ChatView({
     if (msg && msg.direction === "in") {
       // Modo prueba: the sample customer's file, and chekelin's answer.
       appendMessage(msg);
-      bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+      bumpConversation(msg);
       if (result.reply) {
         appendMessage(result.reply);
-        bumpConversation(result.reply.conversation_id, result.reply.created_at, result.reply.body);
+        bumpConversation(result.reply);
       }
       setConversations((prev) =>
         prev.map((c) => (c.id === msg.conversation_id ? { ...c, window_expires_at: new Date(Date.now() + DAY_MS).toISOString() } : c)),
@@ -994,7 +1045,7 @@ export function ChatView({
     }
     if (msg) {
       appendMessage(msg);
-      bumpConversation(msg.conversation_id, msg.created_at, msg.body);
+      bumpConversation(msg);
       setConversations((prev) =>
         prev.map((c) =>
           c.id === msg.conversation_id
@@ -1097,6 +1148,34 @@ export function ChatView({
     }
   }
 
+  // «Listo»: the chat leaves the list until the customer writes again;
+  // «Reabrir» (from «Ver chats cerrados») undoes it.
+  async function handleSetClosed(closed: boolean) {
+    if (!selected) return;
+    const id = selected.id;
+    const previous = { status: selected.status, awaiting_since: selected.awaiting_since };
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, status: closed ? "closed" : "open", awaiting_since: closed ? null : c.awaiting_since } : c)),
+    );
+    if (closed) {
+      showToast("Listo. Vuelve a la lista si el cliente escribe.");
+      // Phones: done with this chat, back to the list (like WhatsApp's archive).
+      setMobileView("list");
+      setOpenedId(null);
+    }
+    if (businessId === "demo") return;
+    let error: string | undefined;
+    try {
+      error = (await setConversationClosed(id, closed)).error;
+    } catch {
+      error = "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.";
+    }
+    if (error) {
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...previous } : c)));
+      setSendError(error);
+    }
+  }
+
   // Per-conversation pause. Turning it back on makes chekelin the first
   // responder here again.
   async function handleToggleBot() {
@@ -1179,7 +1258,7 @@ export function ChatView({
       });
       if (result.message) {
         appendMessage(result.message);
-        bumpConversation(selected.id, result.message.created_at, result.message.body);
+        bumpConversation(result.message);
       }
       if (result.order) {
         const order = result.order;
@@ -1310,14 +1389,58 @@ export function ChatView({
                 </span>
               )}
             </button>
+            {showAssignment && (
+              <button
+                onClick={() => {
+                  setMineOnly((v) => !v);
+                  setOpenedId(null);
+                }}
+                aria-pressed={mineOnly}
+                className="chip"
+              >
+                Míos
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setUnrepliedOnly((v) => !v);
+                setOpenedId(null);
+              }}
+              aria-pressed={unrepliedOnly}
+              className="chip"
+            >
+              Sin responder
+              {unrepliedChats > 0 && (
+                <span className="min-w-[18px] rounded-full bg-accent px-1 text-center text-[11px] leading-[18px] text-brand-dark">
+                  {unrepliedChats > 99 ? "99+" : unrepliedChats}
+                </span>
+              )}
+            </button>
           </div>
           {storeNames && <StoreFilter storeNames={storeNames} value={storeFilter} onChange={setStoreFilter} className="mt-2" />}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
+          {showClosed && (
+            <div className="flex items-center gap-2 border-b border-border bg-surface-2 px-4.5 py-2 text-[12.5px]">
+              <span className="min-w-0 flex-1 text-ink-muted">Cerrados · vuelven solos si el cliente escribe</span>
+              <button
+                onClick={() => {
+                  setShowClosed(false);
+                  setOpenedId(null);
+                }}
+                className="min-h-8 shrink-0 font-semibold text-brand"
+              >
+                Volver
+              </button>
+            </div>
+          )}
           {filtered.map((c) => {
-            const lastBody = messagesByConversation[c.id]?.at(-1)?.body ?? c.last_message_body;
+            const loadedLast = messagesByConversation[c.id]?.at(-1);
+            const lastBody = loadedLast?.body ?? c.last_message_body;
+            const prefix = lastMessagePrefix(loadedLast ?? c.last_message, currentUserId, people);
             const badge = unreadBadge(c.unread_count ?? 0);
+            const rowAssignee = showAssignment ? people.find((p) => p.userId === c.assigned_to) : undefined;
             return (
               <button
                 key={c.id}
@@ -1360,10 +1483,19 @@ export function ChatView({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className={`min-w-0 flex-1 truncate text-[12.5px] ${badge ? "font-medium text-ink" : "text-ink-muted"}`}>
-                      {lastBody ?? ""}
+                      {lastBody ? prefix + lastBody : ""}
                     </div>
                     {c.complaint_open_at && <ComplaintTag />}
                     {storeNames && <StoreTag name={storeNames[c.store_id]} />}
+                    {rowAssignee && (
+                      <span
+                        title={`Lo atiende ${rowAssignee.name}`}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[9.5px] font-bold text-ink-muted"
+                      >
+                        {initialsFor(rowAssignee.name)}
+                        <span className="sr-only">, lo atiende {rowAssignee.name}</span>
+                      </span>
+                    )}
                     {badge && (
                       <span className="min-w-5 shrink-0 rounded-full bg-accent px-1.5 text-center text-[11px] font-bold leading-5 text-brand-dark">
                         {badge}
@@ -1377,8 +1509,30 @@ export function ChatView({
           })}
           {filtered.length === 0 && (
             <div className="px-4.5 py-8 text-center text-[13px] text-ink-soft">
-              {unreadOnly && !query.trim() ? "Estás al día: no hay chats sin leer." : "Sin resultados."}
+              {query.trim()
+                ? "Sin resultados."
+                : showClosed
+                  ? "No hay chats cerrados."
+                  : unrepliedOnly
+                    ? "Estás al día: nadie espera respuesta."
+                    : unreadOnly
+                      ? "Estás al día: no hay chats sin leer."
+                      : mineOnly
+                        ? "No tienes chats asignados."
+                        : "Sin resultados."}
             </div>
+          )}
+          {/* «Listo» takes a chat off the list; this is the way back to them. */}
+          {!showClosed && closedChats > 0 && (
+            <button
+              onClick={() => {
+                setShowClosed(true);
+                setOpenedId(null);
+              }}
+              className="min-h-11 w-full px-4.5 py-3 text-center text-[12.5px] font-semibold text-brand hover:bg-surface-2"
+            >
+              Ver chats cerrados ({closedChats})
+            </button>
           )}
         </div>
       </div>
@@ -1518,6 +1672,18 @@ export function ChatView({
                   the stage picker used to live only inside this panel,
                   which buried a very common action two clicks deep. */}
               <button
+                onClick={() => handleSetClosed(selected.status !== "closed")}
+                title={
+                  selected.status === "closed"
+                    ? "Volver a poner este chat en la lista"
+                    : "Sacar este chat de la lista hasta que el cliente vuelva a escribir"
+                }
+                className="flex h-9 shrink-0 items-center rounded-lg border border-border bg-surface-2 px-3 text-[12.5px] font-semibold text-ink transition-colors hover:bg-surface-3 lg:h-[30px]"
+              >
+                {selected.status === "closed" ? "Reabrir" : "Listo"}
+              </button>
+
+              <button
                 onClick={() => setShowDetail(true)}
                 title="Ver detalles del contacto"
                 aria-label="Ver detalles del contacto"
@@ -1597,6 +1763,8 @@ export function ChatView({
               me={people.find((p) => p.userId === currentUserId) ?? null}
               complaintOpen={complaintOpen}
               onResolveComplaint={selectedStore?.canManage ? handleResolveComplaint : undefined}
+              open={notesOpenFor === selected.id}
+              onOpenChange={(open) => setNotesOpenFor(open ? selected.id : null)}
             />
 
             {/* Looks and reads like WhatsApp on purpose, so clients moving their
@@ -2417,7 +2585,21 @@ export function ChatView({
                     )}
                   </div>
                 )}
+                <div>
+                  Lo atiende{" "}
+                  <span className="font-semibold text-ink">
+                    {chatState === "active" ? "chekelin" : (assignee?.name ?? "Nadie todavía")}
+                  </span>
+                </div>
               </div>
+
+              {businessId !== "demo" && (
+                <PurchaseHistory
+                  summary={purchasesByContact[selected.contact_id]}
+                  showAll={allPurchasesFor === selected.contact_id}
+                  onShowAll={() => setAllPurchasesFor(selected.contact_id)}
+                />
+              )}
 
               <ContactTags
                 key={selected.contact.id}
@@ -2436,6 +2618,21 @@ export function ChatView({
                 <div className="rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink">
                   {selected.contact.notes || "Sin notas todavía."}
                 </div>
+                {/* Opens the same sheet as the note line above the thread. */}
+                {teamNotes && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDetail(false);
+                      setNotesOpenFor(selected.id);
+                    }}
+                    aria-haspopup="dialog"
+                    className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[12.5px] font-semibold text-brand hover:bg-surface-2"
+                  >
+                    <NoteIcon className="h-3.5 w-3.5" />
+                    Ver notas del equipo ({teamNotes.rest.length + 1})
+                  </button>
+                )}
               </div>
             </motion.div>
           </>
@@ -2548,6 +2745,61 @@ function ChekelinStoreSwitch({
 
 // The red "Queja" tag: an open complaint (chekelin silent until resolved).
 const NO_NOTES: ConversationNote[] = [];
+
+// Contact panel: what the customer has bought (paid or delivered orders), like
+// Contactos' "compras totales / pedidos" tiles and "Historial de compras".
+function PurchaseHistory({
+  summary,
+  showAll,
+  onShowAll,
+}: {
+  summary?: { count: number; totalHnl: number; purchases: PastPurchase[] };
+  showAll: boolean;
+  onShowAll: () => void;
+}) {
+  if (!summary) return null;
+  const shown = showAll ? summary.purchases : summary.purchases.slice(0, 3);
+  return (
+    <div>
+      <div className="mb-1.5 text-xs uppercase tracking-wide text-ink-muted">Compras</div>
+      {summary.count === 0 ? (
+        <div className="text-[13px] text-ink-muted">Todavía no ha comprado.</div>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <div className="flex-1 rounded-[10px] bg-brand-tint px-3 py-2 text-center">
+              <div className="font-heading text-[16px] font-bold text-brand-dark">{formatLempiras(summary.totalHnl)}</div>
+              <div className="text-[11px] text-ink-muted">compras totales</div>
+            </div>
+            <div className="flex-1 rounded-[10px] bg-surface-2 px-3 py-2 text-center">
+              <div className="font-heading text-[16px] font-bold text-ink">{summary.count}</div>
+              <div className="text-[11px] text-ink-muted">{summary.count === 1 ? "pedido" : "pedidos"}</div>
+            </div>
+          </div>
+          <ul className="mt-1.5 divide-y divide-border">
+            {shown.map((p) => (
+              <li key={p.id} className="flex items-baseline gap-1.5 py-1.5 text-[12.5px]">
+                <span className="shrink-0 text-ink-muted">
+                  {new Date(p.created_at).toLocaleDateString("es-HN", { day: "numeric", month: "short", year: "2-digit" })}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-ink" title={p.concept}>
+                  {p.concept || "Pedido"}
+                </span>
+                <span className="shrink-0 font-semibold text-ink">{formatLempiras(p.total_hnl)}</span>
+                <span className="shrink-0 text-[11.5px] text-ink-soft">{PURCHASE_STATUS_LABEL[p.status]}</span>
+              </li>
+            ))}
+          </ul>
+          {!showAll && summary.count > 3 && (
+            <button type="button" onClick={onShowAll} className="mt-1 text-[12.5px] font-semibold text-brand">
+              Ver más ({summary.count - 3})
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 function ComplaintTag() {
   return (

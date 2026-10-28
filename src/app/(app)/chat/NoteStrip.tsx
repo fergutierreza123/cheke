@@ -16,7 +16,12 @@ export function NoteStrip({
   onResolveComplaint,
   authorNames = {},
   me = null,
+  open: openProp,
+  onOpenChange,
 }: {
+  // Optional: lets the contact panel open the same sheet ("Ver notas del equipo").
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   notes: ConversationNote[];
   // A person's Nota shows who wrote it.
   authorNames?: Record<string, string>;
@@ -26,7 +31,9 @@ export function NoteStrip({
   // The person looking: notes that @mention them get a badge.
   me?: { userId: string; name: string } | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openLocal, setOpenLocal] = useState(false);
+  const open = openProp ?? openLocal;
+  const setOpen = onOpenChange ?? setOpenLocal;
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -36,7 +43,7 @@ export function NoteStrip({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, setOpen]);
 
   const strip = noteStrip(notes, { complaintOpen });
   if (!strip) return null;

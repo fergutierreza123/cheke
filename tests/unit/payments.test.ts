@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildPaymentMessage, formatAmount, normalizePaymentLink, orderConcept, parseAmount } from "@/lib/payments";
+import { buildPaymentMessage, formatAmount, normalizePaymentLink, orderConcept, parseAmount, purchaseSummary } from "@/lib/payments";
 import { recordPaymentRequest } from "@/lib/orders";
 
 describe("parseAmount", () => {
@@ -123,5 +123,33 @@ describe("recordPaymentRequest", () => {
     const { client, calls } = fakeSupabase({ orders: { data: null, error: { message: "rls" } } });
     expect(await recordPaymentRequest(client, input)).toBeNull();
     expect(calls.some((c) => c.table === "conversations")).toBe(false);
+  });
+});
+
+describe("purchaseSummary", () => {
+  const order = (id: string, created_at: string, total_hnl: number | string, status: string) => ({
+    id,
+    created_at,
+    total_hnl,
+    status,
+    items: [{ name: "Blusa", quantity: 2, price_hnl: 1 }],
+  });
+
+  it("counts only paid and delivered orders, newest first, summed in cents", () => {
+    const s = purchaseSummary([
+      order("a", "2026-01-01T00:00:00Z", 0.1, "paid"),
+      order("b", "2026-03-01T00:00:00Z", "0.2", "delivered"),
+      order("c", "2026-04-01T00:00:00Z", 999, "awaiting_payment"),
+      order("d", "2026-05-01T00:00:00Z", 999, "cancelled"),
+    ]);
+    expect(s.count).toBe(2);
+    expect(s.totalHnl).toBe(0.3);
+    expect(s.purchases.map((p) => p.id)).toEqual(["b", "a"]);
+    expect(s.purchases[0]).toMatchObject({ concept: "Blusa x2", total_hnl: 0.2, status: "delivered" });
+  });
+
+  it("is empty with no purchases and tolerates bad items", () => {
+    expect(purchaseSummary([])).toEqual({ count: 0, totalHnl: 0, purchases: [] });
+    expect(purchaseSummary([{ ...order("x", "2026-01-01", 50, "paid"), items: null }]).purchases[0].concept).toBe("");
   });
 });

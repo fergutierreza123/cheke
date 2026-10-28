@@ -19,7 +19,7 @@ import { getTeamMembers } from "@/lib/team";
 import { displayNameOf } from "@/lib/chekelinState";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ARCHIVED_STORE_READ_ONLY, canManageStore, canWriteToStore, getCurrentBusiness, isArchivedStore } from "@/lib/business";
-import { buildPaymentMessage, normalizePaymentLink, orderConcept, type OrderItem } from "@/lib/payments";
+import { buildPaymentMessage, normalizePaymentLink, orderConcept, purchaseSummary, type OrderItem } from "@/lib/payments";
 import { recordPaymentRequest } from "@/lib/orders";
 import type { ConversationNote, Message } from "@/lib/types";
 // Images sent to customers must come from our own storage.
@@ -501,6 +501,24 @@ export async function reassignConversation(conversationId: string, userId: strin
   return {};
 }
 
+// «Listo»: the chat leaves the list until the customer writes again (the
+// database reopens it, migration 0045). Anyone who works in the Tienda can
+// close or reopen; closing also stops the "esperando respuesta" timers.
+export async function setConversationClosed(conversationId: string, closed: boolean): Promise<{ error?: string }> {
+  const business = await getCurrentBusiness();
+  if (!business) return { error: "No se encontró el negocio." };
+  const supabase = await createClient();
+  const { data: conversation } = await supabase.from("conversations").select("id, store_id").eq("id", conversationId).maybeSingle();
+  if (!conversation) return { error: "No se encontró la conversación." };
+  if (!canWriteToStore(business, conversation.store_id)) return { error: ARCHIVED_STORE_READ_ONLY };
+  const { error } = await supabase
+    .from("conversations")
+    .update(closed ? { status: "closed", awaiting_since: null, escalated_at: null } : { status: "open" })
+    .eq("id", conversationId);
+  if (error) return { error: friendlyError(error, "No se pudo guardar. Inténtalo de nuevo.") };
+  return {};
+}
+
 // The team-only notes of a conversation (chekelin's Traspaso summary).
 export async function listConversationNotes(conversationId: string): Promise<ConversationNote[]> {
   const supabase = await createClient();
@@ -587,6 +605,19 @@ export type OpenOrder = {
   // The customer sent a receipt / said they paid: waiting for "Confirmar pago".
   receipt_at?: string | null;
 };
+
+// A contact's past purchases for the contact panel. Signed-in client, so RLS
+// limits it to the Tiendas this person works in (an Agente sees only theirs).
+// shortcut: reads every paid/delivered order of the contact; add a SQL sum if a contact gets thousands.
+export async function listContactPurchases(contactId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("orders")
+    .select("id, created_at, items, total_hnl, status")
+    .eq("contact_id", contactId)
+    .in("status", ["paid", "delivered"]);
+  return purchaseSummary(data ?? []);
+}
 
 // Orders waiting on payment for one conversation (shown above the composer).
 export async function listOpenOrders(conversationId: string): Promise<OpenOrder[]> {
