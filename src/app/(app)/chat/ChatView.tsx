@@ -40,7 +40,7 @@ import { CameraIcon, ClipIcon, PhotoIcon, useComposerMedia, type MediaSendResult
 import { AttachSheet } from "./AttachSheet";
 import { NoteComposerBar, NoteStrip } from "./NoteStrip";
 import { useMentionPicker } from "./MentionPicker";
-import { mentionedIds, noteStrip } from "@/lib/conversationNotes";
+import { mentionedIds, noteMarker, noteStrip } from "@/lib/conversationNotes";
 import { WhatsAppTemplateSender } from "./WhatsAppTemplateSender";
 
 export type ChatPerson = { userId: string; name: string; role: Role; away: boolean; storeIds: string[] };
@@ -511,6 +511,21 @@ export function ChatView({
   // An open Queja normally comes with its note (shown in NoteStrip); older
   // ones without it still get their own row.
   const complaintWithoutNote = complaintOpen && !selectedNotes.some((n) => n.kind === "complaint");
+  // Traspaso / Queja as a grey line in the thread, after `after` and up to `until`.
+  const threadMarkers = (after: string, until: string | null) => {
+    const from = Date.parse(after);
+    const to = until ? Date.parse(until) : Infinity;
+    return [...selectedNotes]
+      .filter((n) => Date.parse(n.created_at) > from && Date.parse(n.created_at) <= to)
+      .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
+      .map((n) => ({ id: n.id, text: noteMarker(n, people) }))
+      .filter((x): x is { id: string; text: string } => Boolean(x.text))
+      .map((x) => (
+        <div key={x.id} role="note" className="my-1.5 max-w-full self-center truncate px-2 text-[11.5px] text-[#667781]">
+          {x.text}
+        </div>
+      ));
+  };
   // Automated messages say who wrote them: chekelin, or (plans without it)
   // a plain automatic message.
   const botLabel = chekelinAvailable ? "chekelin" : "Mensaje automático";
@@ -1804,6 +1819,7 @@ export function ChatView({
                         {dayLabel(m.created_at, now)}
                       </div>
                     )}
+                    {prev && threadMarkers(prev.created_at, m.created_at)}
                     {m.is_bot && !(prev && prev.is_bot && prev.source === m.source && !newDay) && (
                       <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">
                         {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
@@ -1920,6 +1936,7 @@ export function ChatView({
                   </div>
                 );
               })}
+              {messages.length > 0 && threadMarkers(messages[messages.length - 1].created_at, null)}
               {botTyping && (
                 <div className="mt-2 flex flex-col items-end">
                   <div className="mb-0.5 flex items-center gap-1 px-1 text-[11px] font-semibold text-brand-dark">

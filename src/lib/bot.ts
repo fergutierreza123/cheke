@@ -40,7 +40,7 @@ import { waitForVoiceTranscription } from "@/lib/voiceTranscription";
 import { EMPTY_CHEKELIN_INFO, type ChannelType, type ChekelinInfo, type Message, type Template } from "@/lib/types";
 import { hasStoreLocation, locationSendPlan, type StoreLocation } from "@/lib/storeLocation";
 import { getStoreLocation } from "@/lib/storeLocationServer";
-import { clampTeamSummary, FALTA_INFO_LABEL } from "@/lib/conversationNotes";
+import { clampTeamSummary, FALTA_INFO_LABEL, withMention } from "@/lib/conversationNotes";
 
 // chekelin sells on its own (answers, photos, order, payment details,
 // receipt), hands the chat to a person when it should (Traspaso), handles
@@ -145,11 +145,16 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // The first name a customer sees ("Te paso con María"), from the person's
 // sign-in profile. Null when they never set a name.
 export async function firstNameForUser(supabase: Admin, userId: string | null): Promise<string | null> {
+  return firstNameOf(await nameForUser(supabase, userId));
+}
+
+// The full profile name, as the team sees it (Chat's "@Ana López").
+async function nameForUser(supabase: Admin, userId: string | null): Promise<string | null> {
   if (!userId) return null;
   try {
     const { data } = await supabase.auth.admin.getUserById(userId);
     const meta = data.user?.user_metadata ?? {};
-    return firstNameOf((meta.full_name ?? meta.name) as string | undefined);
+    return ((meta.full_name as string | undefined)?.trim() || (meta.name as string | undefined)?.trim()) ?? null;
   } catch {
     return null;
   }
@@ -334,7 +339,8 @@ async function handOff(
   input: { summary: string; reason: string; lineKind?: "default" | "confirm"; sendExternally: boolean; pace?: boolean },
 ): Promise<Message | null> {
   const assignee = await routeConversation(supabase, conv.id);
-  const name = await firstNameForUser(supabase, assignee);
+  const fullName = await nameForUser(supabase, assignee);
+  const name = firstNameOf(fullName);
   const now = new Date().toISOString();
 
   await supabase
@@ -354,7 +360,7 @@ async function handOff(
     store_id: conv.storeId,
     conversation_id: conv.id,
     kind: "handoff",
-    summary: input.summary || "El cliente necesita que lo atienda una persona.",
+    summary: withMention(input.summary || "El cliente necesita que lo atienda una persona.", fullName),
     reason: input.reason,
   });
 
@@ -650,7 +656,7 @@ async function askTeam(supabase: Admin, conv: LoadedConversation, summary: strin
     store_id: conv.storeId,
     conversation_id: conv.id,
     kind: "handoff",
-    summary: question,
+    summary: withMention(question, await nameForUser(supabase, managers[0] ?? null)),
     reason: `${HANDOFF_REASON_LABEL.falta_info} · sigue atendiendo`,
   });
   const people = managers.length > 0 ? managers : await notifyAllOwners(supabase, conv.businessId);
@@ -777,12 +783,13 @@ async function openComplaint(
     store_id: conv.storeId,
     conversation_id: conv.id,
     kind: "complaint",
-    summary: summary || "El cliente tiene una queja.",
+    summary: withMention(summary || "El cliente tiene una queja.", await nameForUser(supabase, conv.assignedTo ?? managers[0] ?? null)),
     reason: "chekelin en pausa hasta resolverla",
   });
 
   if (!alert) return;
-  const people = new Set(managers);
+  // The person the note mentions gets the alert too.
+  const people = new Set([...managers, ...(conv.assignedTo ? [conv.assignedTo] : [])]);
   for (const owner of await notifyAllOwners(supabase, conv.businessId)) people.add(owner);
   await sendPushToPeople(supabase, conv.businessId, conv.storeId, [...people], {
     title: `🔴 Queja de ${conv.contactName}`,

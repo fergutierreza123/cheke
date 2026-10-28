@@ -202,7 +202,10 @@ const SELLER_SCHEMA = {
     },
     action: { type: "string", enum: ["none", "handoff", "complaint", "order_ready", "payment_receipt"] },
     handoff_reason: { type: "string", enum: ["pide_persona", "falta_info", "descuento", "ninguna"] },
-    team_summary: { type: "string", description: "Solo para el equipo: qué quiere el cliente o qué pasó, 1 oración corta (máximo 120 letras)." },
+    team_summary: {
+      type: "string",
+      description: 'Solo para el equipo: "Qué quiere · Qué falta", máximo 200 letras. Ej.: "Quiere 2 blusas talla M · Falta confirmar color y dirección de envío".',
+    },
     order: {
       type: "object",
       description: "Solo con action = order_ready. Si no, deja listas vacías, textos vacíos y ceros.",
@@ -302,7 +305,7 @@ export function sellerPrompt(input: {
     `Si el cliente se queja o está molesto (producto dañado, no le llegó, mal servicio, enojo), usa action = "complaint". En messages: reconoce lo que pasó con empatía de verdad, discúlpate, pide los detalles que falten (qué pedido o fecha, qué pasó, una foto) y dile que ${manager} va a ver su caso personalmente y le responde lo antes posible. Nunca prometas reembolsos, descuentos, cambios ni fechas.`,
     "",
     "# Siempre",
-    "- team_summary: para el equipo (el cliente nunca lo ve): qué quiere el cliente (productos, colores, tallas, ciudad…) o qué pasó, en 1 oración corta (máximo 120 letras). Llénalo siempre.",
+    '- team_summary: para el equipo (el cliente nunca lo ve), en 2 partes cortas separadas por " · ": qué quiere el cliente (productos, colores, tallas, ciudad…) o qué pasó, y qué falta para cerrar o qué tiene que hacer la persona. Máximo 200 letras. Ejemplo: "Quiere 2 blusas talla M · Falta confirmar color y dirección de envío". Llénalo siempre.',
     "- Nunca des descuentos, nunca confirmes pagos, nunca prometas fechas de entrega que no estén en la información.",
     '- Con action = "none", messages no puede ir vacío.',
     "",
