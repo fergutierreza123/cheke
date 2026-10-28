@@ -110,6 +110,19 @@ describe("team notes and @mentions", () => {
     expect(mentionedIds("Beto ya cobró", people)).toEqual([]);
   });
 
+  it("@Juana doesn't mention Juan, and @Ana López doesn't mention Ana", () => {
+    const team = [
+      { userId: "j1", name: "Juan" },
+      { userId: "j2", name: "Juana" },
+      { userId: "a1", name: "Ana" },
+      { userId: "a2", name: "Ana López" },
+    ];
+    expect(mentionedIds("@Juana cobrale", team)).toEqual(["j2"]);
+    expect(mentionedIds("@Juan, cobrale", team)).toEqual(["j1"]);
+    expect(mentionedIds("ojo @Ana López", team)).toEqual(["a2"]);
+    expect(mentionedIds("@ana y @Ana López", team)).toEqual(["a1", "a2"]);
+  });
+
   it("badges a note that mentions me (a teammate's or chekelin's), not one I wrote", () => {
     const me = { userId: "u1", name: "Ana López" };
     expect(mentionsMe(note({ kind: "team", author_id: "u2", summary: "@Ana López cobrale" }), me)).toBe(true);

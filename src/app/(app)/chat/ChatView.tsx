@@ -80,6 +80,8 @@ import { humanAgentNotice, replyWindow, windowClosedMessage } from "@/lib/messag
 import { composerRules, WHATSAPP_PHONE_APP_HINT } from "@/lib/composerRules";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// A server action that never answered (no signal): say so instead of nothing.
+const NO_CONNECTION = "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.";
 import { explainWhatsAppError, isBillingError, META_BILLING_HUB_URL } from "@/lib/whatsappErrors";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import { ContactTags } from "@/components/ContactTags";
@@ -247,6 +249,25 @@ export function ChatView({
   // side, so only one shows at a time. Like WhatsApp, a phone opens on the
   // list — unless it was opened for one conversation (a tapped notification).
   const [mobileView, setMobileView] = useState<"list" | "thread">(startInThread ? "thread" : "list");
+  // Phones: the thread is a history entry, so Android's back button (or a
+  // swipe back) returns to the list like WhatsApp instead of leaving Chat.
+  const threadEntry = useRef(false);
+  useEffect(() => {
+    if (mobileView !== "thread" || threadEntry.current || window.matchMedia("(min-width: 1024px)").matches) return;
+    window.history.pushState(null, "");
+    threadEntry.current = true;
+    const onBack = () => {
+      threadEntry.current = false;
+      setMobileView("list");
+      setOpenedId(null);
+    };
+    window.addEventListener("popstate", onBack, { once: true });
+  }, [mobileView]);
+  function backToList() {
+    setOpenedId(null);
+    if (threadEntry.current) window.history.back();
+    else setMobileView("list");
+  }
   const [showDetail, setShowDetail] = useState(false);
   // The contact panel's past purchases (paid / delivered orders), per contact.
   const [purchasesByContact, setPurchasesByContact] = useState<
@@ -548,7 +569,7 @@ export function ChatView({
     if (!selected || !userId || userId === selected.assigned_to) return;
     const previous = selected.assigned_to;
     setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, assigned_to: userId } : c)));
-    const result = await reassignConversation(selected.id, userId);
+    const result = await reassignConversation(selected.id, userId).catch(() => ({ error: NO_CONNECTION }));
     if (result.error) {
       setSendError(result.error);
       setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, assigned_to: previous } : c)));
@@ -559,7 +580,7 @@ export function ChatView({
   async function handleResolveComplaint() {
     if (!selected) return;
     if (!confirm("¿Marcar la queja como resuelta? chekelin podrá volver a responder en este chat.")) return;
-    const result = await resolveComplaint(selected.id);
+    const result = await resolveComplaint(selected.id).catch(() => ({ error: NO_CONNECTION }));
     if (result.error) {
       setSendError(result.error);
       return;
@@ -569,7 +590,7 @@ export function ChatView({
 
   async function handleChekelinStore(storeId: string, duration: ChekelinOffDuration | null) {
     setShowChekelinMenu(false);
-    const result = await setChekelinOff(storeId, duration);
+    const result = await setChekelinOff(storeId, duration).catch(() => ({ error: NO_CONNECTION, until: null }));
     if (result.error) {
       setSendError(result.error);
       return;
@@ -870,26 +891,34 @@ export function ChatView({
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
   }, [messages, prefersReducedMotion]);
 
-  const filtered = useMemo(() => {
+  // Search, network, Tienda and «Míos» narrow the list AND the chip counts,
+  // so «No leídos 3» means three chats in what the person is looking at.
+  const scoped = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return conversations.filter((c) => {
-      const matchesChannel = channelFilter === "todos" || c.channel?.type === channelFilter;
-      const matchesQuery = !q || c.contact.name.toLowerCase().includes(q);
-      const matchesStore = storeFilter === "all" || c.store_id === storeFilter;
-      const matchesUnread = !unreadOnly || inUnreadFilter(c, openedId);
-      const matchesMine = !mineOnly || c.assigned_to === currentUserId;
-      const matchesUnreplied =
-        !unrepliedOnly || inUnrepliedFilter(c, messagesByConversation[c.id]?.at(-1) ?? c.last_message, openedId);
-      const matchesStatus = showClosed === (c.status === "closed");
-      return matchesChannel && matchesQuery && matchesStore && matchesUnread && matchesMine && matchesUnreplied && matchesStatus;
-    });
-  }, [conversations, query, channelFilter, storeFilter, unreadOnly, mineOnly, unrepliedOnly, showClosed, openedId, currentUserId, messagesByConversation]);
-  const openChats = conversations.filter((c) => c.status !== "closed");
+    return conversations.filter(
+      (c) =>
+        (channelFilter === "todos" || c.channel?.type === channelFilter) &&
+        (!q || c.contact.name.toLowerCase().includes(q)) &&
+        (storeFilter === "all" || c.store_id === storeFilter) &&
+        (!mineOnly || c.assigned_to === currentUserId),
+    );
+  }, [conversations, query, channelFilter, storeFilter, mineOnly, currentUserId]);
+  const filtered = useMemo(
+    () =>
+      scoped.filter(
+        (c) =>
+          (!unreadOnly || inUnreadFilter(c, openedId)) &&
+          (!unrepliedOnly || inUnrepliedFilter(c, messagesByConversation[c.id]?.at(-1) ?? c.last_message, openedId)) &&
+          showClosed === (c.status === "closed"),
+      ),
+    [scoped, unreadOnly, unrepliedOnly, showClosed, openedId, messagesByConversation],
+  );
+  const openChats = scoped.filter((c) => c.status !== "closed");
   const unreadChats = openChats.filter((c) => (c.unread_count ?? 0) > 0).length;
   const unrepliedChats = openChats.filter((c) =>
     inUnrepliedFilter(c, messagesByConversation[c.id]?.at(-1) ?? c.last_message, null),
   ).length;
-  const closedChats = conversations.length - openChats.length;
+  const closedChats = scoped.length - openChats.length;
 
   // Each Tienda has its own catalog: offer the open conversation's.
   const storeProducts = selected ? products.filter((p) => p.store_id === selected.store_id) : products;
@@ -913,6 +942,8 @@ export function ChatView({
         const list = prev[note.conversation_id] ?? [];
         return list.some((n) => n.id === note.id) ? prev : { ...prev, [note.conversation_id]: [note, ...list] };
       });
+    } catch {
+      setSendError(NO_CONNECTION);
     } finally {
       setSendingNote(false);
     }
@@ -999,7 +1030,13 @@ export function ChatView({
 
     const quoting = replyTo && replyTo.conversation_id === selected.id ? replyTo : null;
     setReplyTo(null);
-    const result = await sendChatMessage(selected.id, text, null, quoting?.id ?? null);
+    const result = await sendChatMessage(selected.id, text, null, quoting?.id ?? null).catch(() => null);
+    if (!result) {
+      // No signal: nothing went out. Give the text back so it isn't lost.
+      setDraft(text);
+      setSendError("No se pudo enviar. Revisa tu conexión e inténtalo de nuevo.");
+      return;
+    }
 
     if (result.message) {
       appendMessage(result.message);
@@ -1160,19 +1197,20 @@ export function ChatView({
     if (closed) {
       showToast("Listo. Vuelve a la lista si el cliente escribe.");
       // Phones: done with this chat, back to the list (like WhatsApp's archive).
-      setMobileView("list");
-      setOpenedId(null);
+      backToList();
     }
     if (businessId === "demo") return;
     let error: string | undefined;
     try {
       error = (await setConversationClosed(id, closed)).error;
     } catch {
-      error = "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.";
+      error = NO_CONNECTION;
     }
     if (error) {
       setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...previous } : c)));
       setSendError(error);
+      // Phones are back on the list, where the red line under the thread can't be seen.
+      if (closed) showToast(error);
     }
   }
 
@@ -1191,7 +1229,7 @@ export function ChatView({
           : c,
       ),
     );
-    const { error } = await setConversationBotEnabled(selected.id, next);
+    const { error } = await setConversationBotEnabled(selected.id, next).catch(() => ({ error: NO_CONNECTION }));
     if (error) {
       // Not saved: put the switch back and say why.
       setConversations((prev) => prev.map((c) => (c.id === selected.id ? { ...c, ...previous } : c)));
@@ -1284,6 +1322,8 @@ export function ChatView({
       setPayConcept("");
       setPayAmount("");
       setPayLink("");
+    } catch {
+      setSendError("No se pudo enviar el cobro. Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setPayBusy(false);
     }
@@ -1294,7 +1334,7 @@ export function ChatView({
     // "Confirmar pago" is one tap (the button itself says what it does);
     // cancelling asks first.
     if (outcome === "cancelled" && !confirm(`¿Cancelar el cobro de ${formatAmount(order.total_hnl)}?`)) return;
-    const result = await resolveOrder(order.id, outcome);
+    const result = await resolveOrder(order.id, outcome).catch(() => ({ error: NO_CONNECTION }));
     if (result.error) {
       setSendError(result.error);
       return;
@@ -1557,10 +1597,7 @@ export function ChatView({
           <>
             <div className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-border bg-surface px-3 py-2.5 lg:h-16 lg:flex-nowrap lg:px-6 lg:py-0">
               <button
-                onClick={() => {
-                  setMobileView("list");
-                  setOpenedId(null);
-                }}
+                onClick={backToList}
                 aria-label="Volver a la lista de chats"
                 className="-ml-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-muted lg:hidden"
               >
@@ -1720,11 +1757,11 @@ export function ChatView({
                   </div>
                 )}
                 {showAssignment && (
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-ink-muted">Lo atiende</span>
+                  <div className="flex min-w-0 items-center gap-x-2 whitespace-nowrap">
+                    <span className="shrink-0 text-ink-muted">Lo atiende</span>
                     {canReassign ? (
-                      <label className="relative inline-flex min-h-8 items-center gap-1 rounded-md border border-border bg-surface pl-2 pr-1.5 font-semibold text-ink">
-                        <span className="max-w-[180px] truncate">{assignee?.name ?? "Nadie todavía"}</span>
+                      <label className="relative inline-flex min-h-8 min-w-0 items-center gap-1 rounded-md border border-border bg-surface pl-2 pr-1.5 font-semibold text-ink">
+                        <span className="min-w-0 max-w-[180px] truncate">{assignee?.name ?? "Nadie todavía"}</span>
                         <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
                         <select
                           value={selected.assigned_to ?? ""}
@@ -1744,11 +1781,11 @@ export function ChatView({
                         </select>
                       </label>
                     ) : (
-                      <span className="font-semibold text-ink">{assignee?.name ?? "Nadie todavía"}</span>
+                      <span className="min-w-0 truncate font-semibold text-ink">{assignee?.name ?? "Nadie todavía"}</span>
                     )}
-                    {assignee?.away && <span className="text-ink-soft">· Ausente</span>}
+                    {assignee?.away && <span className="shrink-0 text-ink-soft">· Ausente</span>}
                     {selected.awaiting_since && (
-                      <span className="text-danger">· Esperando respuesta desde {formatMessageTime(selected.awaiting_since)}</span>
+                      <span className="min-w-0 truncate text-danger">· Sin responder {relativeTime(selected.awaiting_since)}</span>
                     )}
                   </div>
                 )}
@@ -2565,7 +2602,7 @@ export function ChatView({
                 <button
                   aria-label="Cerrar"
                   onClick={() => setShowDetail(false)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                 >
                   <CloseIcon className="h-3.5 w-3.5" />
                 </button>
