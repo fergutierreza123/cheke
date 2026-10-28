@@ -44,7 +44,7 @@ export function QuickRepliesView({ replies, canEdit }: { replies: QuickReply[]; 
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-8 lg:py-6">
         <div className="mx-auto flex max-w-[640px] flex-col gap-4 lg:gap-5">
-          <Link href="/templates" className="w-fit px-1 text-[13px] font-semibold text-brand">
+          <Link href="/templates" className="-my-2.5 w-fit px-1 py-2.5 pr-4 text-[13px] font-semibold text-brand">
             ‹ Plantillas
           </Link>
 

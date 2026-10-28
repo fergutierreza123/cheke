@@ -42,7 +42,7 @@ export function StoreFilter({
             type="button"
             onClick={() => onChange(active ? "all" : id)}
             aria-pressed={active}
-            className="chip"
+            className="chip min-h-10 lg:min-h-0"
           >
             {label}
           </button>

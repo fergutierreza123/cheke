@@ -66,7 +66,7 @@ export function CommentsView({
             <button
               key={id}
               onClick={() => setChannel(channel === id ? "todos" : id)}
-              className="chip"
+              className="chip min-h-10 lg:min-h-0"
               aria-pressed={channel === id}
             >
               {id === "todos" ? "Todos" : CHANNEL_LABEL[id]}
@@ -74,7 +74,7 @@ export function CommentsView({
           ))}
           <button
             onClick={() => setPriceOnly((v) => !v)}
-            className="chip"
+            className="chip min-h-10 lg:min-h-0"
             aria-pressed={priceOnly}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

@@ -379,7 +379,7 @@ export function TemplatesView({
                     type="button"
                     aria-label="Cerrar"
                     onClick={() => setDraft(null)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+                    className="flex h-10 w-10 lg:h-7 lg:w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
                   </button>
@@ -532,7 +532,7 @@ function CategoryChip({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className="chip"
+      className="chip min-h-10 lg:min-h-0"
     >
       {children}
     </button>

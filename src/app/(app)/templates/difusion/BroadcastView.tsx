@@ -138,7 +138,7 @@ export function BroadcastView({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b border-border bg-surface px-4 py-4 lg:px-8 lg:py-[18px]">
-        <Link href="/templates" className="text-[12.5px] text-ink-muted hover:text-ink">
+        <Link href="/templates" className="-my-2.5 inline-block py-2.5 pr-4 text-[12.5px] text-ink-muted hover:text-ink">
           ‹ Plantillas
         </Link>
         <h1 className="font-heading text-xl font-semibold text-ink">Campañas</h1>
@@ -191,7 +191,7 @@ export function BroadcastView({
                           type="button"
                           aria-pressed={on}
                           onClick={() => setPicked(on ? picked.filter((x) => x !== t) : [...picked, t])}
-                          className="chip"
+                          className="chip min-h-10 lg:min-h-0"
                         >
                           {t}
                         </button>
@@ -327,7 +327,7 @@ export function BroadcastView({
                       type="button"
                       disabled={cancelling}
                       onClick={() => cancel(b.id)}
-                      className="mt-2 text-[13px] font-semibold text-danger disabled:opacity-40"
+                      className="mt-1 min-h-10 text-[13px] font-semibold text-danger disabled:opacity-40"
                     >
                       Cancelar campaña
                     </button>

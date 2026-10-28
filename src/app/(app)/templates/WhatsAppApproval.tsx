@@ -208,7 +208,7 @@ function ApprovalForm({
           type="button"
           aria-label="Cerrar"
           onClick={onClose}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+          className="flex h-10 w-10 lg:h-7 lg:w-7 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
         >
           <CloseIcon className="h-3.5 w-3.5" />
         </button>

@@ -357,7 +357,7 @@ export function InventoryView({
                     type="button"
                     aria-label="Cerrar"
                     onClick={() => closeDraft()}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
+                    className="flex h-10 w-10 lg:h-7 lg:w-7 items-center justify-center rounded-lg bg-surface-2 text-ink-muted"
                   >
                     <CloseIcon className="h-3.5 w-3.5" />
                   </button>
@@ -569,7 +569,7 @@ export function InventoryView({
                 <button
                   onClick={() => setSendMenuId(null)}
                   aria-label="Cerrar"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-muted"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-muted"
                 >
                   <CloseIcon className="h-3.5 w-3.5" />
                 </button>
