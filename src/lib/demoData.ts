@@ -96,6 +96,8 @@ export function buildDemoData(now: number) {
     // "No leídos": María and Luis wrote and nobody has opened their chats.
     unread_count: i === 2 ? 2 : i === 5 ? 1 : 0,
   }));
+  // Newest first, like the real list (src/lib/conversations.ts).
+  conversations.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
 
   const msg = (id: string, direction: "in" | "out", body: string, ago: number, status: Message["status"], is_bot = false): Message => ({
     id, conversation_id: "conv-1", business_id: "demo", direction, body, media_url: null, status, is_bot, created_at: iso(ago),
