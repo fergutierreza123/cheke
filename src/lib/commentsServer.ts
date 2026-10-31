@@ -215,7 +215,8 @@ async function processComment(supabase: Admin, id: string): Promise<string | nul
     supabase.from("products").select("*").eq("store_id", comment.store_id).eq("visible", true).order("created_at"),
     supabase
       .from("store_chekelin_info")
-      .select("payment_methods, shipping, delivery_hours, returns_policy, faq, address_form")
+      // "*": the Tipo de negocio and horario (migration 0049) only once they exist.
+      .select("*")
       .eq("store_id", comment.store_id)
       .maybeSingle(),
   ]);

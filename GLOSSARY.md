@@ -65,8 +65,20 @@ cheKe's AI assistant that answers customers and sells on its own (photos, order,
 _Avoid_: Bot, chatbot
 
 **Lo que chekelin sabe**:
-A Tienda's short answers that chekelin uses to sell: Formas de pago, Envíos, Horario de entregas, Cambios y devoluciones, Otras preguntas frecuentes, how it addresses customers (tú, vos, usted), and the Tienda's Ubicación (address and Google Maps pin: chekelin gives the address and sends the map when a customer asks; people send it from Chat). Edited by the Dueño or the Tienda's Gerente.
+A Tienda's short answers that chekelin uses to sell: its Tipo de negocio and Horario de atención, Formas de pago, Envíos, Horario de entregas, Cambios y devoluciones, Otras preguntas frecuentes, how it addresses customers (tú, vos, usted), and the Tienda's Ubicación (address and Google Maps pin: chekelin gives the address and sends the map when a customer asks; people send it from Chat). Edited by the Dueño or the Tienda's Gerente.
 _Avoid_: Base de conocimiento, FAQ (as the page name)
+
+**Tipo de negocio**:
+Whether a Tienda sells products (the default) or gives services («¿Vendes productos o das servicios?» in Lo que chekelin sabe). A Tienda de servicios calls its Catálogo «Servicios». Changed only by the Dueño or the Tienda's Gerente.
+_Avoid_: Giro, rubro, modo
+
+**Servicio**:
+What a Tienda de servicios offers (a corte, a consulta, a manicure): name, price and how many minutes it takes. Lives where products live (`products.duration_min`).
+_Avoid_: Producto (for these Tiendas), tratamiento
+
+**Horario de atención**:
+The days and hours a Tienda attends, one open–close time per day or cerrado, in Honduras time. chekelin uses it to say whether they're open. The free text "Recoger en tienda y horarios" stays for details.
+_Avoid_: Horario de entregas (that's the free text), disponibilidad
 
 **Queja**:
 A customer complaint in a Conversación. It gets a red tag, alerts the Tienda's Gerente (or the Dueño), and keeps chekelin silent until a person marks it resolved.

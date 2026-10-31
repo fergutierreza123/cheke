@@ -1,3 +1,4 @@
+import type { BusinessKind, OpeningHours } from "@/lib/services";
 export type ChannelType = "whatsapp" | "instagram" | "facebook";
 
 export type Contact = {
@@ -198,6 +199,8 @@ export type Product = {
   image_url: string | null;
   // The DB still has a `stock` column, unused: products are informative only.
   visible: boolean;
+  // Minutes a Servicio takes (Tiendas de servicios, migration 0049); null for products.
+  duration_min?: number | null;
   meta_sync_status: string;
   created_at: string;
 };
@@ -214,7 +217,13 @@ export type ChekelinInfo = {
   returns_policy: string;
   faq: string;
   address_form: AddressForm;
+  // Migration 0049 (src/lib/services.ts). Missing = products, no horario.
+  business_kind?: BusinessKind;
+  opening_hours?: OpeningHours | null;
 };
+
+// The free-text answers of "Lo que chekelin sabe".
+export type ChekelinTextField = Exclude<keyof ChekelinInfo, "address_form" | "business_kind" | "opening_hours">;
 
 export const EMPTY_CHEKELIN_INFO: ChekelinInfo = {
   payment_methods: "",

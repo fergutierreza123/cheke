@@ -269,7 +269,8 @@ async function loadKnowledge(supabase: Admin, conv: LoadedConversation): Promise
     supabase.from("templates").select("*").eq("business_id", conv.businessId),
     supabase
       .from("store_chekelin_info")
-      .select("payment_methods, shipping, delivery_hours, returns_policy, faq, address_form")
+      // "*": the Tipo de negocio and horario (migration 0049) only once they exist.
+      .select("*")
       .eq("store_id", conv.storeId)
       .maybeSingle(),
     supabase

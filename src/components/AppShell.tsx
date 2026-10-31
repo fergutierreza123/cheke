@@ -12,6 +12,7 @@ export function AppShell({
   basePath,
   user,
   storeSwitcher = null,
+  services = false,
   children,
 }: {
   businessName: string;
@@ -20,6 +21,8 @@ export function AppShell({
   user: UserInfo;
   // Only for people in 2+ Tiendas; null keeps the shell exactly as before.
   storeSwitcher?: StoreSwitcherProps | null;
+  // The Tiendas on screen give services: «Servicios» instead of «Catálogo».
+  services?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -28,7 +31,7 @@ export function AppShell({
           app. 0px in a normal browser, so nothing changes there. */}
       <div className="shrink-0 bg-surface lg:hidden" style={{ height: "env(safe-area-inset-top)" }} />
       <div className="hidden h-full lg:block">
-        <Sidebar businessName={businessName} notificationCount={notificationCount} user={user} storeSwitcher={storeSwitcher} />
+        <Sidebar businessName={businessName} notificationCount={notificationCount} user={user} storeSwitcher={storeSwitcher} services={services} />
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
       <MobileNav
@@ -37,6 +40,7 @@ export function AppShell({
         basePath={basePath}
         user={user}
         storeSwitcher={storeSwitcher}
+        services={services}
       />
     </div>
   );

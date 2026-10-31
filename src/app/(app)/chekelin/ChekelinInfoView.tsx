@@ -4,11 +4,18 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import type { StoreRef } from "@/lib/stores";
-import type { AddressForm, ChekelinInfo } from "@/lib/types";
+import type { AddressForm, ChekelinInfo, ChekelinTextField } from "@/lib/types";
 import { ADDRESS_MAX, mapsLinkFor, type StoreLocation } from "@/lib/storeLocation";
 import { saveChekelinInfo } from "./actions";
+import { WEEK_ORDER, WEEKDAY_NAMES, type BusinessKind, type OpeningHours } from "@/lib/services";
 
-const FIELDS: Array<{ key: keyof Omit<ChekelinInfo, "address_form">; label: string; hint: string; placeholder: string; max: number }> = [
+const KIND_OPTIONS: Array<{ id: BusinessKind; label: string; hint: string }> = [
+  { id: "products", label: "Vendo productos", hint: "Ropa, comida, accesorios…" },
+  { id: "services", label: "Doy servicios", hint: "Salón, barbería, clínica, taller… Tu Catálogo se llama «Servicios» y cada uno lleva su duración." },
+];
+const CLOSED_WEEK: OpeningHours = [null, null, null, null, null, null, null];
+
+const FIELDS: Array<{ key: ChekelinTextField; label: string; hint: string; placeholder: string; max: number }> = [
   {
     key: "payment_methods",
     label: "Formas de pago",
@@ -73,6 +80,17 @@ export function ChekelinInfoView({
   demo?: boolean;
 }) {
   const [form, setForm] = useState<ChekelinInfo>(info);
+  const week = form.opening_hours ?? CLOSED_WEEK;
+  const services = (info.business_kind ?? "products") === "services";
+  // One day of the Horario de atención: open (9 a 5 to start) or closed.
+  function setDay(day: number, value: OpeningHours[number]) {
+    setForm((prev) => {
+      const next = [...(prev.opening_hours ?? CLOSED_WEEK)];
+      next[day] = value;
+      // Every day closed = no horario (chekelin says it doesn't know).
+      return { ...prev, opening_hours: next.every((d) => !d) ? null : next };
+    });
+  }
   const [savedLocation, setSavedLocation] = useState<StoreLocation | null>(initialLocation);
   const [location, setLocation] = useState<StoreLocation | null>(initialLocation);
   const [locating, setLocating] = useState(false);
@@ -161,7 +179,7 @@ export function ChekelinInfoView({
           <p className="px-1 text-[13.5px] leading-relaxed text-ink-muted">
             chekelin vende usando esto, tu{" "}
             <Link href="/inventory" className="font-semibold text-brand">
-              Catálogo
+              {services ? "Servicios" : "Catálogo"}
             </Link>{" "}
             y tus{" "}
             <Link href="/templates" className="font-semibold text-brand">
@@ -174,6 +192,74 @@ export function ChekelinInfoView({
               Solo el dueño o el gerente de la tienda puede cambiar esta información.
             </p>
           )}
+
+          <fieldset className="flex flex-col gap-2 rounded-2xl border border-border bg-surface px-4 py-4 lg:px-5">
+            <legend className="px-1 text-[13.5px] font-semibold text-ink">¿Vendes productos o das servicios?</legend>
+            {KIND_OPTIONS.map((o) => (
+              <label key={o.id} className="flex min-h-10 cursor-pointer items-start gap-2.5 py-1 text-[13.5px] text-ink">
+                <input
+                  type="radio"
+                  name="business_kind"
+                  value={o.id}
+                  checked={(form.business_kind ?? "products") === o.id}
+                  disabled={!canEdit}
+                  onChange={() => setForm((prev) => ({ ...prev, business_kind: o.id }))}
+                  className="mt-0.5 h-4 w-4 accent-[var(--color-brand)]"
+                />
+                <span>
+                  <span className="font-semibold">{o.label}</span>
+                  <span className="block text-[12px] text-ink-soft">{o.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          <fieldset className="flex flex-col gap-1 rounded-2xl border border-border bg-surface px-4 py-4 lg:px-5">
+            <legend className="px-1 text-[13.5px] font-semibold text-ink">Horario de atención</legend>
+            <p className="-mt-1 mb-1 text-[12px] text-ink-soft">
+              chekelin lo usa para decir si están abiertos{services ? " y para dar citas" : ""}. Hora de Honduras.
+            </p>
+            {WEEK_ORDER.map((d) => {
+              const day = week[d];
+              return (
+                <div key={d} className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1">
+                  <label className="flex w-32 cursor-pointer items-center gap-2 text-[13.5px] capitalize text-ink">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(day)}
+                      disabled={!canEdit}
+                      onChange={(e) => setDay(d, e.target.checked ? { open: "09:00", close: "17:00" } : null)}
+                      className="h-4 w-4 accent-[var(--color-brand)]"
+                    />
+                    {WEEKDAY_NAMES[d]}
+                  </label>
+                  {day ? (
+                    <span className="flex items-center gap-2 text-[13px] text-ink-muted">
+                      <input
+                        type="time"
+                        aria-label={`${WEEKDAY_NAMES[d]}: abre`}
+                        value={day.open}
+                        readOnly={!canEdit}
+                        onChange={(e) => setDay(d, { ...day, open: e.target.value })}
+                        className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[16px] text-ink lg:text-[13.5px]"
+                      />
+                      a
+                      <input
+                        type="time"
+                        aria-label={`${WEEKDAY_NAMES[d]}: cierra`}
+                        value={day.close}
+                        readOnly={!canEdit}
+                        onChange={(e) => setDay(d, { ...day, close: e.target.value })}
+                        className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[16px] text-ink lg:text-[13.5px]"
+                      />
+                    </span>
+                  ) : (
+                    <span className="text-[13px] text-ink-soft">Cerrado</span>
+                  )}
+                </div>
+              );
+            })}
+          </fieldset>
 
           <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface px-4 py-4 lg:px-5">
             {FIELDS.map((f) => (
