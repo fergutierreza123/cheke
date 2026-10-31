@@ -7,6 +7,7 @@ import { relativeTime } from "@/lib/format";
 import type { ChannelType } from "@/lib/types";
 import { ConnectWhatsAppButton } from "./ConnectWhatsAppButton";
 import { ConnectMetaButton } from "./ConnectMetaButton";
+import { ChannelLinkButton } from "./ChannelLinkButton";
 import { disconnectChannel, retryCoexistenceSync } from "./actions";
 import { disconnectMetaPage } from "./metaActions";
 import { COEXISTENCE_SYNC_WINDOW_MS } from "@/lib/coexistence";
@@ -175,6 +176,7 @@ function StoreChannels({
                     Recibe y responde aquí los mensajes de WhatsApp de tus clientes.
                   </p>
                 )}
+                {whatsappConnected && whatsapp && <ChannelLinkButton channel={whatsapp} className="mt-2" />}
                 {whatsappReconnect && whatsapp && <ReconnectNotice channel={whatsapp} label="WhatsApp" />}
                 {whatsappConnected && whatsapp?.coexistence && (
                   <CoexistenceStatus channel={whatsapp} isOwner={isOwner} busy={busy} onRetry={handleRetrySync} />
@@ -303,12 +305,14 @@ function MetaChannelsCard({
                 <div className="flex items-center gap-1.5">
                   <ChannelIcon type="facebook" className="h-4 w-4 shrink-0 rounded-full" />
                   <strong className="truncate text-ink">{p.facebook?.verified_name ?? "Página de Facebook"}</strong>
+                  {p.facebook && <ChannelLinkButton channel={p.facebook} className="ml-auto" />}
                 </div>
                 <div className="mt-1 flex items-center gap-1.5">
                   <ChannelIcon type="instagram" className="h-4 w-4 shrink-0 rounded-full" />
                   <span className="truncate">
                     {p.instagram ? (p.instagram.verified_name ?? "Instagram") : "Sin Instagram vinculado"}
                   </span>
+                  {p.instagram && <ChannelLinkButton channel={p.instagram} className="ml-auto" />}
                 </div>
                 {p.facebook?.connected_at && (
                   <div className="mt-1 text-[12px] text-ink-soft">Conectado {relativeTime(p.facebook.connected_at)}</div>
