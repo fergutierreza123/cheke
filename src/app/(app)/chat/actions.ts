@@ -501,24 +501,6 @@ export async function reassignConversation(conversationId: string, userId: strin
   return {};
 }
 
-// «Listo»: the chat leaves the list until the customer writes again (the
-// database reopens it, migration 0045). Anyone who works in the Tienda can
-// close or reopen; closing also stops the "esperando respuesta" timers.
-export async function setConversationClosed(conversationId: string, closed: boolean): Promise<{ error?: string }> {
-  const business = await getCurrentBusiness();
-  if (!business) return { error: "No se encontró el negocio." };
-  const supabase = await createClient();
-  const { data: conversation } = await supabase.from("conversations").select("id, store_id").eq("id", conversationId).maybeSingle();
-  if (!conversation) return { error: "No se encontró la conversación." };
-  if (!canWriteToStore(business, conversation.store_id)) return { error: ARCHIVED_STORE_READ_ONLY };
-  const { error } = await supabase
-    .from("conversations")
-    .update(closed ? { status: "closed", awaiting_since: null, escalated_at: null } : { status: "open" })
-    .eq("id", conversationId);
-  if (error) return { error: friendlyError(error, "No se pudo guardar. Inténtalo de nuevo.") };
-  return {};
-}
-
 // The team-only notes of a conversation (chekelin's Traspaso summary).
 export async function listConversationNotes(conversationId: string): Promise<ConversationNote[]> {
   const supabase = await createClient();

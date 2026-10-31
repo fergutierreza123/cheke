@@ -26,7 +26,7 @@ const { saveContact } = await import("@/app/(app)/contacts/actions");
 const { deleteProduct } = await import("@/app/(app)/inventory/actions");
 const { saveChekelinInfo } = await import("@/app/(app)/chekelin/actions");
 const { setChekelinOff } = await import("@/app/(app)/actions");
-const { sendChatMessage, simulateInboundMessage, resolveComplaint, setConversationClosed } = await import("@/app/(app)/chat/actions");
+const { sendChatMessage, simulateInboundMessage, resolveComplaint } = await import("@/app/(app)/chat/actions");
 const { replyToCommentPublicly } = await import("@/app/(app)/comments/actions");
 
 const OPEN = { id: "A", name: "Centro", archived: false };
@@ -230,20 +230,6 @@ describe("archived Tiendas are read-only everywhere (issue #35 item 4)", () => {
   it("a Queja of an archived Tienda can't be resolved", async () => {
     db.queue("conversations", { data: { id: "c1", store_id: "X" } });
     expect((await resolveComplaint("c1")).error).toMatch(/archivada/);
-    expect(db.writes("conversations", "update")).toHaveLength(0);
-  });
-
-  it("«Listo» closes a chat and stops its waiting timers; an archived Tienda can't", async () => {
-    db.queue("conversations", { data: { id: "c1", store_id: "A" } });
-    expect(await setConversationClosed("c1", true)).toEqual({});
-    expect(db.writes("conversations", "update")[0].ops[0]).toEqual({
-      op: "update",
-      args: [{ status: "closed", awaiting_since: null, escalated_at: null }],
-    });
-
-    db = fakeSupabase();
-    db.queue("conversations", { data: { id: "c1", store_id: "X" } });
-    expect((await setConversationClosed("c1", true)).error).toMatch(/archivada/);
     expect(db.writes("conversations", "update")).toHaveLength(0);
   });
 
