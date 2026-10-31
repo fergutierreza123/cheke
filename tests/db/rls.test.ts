@@ -221,6 +221,13 @@ describe("Tiendas and roles", () => {
     expect((await disconnect(MANAGER_B, ids.chB)).rows).toHaveLength(1);
   });
 
+  it("Agentes can't edit Plantillas; Gerentes can", async () => {
+    expect((await t.as(AGENT_A, `insert into templates (business_id, name, category, body) values ($1, 'x', 'precios', 'y')`, [ids.biz])).error).toBeDefined();
+    expect((await t.as(AGENT_A, `update templates set body = 'z' where id = $1 returning id`, [ids.template1])).rows).toEqual([]);
+    expect((await t.as(AGENT_A, `delete from templates where id = $1 returning id`, [ids.template1])).rows).toEqual([]);
+    expect((await t.as(MANAGER_B, `update templates set body = 'z' where id = $1 returning id`, [ids.template1])).rows).toHaveLength(1);
+  });
+
   it("Agentes can't edit quick replies or see Sugerencias; Gerentes can", async () => {
     expect((await t.as(AGENT_A, `insert into quick_replies (business_id, shortcut, body) values ($1, 'x', 'y')`, [ids.biz])).error).toBeDefined();
     expect((await t.as(AGENT_A, `update quick_replies set body = 'z' where id = $1 returning id`, [ids.reply1])).rows).toEqual([]);

@@ -178,6 +178,14 @@ describe("Tiendas", () => {
 });
 
 describe("Plantillas: saveTemplate limits", () => {
+  it("refuses an Agente before writing", async () => {
+    business = { ...business!, role: "agent" };
+    expect((await saveTemplate(form({ name: "Precio", body: "hola", category: "precios" }))).error).toBe(
+      "Solo el dueño o un gerente puede editar plantillas.",
+    );
+    expect(db.writes("templates", "insert")).toHaveLength(0);
+  });
+
   it("refuses a name over 60 letters or a message longer than WhatsApp allows", async () => {
     expect((await saveTemplate(form({ name: "x".repeat(61), body: "hola", category: "precios" }))).error).toBe(
       "El nombre es muy largo (máximo 60 letras).",
