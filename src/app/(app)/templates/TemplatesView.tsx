@@ -30,6 +30,7 @@ export function TemplatesView({
   suggestions: initialSuggestions = [],
   whatsapp = null,
   demo = false,
+  canEdit = true,
 }: {
   templates: Template[];
   // Sugerencias de chekelin waiting for a Dueño or Gerente (empty for Agentes).
@@ -37,6 +38,8 @@ export function TemplatesView({
   whatsapp?: WhatsAppPlantillas | null;
   // The public /demo: nothing is saved or sent.
   demo?: boolean;
+  // Dueños and Gerentes edit Plantillas; Agentes only copy them (RLS too).
+  canEdit?: boolean;
 }) {
   const [approvals, setApprovals] = useState<TemplateApproval[]>(whatsapp?.approvals ?? []);
   const [approving, setApproving] = useState<Template | null>(null);
@@ -182,6 +185,7 @@ export function TemplatesView({
               className="w-full rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint lg:w-56"
             />
           </div>
+          {canEdit && (
           <button
             onClick={() => setDraft(EMPTY_DRAFT)}
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:h-auto"
@@ -189,6 +193,7 @@ export function TemplatesView({
             <PlusIcon className="h-3.5 w-3.5" />
             Nueva plantilla
           </button>
+          )}
         </div>
       </div>
 
@@ -268,12 +273,14 @@ export function TemplatesView({
         {templates.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
             <p className="text-[13.5px] text-ink-muted">Todavía no tienes plantillas guardadas.</p>
+            {canEdit && (
             <button
               onClick={() => setDraft(EMPTY_DRAFT)}
               className="mt-1 rounded-lg bg-brand-dark px-4 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
             >
               Crear la primera plantilla
             </button>
+            )}
           </div>
         ) : (
           <>
@@ -311,6 +318,7 @@ export function TemplatesView({
                         {meta.label}
                       </div>
                     </div>
+                    {canEdit && (
                     <button
                       onClick={() => setDraft({ id: t.id, name: t.name, category: t.category, body: t.body })}
                       aria-label="Editar plantilla"
@@ -318,6 +326,7 @@ export function TemplatesView({
                     >
                       <EditIcon className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
                     </button>
+                    )}
                   </div>
                   <div className="flex-1 break-words rounded-[10px] bg-surface-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink-muted lg:text-[12.5px]">
                     <TemplateText text={t.body} />

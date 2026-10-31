@@ -59,6 +59,7 @@ export default async function TemplatesPage() {
       templates={templates}
       suggestions={(suggestions ?? []) as TemplateSuggestion[]}
       whatsapp={whatsapp}
+      canEdit={business.role !== "agent"}
     />
   );
 }

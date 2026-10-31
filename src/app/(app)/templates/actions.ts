@@ -14,6 +14,7 @@ const BODY_MAX = 4096;
 export async function saveTemplate(formData: FormData): Promise<{ error?: string }> {
   const business = await getCurrentBusiness();
   if (!business) return { error: "No se encontró el negocio." };
+  if (business.role === "agent") return { error: "Solo el dueño o un gerente puede editar plantillas." };
 
   const id = String(formData.get("id") ?? "").trim() || null;
   const name = String(formData.get("name") ?? "").trim();
@@ -30,7 +31,6 @@ export async function saveTemplate(formData: FormData): Promise<{ error?: string
   // Saving a Sugerencia de chekelin (as proposed or edited) approves it.
   const suggestionId = String(formData.get("suggestion_id") ?? "").trim() || null;
   if (suggestionId) {
-    if (business.role === "agent") return { error: "Solo el dueño o un gerente puede aprobar sugerencias." };
     const { data: pending } = await supabase
       .from("template_suggestions")
       .select("id")
