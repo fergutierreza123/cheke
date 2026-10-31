@@ -20,10 +20,9 @@ import {
   retryMessage,
   markConversationRead,
   sendStoreLocation,
-  setConversationClosed,
   type OpenOrder,
 } from "./actions";
-import { inUnrepliedFilter, lastMessagePrefix } from "@/lib/chatList";
+import { lastMessagePrefix } from "@/lib/chatList";
 import { setChekelinOff } from "../actions";
 import {
   CHEKELIN_OFF_OPTIONS,
@@ -187,10 +186,6 @@ export function ChatView({
   const [mineOnly, setMineOnly] = useState(
     () => showAssignment && people.find((p) => p.userId === currentUserId)?.role === "agent",
   );
-  // «Sin responder»: the customer wrote last and nobody answered yet.
-  const [unrepliedOnly, setUnrepliedOnly] = useState(false);
-  // «Ver chats cerrados»: the list shows only the chats marked «Listo».
-  const [showClosed, setShowClosed] = useState(false);
   // The chat tapped in the list: stays under "No leídos" while it's read.
   const [openedId, setOpenedId] = useState<string | null>(null);
   // "Ubicación" picked in the "+" sheet: a preview to confirm before it goes.
@@ -907,18 +902,11 @@ export function ChatView({
     () =>
       scoped.filter(
         (c) =>
-          (!unreadOnly || inUnreadFilter(c, openedId)) &&
-          (!unrepliedOnly || inUnrepliedFilter(c, messagesByConversation[c.id]?.at(-1) ?? c.last_message, openedId)) &&
-          showClosed === (c.status === "closed"),
+          !unreadOnly || inUnreadFilter(c, openedId),
       ),
-    [scoped, unreadOnly, unrepliedOnly, showClosed, openedId, messagesByConversation],
+    [scoped, unreadOnly, openedId],
   );
-  const openChats = scoped.filter((c) => c.status !== "closed");
-  const unreadChats = openChats.filter((c) => (c.unread_count ?? 0) > 0).length;
-  const unrepliedChats = openChats.filter((c) =>
-    inUnrepliedFilter(c, messagesByConversation[c.id]?.at(-1) ?? c.last_message, null),
-  ).length;
-  const closedChats = scoped.length - openChats.length;
+  const unreadChats = scoped.filter((c) => (c.unread_count ?? 0) > 0).length;
 
   // Each Tienda has its own catalog: offer the open conversation's.
   const storeProducts = selected ? products.filter((p) => p.store_id === selected.store_id) : products;
@@ -1185,35 +1173,6 @@ export function ChatView({
     }
   }
 
-  // «Listo»: the chat leaves the list until the customer writes again;
-  // «Reabrir» (from «Ver chats cerrados») undoes it.
-  async function handleSetClosed(closed: boolean) {
-    if (!selected) return;
-    const id = selected.id;
-    const previous = { status: selected.status, awaiting_since: selected.awaiting_since };
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: closed ? "closed" : "open", awaiting_since: closed ? null : c.awaiting_since } : c)),
-    );
-    if (closed) {
-      showToast("Listo. Vuelve a la lista si el cliente escribe.");
-      // Phones: done with this chat, back to the list (like WhatsApp's archive).
-      backToList();
-    }
-    if (businessId === "demo") return;
-    let error: string | undefined;
-    try {
-      error = (await setConversationClosed(id, closed)).error;
-    } catch {
-      error = NO_CONNECTION;
-    }
-    if (error) {
-      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...previous } : c)));
-      setSendError(error);
-      // Phones are back on the list, where the red line under the thread can't be seen.
-      if (closed) showToast(error);
-    }
-  }
-
   // Per-conversation pause. Turning it back on makes chekelin the first
   // responder here again.
   async function handleToggleBot() {
@@ -1441,40 +1400,11 @@ export function ChatView({
                 Míos
               </button>
             )}
-            <button
-              onClick={() => {
-                setUnrepliedOnly((v) => !v);
-                setOpenedId(null);
-              }}
-              aria-pressed={unrepliedOnly}
-              className="chip"
-            >
-              Sin responder
-              {unrepliedChats > 0 && (
-                <span className="min-w-[18px] rounded-full bg-accent px-1 text-center text-[11px] leading-[18px] text-brand-dark">
-                  {unrepliedChats > 99 ? "99+" : unrepliedChats}
-                </span>
-              )}
-            </button>
           </div>
           {storeNames && <StoreFilter storeNames={storeNames} value={storeFilter} onChange={setStoreFilter} className="mt-2" />}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
-          {showClosed && (
-            <div className="flex items-center gap-2 border-b border-border bg-surface-2 px-4.5 py-2 text-[12.5px]">
-              <span className="min-w-0 flex-1 text-ink-muted">Cerrados · vuelven solos si el cliente escribe</span>
-              <button
-                onClick={() => {
-                  setShowClosed(false);
-                  setOpenedId(null);
-                }}
-                className="min-h-8 shrink-0 font-semibold text-brand"
-              >
-                Volver
-              </button>
-            </div>
-          )}
           {filtered.map((c) => {
             const loadedLast = messagesByConversation[c.id]?.at(-1);
             const lastBody = loadedLast?.body ?? c.last_message_body;
@@ -1551,28 +1481,12 @@ export function ChatView({
             <div className="px-4.5 py-8 text-center text-[13px] text-ink-soft">
               {query.trim()
                 ? "Sin resultados."
-                : showClosed
-                  ? "No hay chats cerrados."
-                  : unrepliedOnly
-                    ? "Estás al día: nadie espera respuesta."
-                    : unreadOnly
-                      ? "Estás al día: no hay chats sin leer."
-                      : mineOnly
-                        ? "No tienes chats asignados."
-                        : "Sin resultados."}
+                : unreadOnly
+                  ? "Estás al día: no hay chats sin leer."
+                  : mineOnly
+                    ? "No tienes chats asignados."
+                    : "Sin resultados."}
             </div>
-          )}
-          {/* «Listo» takes a chat off the list; this is the way back to them. */}
-          {!showClosed && closedChats > 0 && (
-            <button
-              onClick={() => {
-                setShowClosed(true);
-                setOpenedId(null);
-              }}
-              className="min-h-11 w-full px-4.5 py-3 text-center text-[12.5px] font-semibold text-brand hover:bg-surface-2"
-            >
-              Ver chats cerrados ({closedChats})
-            </button>
           )}
         </div>
       </div>
@@ -1708,18 +1622,6 @@ export function ChatView({
               {/* Opens the side panel for contact details (phone, notes) —
                   the stage picker used to live only inside this panel,
                   which buried a very common action two clicks deep. */}
-              <button
-                onClick={() => handleSetClosed(selected.status !== "closed")}
-                title={
-                  selected.status === "closed"
-                    ? "Volver a poner este chat en la lista"
-                    : "Sacar este chat de la lista hasta que el cliente vuelva a escribir"
-                }
-                className="flex h-9 shrink-0 items-center rounded-lg border border-border bg-surface-2 px-3 text-[12.5px] font-semibold text-ink transition-colors hover:bg-surface-3 lg:h-[30px]"
-              >
-                {selected.status === "closed" ? "Reabrir" : "Listo"}
-              </button>
-
               <button
                 onClick={() => setShowDetail(true)}
                 title="Ver detalles del contacto"
