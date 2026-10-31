@@ -14,6 +14,8 @@ import { initialsFromEmail, relativeTime } from "@/lib/format";
 import { canManageStore, ROLE_LABEL, type CurrentBusiness, type Role } from "@/lib/stores";
 import type { TeamMember } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
+import { useIsNativeApp } from "@/components/NativeApp";
+import { Capacitor } from "@capacitor/core";
 
 export type PendingInvitation = {
   id: string;
@@ -291,6 +293,7 @@ function InviteCard({
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const isNative = useIsNativeApp();
   const askStores = business.multiStore && role !== "owner" && manageable.length > 1;
 
   if (!canInvite) {
@@ -326,7 +329,18 @@ function InviteCard({
     }
   }
 
-  const whatsappText = link ? encodeURIComponent(`Te invito a ${business.name} en cheke: ${link}`) : "";
+  const inviteText = `Te invito a ${business.name} en cheke: ${link}`;
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(inviteText)}`;
+
+  // In the app: the phone's share sheet (WhatsApp, Messenger, SMS…). An app
+  // built before @capacitor/share was added falls back to WhatsApp.
+  async function handleShare() {
+    if (!link) return;
+    if (!Capacitor.isPluginAvailable("Share")) return void window.open(whatsappUrl, "_blank");
+    const { Share } = await import("@capacitor/share");
+    // Closing the sheet without picking an app rejects; nothing to report.
+    await Share.share({ text: inviteText }).catch(() => {});
+  }
 
   return (
     <div className="rounded-2xl bg-brand-dark px-5 py-4.5 text-white lg:px-6 lg:py-5">
@@ -405,14 +419,23 @@ function InviteCard({
               <CopyIcon className="h-3.5 w-3.5" />
               {copied ? "¡Copiado!" : "Copiar link"}
             </button>
-            <a
-              href={`https://wa.me/?text=${whatsappText}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex min-h-11 items-center justify-center rounded-lg bg-white/10 px-4 text-[13.5px] font-semibold text-white hover:bg-white/20 lg:min-h-10"
-            >
-              Enviar por WhatsApp
-            </a>
+            {isNative ? (
+              <button
+                onClick={handleShare}
+                className="flex min-h-11 items-center justify-center rounded-lg bg-white/10 px-4 text-[13.5px] font-semibold text-white hover:bg-white/20 lg:min-h-10"
+              >
+                Compartir
+              </button>
+            ) : (
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-h-11 items-center justify-center rounded-lg bg-white/10 px-4 text-[13.5px] font-semibold text-white hover:bg-white/20 lg:min-h-10"
+              >
+                Enviar por WhatsApp
+              </a>
+            )}
             <button
               onClick={() => setLink(null)}
               className="min-h-11 rounded-lg px-3 text-[13px] font-semibold text-[#A9B1CC] hover:text-white lg:min-h-10"
