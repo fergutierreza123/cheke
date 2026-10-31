@@ -83,6 +83,16 @@ describe("proxy", () => {
     expect((await proxy(request("https://ventas.cheke.app/chat"))).headers.get("location")).toBeNull();
   });
 
+  it("lets the login's finishSignIn (a POST to /login) run once signed in", async () => {
+    currentUser = { id: "u1" };
+    const { proxy } = await load("");
+    const action = new NextRequest("https://ventas.cheke.app/login", {
+      method: "POST",
+      headers: { host: "ventas.cheke.app", "next-action": "abc" },
+    });
+    expect((await proxy(action)).headers.get("location")).toBeNull();
+  });
+
   it("on the app domain, / opens the app (or login)", async () => {
     const { proxy } = await load("https://ventas.cheke.app");
     expect(new URL((await proxy(request("https://ventas.cheke.app/"))).headers.get("location")!).pathname).toBe("/login");
