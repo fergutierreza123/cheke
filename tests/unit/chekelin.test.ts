@@ -20,7 +20,7 @@ import {
   stageAfterChekelin,
   waitNoticeLine,
 } from "@/lib/chekelinState";
-import { DEFAULT_NAV_ITEMS } from "@/components/Sidebar";
+import { DEFAULT_NAV_ITEMS, navItems } from "@/components/Sidebar";
 import { EMPTY_CHEKELIN_INFO, type Product } from "@/lib/types";
 
 const NOW = Date.parse("2026-10-16T20:00:00.000Z"); // 2:00 p. m. in Honduras
@@ -281,6 +281,20 @@ describe("sellerPrompt (what chekelin knows)", () => {
   it("says when the location isn't saved, so it never makes one up", () => {
     expect(sellerPrompt(base)).toContain("Ubicación de la tienda: (no hay información)");
   });
+
+  it("a Tienda de servicios: lists «Servicios» with their duration, and the Horario de atención", () => {
+    const corte = { id: "s1", name: "Corte", price_hnl: 150, duration_min: 45, visible: true, image_url: null, description: null, category: null } as Product;
+    const prompt = sellerPrompt({
+      ...base,
+      info: { ...EMPTY_CHEKELIN_INFO, business_kind: "services", opening_hours: [null, { open: "09:00", close: "17:00" }, null, null, null, null, null] },
+      refs: [{ ref: "P1", product: corte }],
+    });
+    expect(prompt).toContain("## Servicios");
+    expect(prompt).toContain("- P1 · Corte: L 150, 45 min");
+    expect(prompt).toContain("Horario de atención: lunes 9:00 a. m. a 5:00 p. m.; martes cerrado");
+    expect(sellerPrompt(base)).toContain("## Catálogo");
+    expect(sellerPrompt(base)).toContain("Horario de atención: (no hay información)");
+  });
 });
 
 describe("the time chekelin sees", () => {
@@ -311,5 +325,10 @@ describe("navigation", () => {
     const hrefs = DEFAULT_NAV_ITEMS.map((i) => i.href);
     expect(hrefs).toContain("/chekelin");
     expect(hrefs.indexOf("/chekelin")).toBe(hrefs.indexOf("/chekeo") + 1);
+  });
+
+  it("calls the Catálogo «Servicios» for a Tienda de servicios", () => {
+    expect(navItems(true).find((i) => i.href === "/inventory")?.label).toBe("Servicios");
+    expect(navItems(false).find((i) => i.href === "/inventory")?.label).toBe("Catálogo");
   });
 });

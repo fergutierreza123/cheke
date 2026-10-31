@@ -166,7 +166,7 @@ export async function copyProductToStore(productId: string, targetStoreId: strin
   const supabase = await createClient();
   const { data: product } = await supabase
     .from("products")
-    .select("store_id, retailer_id, name, description, category, price_hnl, image_url, visible")
+    .select("store_id, retailer_id, name, description, category, price_hnl, image_url, visible, duration_min")
     .eq("id", productId)
     .eq("business_id", business.id)
     .maybeSingle();

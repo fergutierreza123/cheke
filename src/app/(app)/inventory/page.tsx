@@ -28,5 +28,7 @@ export default async function InventoryPage() {
   // "Copiar a otra tienda": the other open Tiendas this person works in.
   const otherStores = business.stores.filter((s) => s.id !== store.id);
 
-  return <InventoryView products={products} conversations={conversations} otherStores={otherStores} />;
+  return (
+    <InventoryView products={products} conversations={conversations} otherStores={otherStores} services={Boolean(store.services)} />
+  );
 }

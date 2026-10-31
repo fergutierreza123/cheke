@@ -7,7 +7,9 @@ export type Role = "owner" | "manager" | "agent";
 
 export const ROLE_LABEL: Record<Role, string> = { owner: "Dueño", manager: "Gerente", agent: "Agente" };
 
-export type StoreRef = { id: string; name: string; archived: boolean };
+// services: a Tienda de servicios (Tipo de negocio, migration 0049): its
+// Catálogo is called «Servicios».
+export type StoreRef = { id: string; name: string; archived: boolean; services?: boolean };
 
 // Which Tienda the screens show: one Tienda's id, or "all" (Todas las tiendas).
 export type StoreSelection = string | "all";
@@ -74,6 +76,13 @@ export function isArchivedStore(store: { archived_at: string | null } | { archiv
 // The ids of the open Tiendas this person may write to (for `.in("store_id", …)`).
 export function writableStoreIds(business: CurrentBusiness): string[] {
   return business.stores.map((s) => s.id);
+}
+
+// The Tiendas on screen right now are all Tiendas de servicios: the menu
+// says «Servicios» instead of «Catálogo».
+export function showsServices(business: CurrentBusiness): boolean {
+  const inView = business.allStores.filter((s) => business.scopeStoreIds.includes(s.id));
+  return inView.length > 0 && inView.every((s) => s.services);
 }
 
 export const ARCHIVED_STORE_READ_ONLY ="Esta tienda está archivada. Vuelve a abrirla en Administrar tiendas para hacer cambios.";

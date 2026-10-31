@@ -11,6 +11,7 @@ export {
   canManageStore,
   canWriteToStore,
   isArchivedStore,
+  showsServices,
   storeNamesForTags,
   writableStoreIds,
   type CurrentBusiness,
@@ -46,16 +47,24 @@ export const getCurrentBusiness = cache(async (): Promise<CurrentBusiness | null
   if (!business) return null;
   const role = data.role as Role;
 
-  const [{ data: storeRows }, { data: mine }] = await Promise.all([
+  const [{ data: storeRows }, { data: mine }, { data: kinds }] = await Promise.all([
     supabase
       .from("stores")
       .select("id, name, archived_at")
       .eq("business_id", business.id)
       .order("created_at", { ascending: true }),
     supabase.from("store_members").select("store_id").eq("user_id", user.id),
+    // Tipo de negocio (migration 0049); before it runs this errors → products.
+    supabase.from("store_chekelin_info").select("store_id, business_kind").eq("business_id", business.id),
   ]);
 
-  const allStores: StoreRef[] = (storeRows ?? []).map((s) => ({ id: s.id, name: s.name, archived: Boolean(s.archived_at) }));
+  const services = new Set((kinds ?? []).filter((k) => k.business_kind === "services").map((k) => k.store_id as string));
+  const allStores: StoreRef[] = (storeRows ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    archived: Boolean(s.archived_at),
+    services: services.has(s.id),
+  }));
   const memberOf = new Set((mine ?? []).map((m) => m.store_id as string));
   const open = allStores.filter((s) => !s.archived);
   const stores = role === "owner" ? open : open.filter((s) => memberOf.has(s.id));

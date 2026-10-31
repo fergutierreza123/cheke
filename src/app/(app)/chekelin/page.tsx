@@ -25,10 +25,10 @@ export default async function ChekelinInfoPage({ searchParams }: { searchParams:
   const supabase = await createClient();
   const { data } = await supabase
     .from("store_chekelin_info")
-    .select("payment_methods, shipping, delivery_hours, returns_policy, faq, address_form")
+    .select("payment_methods, shipping, delivery_hours, returns_policy, faq, address_form, business_kind, opening_hours")
     .eq("store_id", store.id)
     .maybeSingle();
-  const info: ChekelinInfo = { ...EMPTY_CHEKELIN_INFO, ...(data ?? {}) } as ChekelinInfo;
+  const info: ChekelinInfo = { ...EMPTY_CHEKELIN_INFO, business_kind: "products", opening_hours: null, ...(data ?? {}) } as ChekelinInfo;
   // The Tienda's location (Chat's "Ubicación"); hidden until migration 0034.
   const { available: locationAvailable, locations } = await getStoreLocations(supabase, [store.id]);
 

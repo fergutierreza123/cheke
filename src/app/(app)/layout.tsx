@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getCurrentBusiness } from "@/lib/business";
+import { getCurrentBusiness, showsServices } from "@/lib/business";
 import { getConversations } from "@/lib/conversations";
 import { getNotifications } from "@/lib/notifications";
 import { AppShell } from "@/components/AppShell";
@@ -56,6 +56,7 @@ export default async function AppLayout({
         notificationCount={notifications.length}
         user={userInfoFrom(user)}
         storeSwitcher={storeSwitcher}
+        services={showsServices(business)}
       >
         {welcome && <WelcomeSplash firstName={welcome.firstName} businessName={business.name} />}
         <PushRegistrar />

@@ -9,6 +9,7 @@ import { isOwnStorageUrl } from "@/lib/storageUrl";
 import { removeBackgroundToWhite } from "@/lib/images";
 import { friendlyError } from "@/lib/dbErrors";
 import { parseLempiras } from "@/lib/format";
+import { SERVICE_DURATIONS } from "@/lib/services";
 
 // Matches src/lib/shrinkPhoto.ts, which keeps uploads under Vercel's 4.5 MB
 // request limit. (Not imported: a "use server" file may only export actions.)
@@ -28,7 +29,8 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
 
   const id = String(formData.get("id") ?? "").trim() || null;
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "Ponle un nombre al producto." };
+  const services = Boolean(business.selectedStore?.services);
+  if (!name) return { error: services ? "Ponle un nombre al servicio." : "Ponle un nombre al producto." };
   if (name.length > NAME_MAX) return { error: `El nombre es muy largo (máximo ${NAME_MAX} letras).` };
 
   const category = String(formData.get("category") ?? "").trim() || null;
@@ -40,6 +42,9 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   const price = priceText ? parseLempiras(priceText) : 0;
   if (price === null || price > PRICE_MAX) return { error: "Escribe un precio válido en Lempiras, por ejemplo 1,500." };
   const visible = formData.get("visible") === "on";
+  // A Servicio needs how long it takes (the Citas use it); products have none.
+  const durationMin = services ? Number(formData.get("duration_min")) : null;
+  if (durationMin !== null && !SERVICE_DURATIONS.includes(durationMin)) return { error: "Elige cuánto dura el servicio." };
   // The photo the product already had. Only our own storage: the browser
   // could send any address, and this photo goes out to customers.
   const existingImageUrl = String(formData.get("existingImageUrl") ?? "").trim() || null;
@@ -95,7 +100,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
   if (id) {
     const { data: updated, error } = await supabase
       .from("products")
-      .update({ name, category, description, price_hnl: price, visible, image_url: imageUrl })
+      .update({ name, category, description, price_hnl: price, visible, image_url: imageUrl, ...(services ? { duration_min: durationMin } : {}) })
       .eq("id", id)
       .eq("business_id", business.id)
       .eq("store_id", storeId)
@@ -113,6 +118,7 @@ export async function saveProduct(formData: FormData): Promise<{ error?: string;
       price_hnl: price,
       visible,
       image_url: imageUrl,
+      ...(services ? { duration_min: durationMin } : {}),
     });
     if (error) return { error: friendlyError(error, "No se pudo guardar el producto. Inténtalo de nuevo.") };
   }

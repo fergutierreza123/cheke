@@ -11,6 +11,35 @@ import { ChannelIcon } from "@/components/ChannelIcon";
 import type { ConversationWithContact, Product } from "@/lib/types";
 import { BrandMark } from "@/components/BrandMark";
 import { shrinkPhotoForUpload } from "@/lib/shrinkPhoto";
+import { SERVICE_DURATIONS } from "@/lib/services";
+
+// The words of this screen: a Tienda de servicios calls it «Servicios».
+const WORDS = {
+  products: {
+    title: "Catálogo",
+    subtitle: "Productos, fotos y precios, listos para enviar directo al chat cuando pregunten",
+    one: "producto",
+    many: "productos",
+    newOne: "Nuevo producto",
+    edit: "Editar producto",
+    namePlaceholder: "Nombre del producto",
+    categoryPlaceholder: "Vestidos, bolsos, calzado…",
+    to: "al catálogo",
+    from: "del catálogo",
+  },
+  services: {
+    title: "Servicios",
+    subtitle: "Servicios, precios y duración, listos para enviar directo al chat cuando pregunten",
+    one: "servicio",
+    many: "servicios",
+    newOne: "Nuevo servicio",
+    edit: "Editar servicio",
+    namePlaceholder: "Ej. Corte de cabello",
+    categoryPlaceholder: "Cabello, uñas, consulta…",
+    to: "a tus servicios",
+    from: "de tus servicios",
+  },
+};
 
 const TILE_PALETTE = [
   { bg: "var(--color-brand-tint)", text: "var(--color-brand-dark)" },
@@ -27,6 +56,8 @@ type Draft = {
   visible: boolean;
   imageUrl: string | null;
   description: string;
+  // Minutes, Tiendas de servicios only ("" = not chosen).
+  duration: string;
 };
 const EMPTY_DRAFT: Draft = {
   id: null,
@@ -36,18 +67,23 @@ const EMPTY_DRAFT: Draft = {
   visible: true,
   imageUrl: null,
   description: "",
+  duration: "",
 };
 
 export function InventoryView({
   products,
   conversations,
   otherStores = [],
+  services = false,
 }: {
   products: Product[];
   conversations: ConversationWithContact[];
   // The person's other Tiendas, for "Copiar a otra tienda" (empty with one).
   otherStores?: StoreRef[];
+  // A Tienda de servicios: «Servicios», each with its duration.
+  services?: boolean;
 }) {
+  const w = WORDS[services ? "services" : "products"];
   const [copyingTo, setCopyingTo] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -116,7 +152,7 @@ export function InventoryView({
         result.photoWarning ??
           (draft?.id
             ? `Cambios guardados para "${draft.name}".`
-            : `Producto "${formData.get("name")}" agregado al catálogo.`),
+            : `"${formData.get("name")}" agregado ${w.to}.`),
       );
       closeDraft();
     } finally {
@@ -126,7 +162,7 @@ export function InventoryView({
 
   async function handleDelete() {
     if (!draft?.id) return;
-    if (!confirm(`¿Eliminar "${draft.name}" del catálogo? Esto no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar "${draft.name}" ${w.from}? Esto no se puede deshacer.`)) return;
     setDeleting(true);
     try {
       const result = await deleteProduct(draft.id);
@@ -134,7 +170,7 @@ export function InventoryView({
         setSaveError(result.error);
         return;
       }
-      setToast(`"${draft.name}" se eliminó del catálogo.`);
+      setToast(`"${draft.name}" se eliminó ${w.from}.`);
       closeDraft();
     } finally {
       setDeleting(false);
@@ -167,11 +203,11 @@ export function InventoryView({
       <div className="flex shrink-0 flex-col items-stretch gap-3 border-b border-border bg-surface px-4 py-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:px-8 lg:py-[18px]">
         <div>
           <h1 className="flex items-center justify-between gap-2 font-heading text-xl font-semibold text-ink">
-            Catálogo
+            {w.title}
             <BrandMark />
           </h1>
           <p className="hidden text-[13.5px] text-ink-muted sm:block">
-            Productos, fotos y precios, listos para enviar directo al chat cuando pregunten
+            {w.subtitle}
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -180,7 +216,7 @@ export function InventoryView({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar producto"
+              placeholder={`Buscar ${w.one}`}
               className="w-full rounded-lg border border-border bg-surface-2 py-2 pl-8 pr-3 text-[13.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint lg:w-56"
             />
           </div>
@@ -189,13 +225,13 @@ export function InventoryView({
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-3.5 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 lg:h-auto"
           >
             <PlusIcon className="h-3.5 w-3.5" />
-            Nuevo producto
+            {w.newOne}
           </button>
         </div>
       </div>
 
       <div className="flex shrink-0 items-stretch gap-2 px-4 pb-1 pt-3 lg:items-center lg:gap-3 lg:px-8 lg:pt-3.5">
-        <StatCard value={String(products.length)} label="productos en catálogo" />
+        <StatCard value={String(products.length)} label={`${w.many} en ${services ? "total" : "catálogo"}`} />
         <StatCard value={String(visibleCount)} label="visibles para clientes" />
         <StatCard value={String(products.length - visibleCount)} label="ocultos" />
       </div>
@@ -203,12 +239,12 @@ export function InventoryView({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 lg:px-8 lg:pt-4">
         {products.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
-            <p className="text-[13.5px] text-ink-muted">Todavía no tienes productos en tu catálogo.</p>
+            <p className="text-[13.5px] text-ink-muted">Todavía no tienes {w.many} {services ? "cargados" : "en tu catálogo"}.</p>
             <button
               onClick={() => openDraft(EMPTY_DRAFT)}
               className="mt-1 rounded-lg bg-brand-dark px-4 py-2 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
             >
-              Agregar el primer producto
+              Agregar el primer {w.one}
             </button>
           </div>
         ) : (
@@ -252,9 +288,10 @@ export function InventoryView({
                           visible: p.visible,
                           imageUrl: p.image_url,
                           description: p.description ?? "",
+                          duration: p.duration_min ? String(p.duration_min) : "",
                         });
                       }}
-                      aria-label="Editar producto"
+                      aria-label={w.edit}
                       className="absolute bottom-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-[9px] bg-white/85 text-brand-dark lg:h-6 lg:w-6 lg:rounded-[7px]"
                     >
                       <EditIcon className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
@@ -269,6 +306,7 @@ export function InventoryView({
                       <div className="font-heading text-[16px] font-bold text-brand-dark lg:text-[17px]">
                         {formatLempiras(p.price_hnl)}
                       </div>
+                      {services && p.duration_min ? <div className="text-[12px] text-ink-soft">{p.duration_min} min</div> : null}
                     </div>
                     <div className="relative mt-1.5">
                       <button
@@ -322,7 +360,7 @@ export function InventoryView({
             })}
             {filtered.length === 0 && (
               <div className="w-full py-10 text-center text-[13.5px] text-ink-soft">
-                Ningún producto coincide con esa búsqueda.
+                Ningún {w.one} coincide con esa búsqueda.
               </div>
             )}
           </div>
@@ -351,7 +389,7 @@ export function InventoryView({
               <form action={handleSave} className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <div className="font-heading text-lg font-semibold text-ink">
-                    {draft.id ? "Editar producto" : "Nuevo producto"}
+                    {draft.id ? w.edit : w.newOne}
                   </div>
                   <button
                     type="button"
@@ -366,7 +404,7 @@ export function InventoryView({
                 {draft.id && <input type="hidden" name="id" value={draft.id} />}
                 <input type="hidden" name="existingImageUrl" value={imageRemoved ? "" : (draft.imageUrl ?? "")} />
 
-                <Field label="Foto del producto">
+                <Field label={`Foto del ${w.one}`}>
                   <div className="flex items-center gap-3">
                     <input
                       id="product-image-input"
@@ -430,7 +468,7 @@ export function InventoryView({
                       name="name"
                       maxLength={150}
                       defaultValue={draft.name}
-                      placeholder="Nombre del producto"
+                      placeholder={w.namePlaceholder}
                       className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
                     />
                   </Field>
@@ -438,13 +476,32 @@ export function InventoryView({
                     <input
                       name="category"
                       defaultValue={draft.category}
-                      placeholder="Vestidos, bolsos, calzado…"
+                      placeholder={w.categoryPlaceholder}
                       className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
                     />
                   </Field>
                   <Field label="Precio (Lempiras)">
                     <PriceInput key={draft.id ?? "new"} defaultValue={draft.price} />
                   </Field>
+                  {services && (
+                    <Field label="Duración">
+                      <select
+                        name="duration_min"
+                        required
+                        defaultValue={draft.duration}
+                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand-tint"
+                      >
+                        <option value="" disabled>
+                          ¿Cuánto dura?
+                        </option>
+                        {SERVICE_DURATIONS.map((m) => (
+                          <option key={m} value={m}>
+                            {m < 60 ? `${m} min` : m % 60 === 0 ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60} min`}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
                 </div>
 
                 <Field label="Descripción (colores, tallas, material...)">
@@ -529,7 +586,7 @@ export function InventoryView({
                         <span className="hidden sm:inline">Guardar cambios</span>
                       </>
                     ) : (
-                      "Guardar producto"
+                      `Guardar ${w.one}`
                     )}
                   </button>
                 </div>

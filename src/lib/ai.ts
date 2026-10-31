@@ -1,10 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { AddressForm, ChekelinInfo, Message, Product, Template, TemplateCategory } from "@/lib/types";
+import type { AddressForm, ChekelinInfo, ChekelinTextField, Message, Product, Template, TemplateCategory } from "@/lib/types";
 import { formatLempiras } from "@/lib/format";
 import { hasStoreLocation, type StoreLocation } from "@/lib/storeLocation";
 import { hondurasTimeLine } from "@/lib/chekelinState";
 import { usageRecords, type UsageRecord } from "@/lib/chekelinCost";
 import { clampTeamSummary } from "@/lib/conversationNotes";
+import { openingHoursText } from "@/lib/services";
 
 // chekelin: the AI assistant that answers customers and sells on its own
 // (answers, sends product photos, takes the order, sends the payment
@@ -96,7 +97,7 @@ export function productRefs(products: Product[]): ProductRef[] {
     .map((product, i) => ({ ref: `P${i + 1}`, product }));
 }
 
-const INFO_FIELDS: Array<{ key: keyof Omit<ChekelinInfo, "address_form">; label: string }> = [
+const INFO_FIELDS: Array<{ key: ChekelinTextField; label: string }> = [
   { key: "payment_methods", label: "Formas de pago" },
   { key: "shipping", label: "Envíos" },
   { key: "delivery_hours", label: "Horario de entregas" },
@@ -115,14 +116,19 @@ function knowledge(
   const address = location?.address.trim() || (location && hasStoreLocation(location) ? "(solo el pin del mapa)" : "");
   const about = [
     ...INFO_FIELDS.map(({ key, label }) => `${label}: ${info[key].trim() || "(no hay información)"}`),
+    // The weekly form (migration 0049); the free text above may add details.
+    `Horario de atención: ${openingHoursText(info.opening_hours) || "(no hay información)"}`,
     `Ubicación de la tienda: ${address || "(no hay información)"}`,
   ].join("\n");
 
   // Products are informative only: no stock (the Tienda doesn't keep it up to
   // date), so chekelin never says something is or isn't available in stock.
+  // A Tienda de servicios lists its Servicios with how long each one takes.
+  const services = info.business_kind === "services";
   const catalog = refs
     .map(({ ref, product: p }) => {
-      const line = `- ${ref} · ${p.name}${p.category ? ` (${p.category})` : ""}: ${formatLempiras(p.price_hnl)}${p.image_url ? " [tiene foto]" : ""}`;
+      const minutes = services && p.duration_min ? `, ${p.duration_min} min` : "";
+      const line = `- ${ref} · ${p.name}${p.category ? ` (${p.category})` : ""}: ${formatLempiras(p.price_hnl)}${minutes}${p.image_url ? " [tiene foto]" : ""}`;
       // Colors, sizes, materials… live in the description (no variants schema).
       return p.description ? `${line}\n  Detalles: ${p.description}` : line;
     })
@@ -137,8 +143,8 @@ function knowledge(
     "## Lo que sabes del negocio",
     about,
     "",
-    "## Catálogo",
-    catalog || "(todavía no hay productos cargados)",
+    services ? "## Servicios" : "## Catálogo",
+    catalog || (services ? "(todavía no hay servicios cargados)" : "(todavía no hay productos cargados)"),
     "",
     "## Respuestas que usa el equipo (Plantillas; úsalas como información y referencia de tono)",
     templateNotes || "(ninguna)",
@@ -284,6 +290,9 @@ export function sellerPrompt(input: {
     "- Usa SOLO la información de abajo. Nunca inventes precios, productos, costos de envío, plazos ni políticas.",
     '- Aplica la información aunque no nombre el caso exacto: si Envíos dice "resto del país L 150", eso vale para cualquier ciudad de Honduras que no esté en la lista (Choluteca, La Ceiba, Juticalpa…); no lo pases al equipo. Los nombres de ciudades pueden venir mal escritos ("cholu teca", "sampedro"): entiéndelos.',
     "- El catálogo es informativo: no sabes cuántas unidades hay. No digas que algo está agotado ni cuántas quedan.",
+    ...(input.info.business_kind === "services"
+      ? ['- Este negocio da servicios (salón, clínica, taller…), no vende productos: su lista se llama "Servicios" y cada uno trae precio y duración. Habla de servicios, no de productos.']
+      : []),
     '- Al final de la conversación hay una línea "Ahora en Honduras: …" con el día y la hora actuales. Úsala cuando importe: si preguntan si están abiertos o si pueden pasar ahorita, compara con el horario de la información; si ya cerró, dilo y ofrece cuándo puede pasar (por ejemplo "mañana desde las 9") o tomarle el pedido con envío. No menciones la hora si no viene al caso.',
     '- Ubicación: si preguntan dónde están, cómo llegar o la dirección, y "Ubicación de la tienda" tiene información, da la dirección en tu mensaje (corta, con el horario si viene al caso) y pon send_location = true: el sistema manda el mapa justo después de tu primer mensaje. No escribas links. Si no hay ubicación guardada, es falta_info.',
     '- Si algo no está en la información, NO digas que no se puede o que no lo tienen (por ejemplo, nunca "no manejamos contra entrega" si no lo dice). Di en messages, natural y corto, que eso se lo confirmas ("eso te lo confirmo ya"), sigue ayudando con lo demás que preguntó (precio, fotos, tallas) y usa action = "handoff" con handoff_reason = "falta_info". En ese caso tú sigues atendiendo: el equipo recibe la pregunta y le responde. En team_summary escribe la pregunta exacta que no supiste contestar.',

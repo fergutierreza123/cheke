@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { DEFAULT_NAV_ITEMS } from "./Sidebar";
+import { navItems } from "./Sidebar";
 import { initialsFor } from "@/lib/format";
 import { signOut } from "@/app/(app)/account/actions";
 import type { UserInfo } from "@/lib/user";
@@ -20,6 +20,7 @@ export function MobileNav({
   basePath = "",
   user,
   storeSwitcher = null,
+  services = false,
 }: {
   businessName: string;
   notificationCount?: number;
@@ -28,13 +29,15 @@ export function MobileNav({
   basePath?: string;
   user: UserInfo;
   storeSwitcher?: StoreSwitcherProps | null;
+  services?: boolean;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const prefersReducedMotion = useReducedMotion();
 
-  const primary = PRIMARY.map((href) => DEFAULT_NAV_ITEMS.find((i) => i.href === href)!);
-  const more = DEFAULT_NAV_ITEMS.filter((i) => !PRIMARY.includes(i.href));
+  const all = navItems(services);
+  const primary = PRIMARY.map((href) => all.find((i) => i.href === href)!);
+  const more = all.filter((i) => !PRIMARY.includes(i.href));
   const moreActive = more.some((i) => pathname.startsWith(basePath + i.href)) || pathname.startsWith(basePath + "/account");
   const isDemo = basePath !== "";
 

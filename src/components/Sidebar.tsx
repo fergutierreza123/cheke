@@ -24,6 +24,11 @@ export const DEFAULT_NAV_ITEMS = [
   { href: "/analytics", label: "Analítica", icon: ChartIcon },
 ];
 const DEFAULT_ORDER = DEFAULT_NAV_ITEMS.map((i) => i.href);
+
+// The menu for what's on screen: a Tienda de servicios calls its Catálogo «Servicios».
+export function navItems(services: boolean) {
+  return DEFAULT_NAV_ITEMS.map((i) => (services && i.href === "/inventory" ? { ...i, label: "Servicios" } : i));
+}
 const NAV_ORDER_KEY = "cheke-nav-order";
 
 export function Sidebar({
@@ -31,11 +36,13 @@ export function Sidebar({
   notificationCount = 0,
   user,
   storeSwitcher = null,
+  services = false,
 }: {
   businessName: string;
   notificationCount?: number;
   user: UserInfo;
   storeSwitcher?: StoreSwitcherProps | null;
+  services?: boolean;
 }) {
   const pathname = usePathname();
   const prefersReducedMotion = useReducedMotion();
@@ -70,8 +77,9 @@ export function Sidebar({
     }
   }
 
+  const all = navItems(services);
   const items = order
-    .map((href) => DEFAULT_NAV_ITEMS.find((i) => i.href === href))
+    .map((href) => all.find((i) => i.href === href))
     .filter((i): i is (typeof DEFAULT_NAV_ITEMS)[number] => Boolean(i));
 
   return (
